@@ -1,0 +1,29 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { getSecret } from '../config/secrets.js';
+
+let client;
+
+/**
+ * Singleton Anthropic client. Key comes from Secret Manager (or env var in
+ * local dev via USE_LOCAL_SECRETS), never hardcoded or passed around raw.
+ */
+export async function getAnthropicClient() {
+  if (client) return client;
+  const apiKey = await getSecret('ANTHROPIC_API_KEY');
+  client = new Anthropic({ apiKey });
+  return client;
+}
+
+// Pricing per million tokens (USD). Update when Anthropic changes pricing or
+// new models are added — used only for our own cost tracking, not billing.
+export const MODEL_PRICING_PER_MTOK = {
+  'claude-sonnet-5': { input: 3, output: 15 },
+  'claude-opus-5': { input: 15, output: 75 },
+  'claude-haiku-4-5-20251001': { input: 1, output: 5 },
+};
+
+export function estimateCostUsd(model, inputTokens, outputTokens) {
+  const pricing = MODEL_PRICING_PER_MTOK[model];
+  if (!pricing) return null;
+  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+}

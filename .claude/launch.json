@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "PORT=8095 npm --prefix backend run dev"],
+      "port": 8095
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "BACKEND_URL=http://localhost:8095 npm --prefix frontend run dev"],
+      "port": 3000
+    }
+  ]
+}
