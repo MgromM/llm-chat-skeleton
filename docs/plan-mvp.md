@@ -73,7 +73,7 @@ salesmore-llm/
 
 ## Kluczowe decyzje projektowe
 
-- **Auth**: własny JWT (`jsonwebtoken`), tabela `users` w Postgresie, hash hasła (`bcrypt`), brak SSO w MVP — dopisane jako TODO na przyszłość (Google Workspace OAuth, wzorem `GoogleJWTAuthentication` z pongo, gdyby firma chciała ujednolicić logowanie).
+- **Auth**: własny JWT (`jsonwebtoken`), tabela `users` w Postgresie, hash hasła (`bcrypt`). **Google Workspace OAuth dodane (2026-09-14)** jako alternatywna ścieżka logowania obok e-mail+hasło — patrz „Status weryfikacji MVP” niżej.
 - **Metryki jakości**: po każdej odpowiedzi Claude, osobne, tanie wywołanie (np. Claude Haiku) jako "sędzia" — ocenia trafność/pomocność w skali 1–5 z uzasadnieniem, zapisywane do `quality_scores`. To pozwala liczyć średnią jakość vs. koszt per okres/per komenda i realnie porównać z subskrypcją enterprise.
 - **Metryki kosztu**: Anthropic API zwraca `usage.input_tokens`/`usage.output_tokens` w każdej odpowiedzi — zapisujemy per wiadomość razem z ceną modelu (tabela cennika w konfiguracji, aktualizowana ręcznie), agregujemy per user/dzień/miesiąc.
 - **MCP**: BigQuery jako pierwszy serwer MCP (via `@modelcontextprotocol/sdk`), rejestrowany w kliencie Anthropic jako tool. Google Ads/DV360 jako kolejne MCP servery później, wzorem istniejących klientów Node w innych repo firmy — struktura folderu `services/mcp/` ma być łatwo rozszerzalna o kolejne serwery.
@@ -624,6 +624,53 @@ Jeszcze do zweryfikowania:
   (4) powtórzyć test e2e indeksowania dokumentu wiedzy (patrz notatka wyżej
   o audycie z 2026-09-11 — batch insert w `indexDocument()` już
   zweryfikowany kodem, brakuje tylko przepuszczenia z realnym kluczem).
+
+- **Dodane (2026-09-14): Google Workspace OAuth ("Zaloguj się przez Google"),
+  wzorem `GoogleJWTAuthentication` z pongo-monorepo, uproszczone do jednego
+  JWT.** Wzorzec sprawdzony bezpośrednio w kodzie pongo (bridge do sesji
+  sigma był akurat niedostępny — `fetch failed` na `mcp__sigma-bridge`) w
+  `backend/pongo/api/auth/{authentications,views,helpers}.py` na dysku
+  lokalnym (`/Users/michalgrom/Desktop/pongo-monorepo`). Kluczowa decyzja
+  przeniesiona z pongo: **brak self-signup przez Google** — logowanie
+  działa tylko dla e-maila, który już ma konto w tabeli `users` (dopasowanie
+  po `email`); brak konta → redirect na front z `?error=no_access`. Zero
+  zmian w schemacie bazy.
+  Nowe pliki/endpointy:
+  - [backend/src/config/googleOAuth.js](../backend/src/config/googleOAuth.js)
+    — wymiana kodu na token, walidacja `id_token` (audience + wygaśnięcie).
+  - `GET /auth/google/login-url`, `GET /auth/google/callback` (wymienia kod,
+    szuka usera po e-mailu, jeśli istnieje — wystawia zwykły JWT tym samym
+    `jwt.sign(...)` co `/auth/login`, redirect na front z `?token=`),
+    `GET /auth/me` (nowy, potrzebny frontendowi po powrocie z Google, żeby
+    dociągnąć `{id,email,role}` do `AuthContext`) —
+    [auth.routes.js](../backend/src/routes/auth.routes.js).
+  - Front: przycisk „Zaloguj się przez Google” w
+    [login/page.tsx](../frontend/src/app/login/page.tsx), nowa strona
+    [auth/callback/page.tsx](../frontend/src/app/auth/callback/page.tsx)
+    (odbiera `?token=`/`?error=`, woła `api.me()`, zapisuje sesję, redirect
+    do `/chat`).
+  - Nowe zmienne env (`backend/.env.example`): `GOOGLE_OAUTH_CLIENT_ID`,
+    `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URL`, `FRONTEND_URL`.
+  **Zweryfikowane lokalnie w przeglądarce**: strona logowania renderuje
+  przycisk; kliknięcie poprawnie buduje URL i przekierowuje do prawdziwego
+  `accounts.google.com` (błąd 400 tam to tylko placeholder `client_id` z
+  `.env.example` — oczekiwane bez realnych danych); strona callbacku
+  poprawnie obsługuje `?error=no_access` (czytelny komunikat + link powrotny
+  do loginu).
+  **Niezweryfikowane end-to-end — brak prawdziwych danych OAuth.** Do
+  zrobienia przy wznowieniu:
+  1. Utworzyć OAuth client w Google Cloud Console (ten sam projekt GCP co
+     reszta infry, gdy powstanie — patrz „Deploy na GCP” niżej) z
+     `GOOGLE_OAUTH_REDIRECT_URL` jako authorized redirect URI.
+  2. Wpisać realne `GOOGLE_OAUTH_CLIENT_ID`/`SECRET` (lokalnie w `.env`, na
+     Railway jako `railway variables --service backend --set ...`).
+  3. Pełny test end-to-end: kliknięcie „Zaloguj się przez Google” →
+     zgoda Google → redirect na `/auth/callback?token=...` → sesja
+     zapisana → `/chat` renderuje się zalogowany.
+  4. Nadal do ustalenia z użytkownikiem: dodać `GOOGLE_OAUTH_*`/
+     `FRONTEND_URL` do configu deployu (`deploy/deploy.sh`,
+     `.github/workflows/deploy.yml`, Railway) — odłożone, użytkownik miał
+     jeszcze zdecydować, czy robić to teraz czy ręcznie w konsoli.
 
 ## Priorytety (kolejność realizacji)
 

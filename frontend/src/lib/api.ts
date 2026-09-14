@@ -125,6 +125,8 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 export const api = {
   login: (email: string, password: string) =>
     apiFetch<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  googleLoginUrl: () => apiFetch<{ url: string }>('/auth/google/login-url'),
+  me: () => apiFetch<LoginResponse['user']>('/auth/me'),
   listConversations: () => apiFetch<{ id: number; title: string | null; created_at: string }[]>('/chat/conversations'),
   createConversation: (title?: string) =>
     apiFetch<{ id: number; title: string | null }>('/chat/conversations', {

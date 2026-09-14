@@ -11,7 +11,8 @@
       "name": "frontend",
       "runtimeExecutable": "bash",
       "runtimeArgs": ["-c", "BACKEND_URL=http://localhost:8095 npm --prefix frontend run dev"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
