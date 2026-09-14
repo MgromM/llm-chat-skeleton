@@ -1,6 +1,10 @@
 import { pomocCommand } from './commands/pomoc.js';
 import { kosztDzisiajCommand } from './commands/kosztDzisiaj.js';
 import { analizaBigqueryCommand } from './commands/analizaBigquery.js';
+import { briefKreatywnyCommand } from './commands/briefKreatywny.js';
+import { tekstReklamowyCommand } from './commands/tekstReklamowy.js';
+import { pomyslyNaPostyCommand } from './commands/pomyslyNaPosty.js';
+import { analizaKonkurencjiCommand } from './commands/analizaKonkurencji.js';
 
 // Central slash-command registry, mirroring the bypass/continue split used in
 // the sister pongo-monorepo project's slash_dispatch.py:
@@ -10,6 +14,10 @@ const COMMANDS = {
   '/pomoc': pomocCommand,
   '/koszt-dzisiaj': kosztDzisiajCommand,
   '/analiza-bigquery': analizaBigqueryCommand,
+  '/brief-kreatywny': briefKreatywnyCommand,
+  '/tekst-reklamowy': tekstReklamowyCommand,
+  '/pomysly-na-posty': pomyslyNaPostyCommand,
+  '/analiza-konkurencji': analizaKonkurencjiCommand,
 };
 
 export function parseCommand(rawMessage) {

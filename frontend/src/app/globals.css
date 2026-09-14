@@ -2,6 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
+@font-face {
+  font-family: 'Selawik';
+  src: url('/fonts/selawik-light.woff2') format('woff2');
+  font-weight: 300 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Selawik';
+  src: url('/fonts/selawik-bold.woff2') format('woff2');
+  font-weight: 600 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
 body {
-  @apply bg-brand-lavender text-brand-dark;
+  @apply bg-brand-white text-brand-dark font-sans;
+}
+
+:focus-visible {
+  outline: 2px solid #f8502c;
+  outline-offset: 2px;
+}
+
+::selection {
+  background-color: rgba(248, 80, 44, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Thin, unobtrusive scrollbars that still read on white */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #edecf1 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: #ededf1;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: #dcdce3;
 }

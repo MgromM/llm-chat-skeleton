@@ -5,6 +5,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Sales&More LLM',
   description: 'Wewnętrzny asystent AI dla specjalistów Sales&More',
+  icons: { icon: '/logo-salesmore.png' },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -3,11 +3,20 @@ export interface LoginResponse {
   user: { id: number; email: string; role: string };
 }
 
+export interface Attachment {
+  id: number;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+}
+
 export interface ChatMessage {
   id: number;
   role: string;
   content: string;
   created_at: string;
+  attachments?: Attachment[];
+  commandUsed?: string | null;
 }
 
 export interface CostRow {
@@ -24,6 +33,17 @@ export interface QualityRow {
   scored_messages: string;
 }
 
+export interface KnowledgeDocument {
+  id: number;
+  title: string;
+  filename: string;
+  mime_type: string;
+  size_bytes: number;
+  created_at: string;
+  uploaded_by_email: string;
+  chunk_count: number;
+}
+
 export interface EnterpriseComparison {
   periodFrom: string;
   periodTo: string;
@@ -34,6 +54,10 @@ export interface EnterpriseComparison {
   cheaperOption: 'our_tool' | 'enterprise' | null;
 }
 
+// Streaming chat calls go straight to the backend, bypassing Next's
+// rewrite proxy — that proxy drops long-lived SSE connections mid-stream.
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? '';
+
 function authHeaders(): Record<string, string> {
   if (typeof window === 'undefined') return {};
   const token = localStorage.getItem('token');
@@ -41,6 +65,49 @@ function authHeaders(): Record<string, string> {
 }
 
 export class ApiError extends Error {}
+
+export interface StreamResult {
+  reply: string;
+  messageId: number;
+  commandUsed: string | null;
+  blocked?: boolean;
+}
+
+export interface StreamHandlers {
+  onDelta?: (text: string) => void;
+  onDone?: (result: StreamResult) => void;
+  onError?: (message: string) => void;
+}
+
+/**
+ * Reads a `text/event-stream` response body (our chat SSE format: `delta`
+ * chunks, one final `done`, or an `error`) and dispatches to the handlers as
+ * events arrive — used by send/edit/regenerate, which all stream a reply.
+ */
+async function consumeSseResponse(res: Response, handlers: StreamHandlers) {
+  if (!res.ok || !res.body) {
+    const body = await res.json().catch(() => ({}));
+    throw new ApiError(body.error ?? `Request failed: ${res.status}`);
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop() ?? '';
+    for (const part of parts) {
+      const line = part.trim();
+      if (!line.startsWith('data:')) continue;
+      const payload = JSON.parse(line.slice(5).trim());
+      if (payload.type === 'delta') handlers.onDelta?.(payload.text);
+      else if (payload.type === 'done') handlers.onDone?.(payload);
+      else if (payload.type === 'error') handlers.onError?.(payload.error);
+    }
+  }
+}
 
 /** Generic fetcher, also used directly as the SWR fetcher function. */
 export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -66,11 +133,69 @@ export const api = {
     }),
   listMessages: (conversationId: number) =>
     apiFetch<ChatMessage[]>(`/chat/conversations/${conversationId}/messages`),
-  sendMessage: (conversationId: number, message: string) =>
-    apiFetch<{ reply: string; messageId: number; commandUsed: string | null }>(
-      `/chat/conversations/${conversationId}/messages`,
-      { method: 'POST', body: JSON.stringify({ message }) },
-    ),
+  sendMessageStream: async (
+    conversationId: number,
+    message: string,
+    files: File[] = [],
+    handlers: StreamHandlers,
+    signal?: AbortSignal,
+  ) => {
+    const form = new FormData();
+    form.append('message', message);
+    for (const file of files) form.append('files', file);
+    const res = await fetch(`${BACKEND_URL}/chat/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form,
+      signal,
+    });
+    return consumeSseResponse(res, handlers);
+  },
+  editMessageStream: async (
+    conversationId: number,
+    messageId: number,
+    content: string,
+    handlers: StreamHandlers,
+    signal?: AbortSignal,
+  ) => {
+    const res = await fetch(`${BACKEND_URL}/chat/conversations/${conversationId}/messages/${messageId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ content }),
+      signal,
+    });
+    return consumeSseResponse(res, handlers);
+  },
+  regenerateMessageStream: async (
+    conversationId: number,
+    messageId: number,
+    handlers: StreamHandlers,
+    signal?: AbortSignal,
+  ) => {
+    const res = await fetch(`${BACKEND_URL}/chat/conversations/${conversationId}/messages/${messageId}/regenerate`, {
+      method: 'POST',
+      headers: authHeaders(),
+      signal,
+    });
+    return consumeSseResponse(res, handlers);
+  },
+  attachmentUrl: (attachmentId: number) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return `/api/chat/attachments/${attachmentId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
+  listKnowledgeDocuments: () => apiFetch<KnowledgeDocument[]>('/knowledge/documents'),
+  uploadKnowledgeDocument: async (file: File, title?: string) => {
+    const form = new FormData();
+    form.append('file', file);
+    if (title) form.append('title', title);
+    const res = await fetch('/api/knowledge/documents', { method: 'POST', headers: authHeaders(), body: form });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(body.error ?? `Request failed: ${res.status}`);
+    }
+    return res.json() as Promise<{ id: number; chunkCount: number }>;
+  },
+  deleteKnowledgeDocument: (id: number) => apiFetch<{ ok: true }>(`/knowledge/documents/${id}`, { method: 'DELETE' }),
   costSummary: () => apiFetch<CostRow[]>('/metrics/costs'),
   qualitySummary: () => apiFetch<QualityRow[]>('/metrics/quality'),
   enterpriseComparison: () => apiFetch<EnterpriseComparison>('/metrics/enterprise-comparison'),

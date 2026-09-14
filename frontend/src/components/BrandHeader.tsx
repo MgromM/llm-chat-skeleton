@@ -1,31 +1,33 @@
 'use client';
 
+import Image from 'next/image';
 import { LogOut } from 'lucide-react';
-import clsx from 'clsx';
 import { useAuth } from '@/lib/AuthContext';
 
 export function BrandHeader() {
   const { user, logout } = useAuth();
 
   return (
-    <header className="flex items-center justify-between bg-brand-dark px-6 py-4 font-extrabold tracking-wide text-brand-white">
-      <span>
-        SALES<span className="text-brand-orange">&amp;</span>MORE — LLM
-      </span>
+    <header className="flex h-16 shrink-0 items-center justify-between bg-brand-orange px-6">
+      <div className="flex items-center gap-3">
+        <div className="rounded-lg bg-brand-white px-3 py-1.5">
+          <Image src="/logo-salesmore.png" alt="Sales&More" width={140} height={23} priority className="h-5 w-auto" />
+        </div>
+        <span className="hidden text-sm font-medium text-brand-white/90 sm:inline">LLM</span>
+      </div>
       {user && (
-        <span className="flex items-center gap-3 text-sm font-normal">
-          {user.email} ({user.role})
+        <div className="flex items-center gap-3">
+          <span className="hidden text-sm text-brand-white/90 sm:inline">
+            {user.email} <span className="text-brand-white/60">· {user.role}</span>
+          </span>
           <button
             onClick={logout}
-            className={clsx(
-              'flex items-center gap-1 rounded-md bg-brand-orange px-3 py-1.5 font-bold text-brand-white',
-              'hover:brightness-95',
-            )}
+            className="flex h-9 items-center gap-1.5 rounded-lg border border-brand-white/30 px-3 text-sm font-medium text-brand-white transition hover:bg-brand-white/10"
           >
-            <LogOut size={16} />
+            <LogOut size={15} />
             Wyloguj
           </button>
-        </span>
+        </div>
       )}
     </header>
   );
