@@ -1,21 +1,34 @@
+// One-off bootstrap: creates the first admin account so someone can log in
+// and start using POST /register for everyone else. Run with:
+//   SEED_ADMIN_EMAIL=you@salesmore.pl npm run seed:admin
 import 'dotenv/config';
+import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 import { pool } from '../config/db.js';
+import { logger } from '../config/logger.js';
 
-// One-off script to bootstrap the first admin account, since /auth/register
-// requires an existing admin. Usage: node src/db/seedAdmin.js <email> <password>
-const [, , email, password] = process.argv;
+async function run() {
+  const email = process.env.SEED_ADMIN_EMAIL;
+  if (!email) {
+    throw new Error('SEED_ADMIN_EMAIL env var is required');
+  }
 
-if (!email || !password) {
-  console.error('Usage: node src/db/seedAdmin.js <email> <password>');
-  process.exit(1);
+  const password = crypto.randomBytes(32).toString('hex');
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  const { rows } = await pool.query(
+    `INSERT INTO users (email, password_hash, role)
+     VALUES ($1, $2, 'admin')
+     ON CONFLICT (email) DO UPDATE SET role = 'admin'
+     RETURNING id, email, role`,
+    [email, passwordHash],
+  );
+
+  logger.info('Admin user ready', { user: rows[0] });
+  await pool.end();
 }
 
-const passwordHash = await bcrypt.hash(password, 12);
-await pool.query(
-  `INSERT INTO users (email, password_hash, role) VALUES ($1, $2, 'admin')
-   ON CONFLICT (email) DO UPDATE SET password_hash = EXCLUDED.password_hash, role = 'admin'`,
-  [email, passwordHash],
-);
-console.log(`Admin account ready: ${email}`);
-await pool.end();
+run().catch((err) => {
+  logger.error('Seed admin failed', { error: err.message });
+  process.exit(1);
+});
