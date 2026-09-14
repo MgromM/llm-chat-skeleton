@@ -14,4 +14,4 @@ RUN addgroup -S app && adduser -S app -G app
 USER app
 
 EXPOSE 8080
-CMD ["node", "src/server.js"]
+CMD ["sh", "-c", "npm run migrate && node src/server.js"]
