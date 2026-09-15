@@ -4,22 +4,6 @@
 
 @import 'highlight.js/styles/github-dark.css';
 
-@font-face {
-  font-family: 'Selawik';
-  src: url('/fonts/selawik-light.woff2') format('woff2');
-  font-weight: 300 400;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Selawik';
-  src: url('/fonts/selawik-bold.woff2') format('woff2');
-  font-weight: 600 800;
-  font-style: normal;
-  font-display: swap;
-}
-
 html {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

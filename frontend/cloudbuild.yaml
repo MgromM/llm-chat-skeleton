@@ -1,0 +1,13 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - '--build-arg'
+      - 'BACKEND_URL=${_BACKEND_URL}'
+      - '--build-arg'
+      - 'NEXT_PUBLIC_BACKEND_URL=${_BACKEND_URL}'
+      - '-t'
+      - '${_IMAGE}'
+      - '.'
+images:
+  - '${_IMAGE}'

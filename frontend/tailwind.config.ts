@@ -20,10 +20,15 @@ const config: Config = {
         },
       },
       fontFamily: {
-        // Brand font is Segoe UI (native on Windows, where the team works).
-        // Selawik is Microsoft's free metric-compatible substitute for
-        // non-Windows rendering (SIL OFL, files in public/fonts).
-        sans: ['"Segoe UI"', 'Selawik', 'system-ui', '-apple-system', 'sans-serif'],
+        // Brand body font per BrandGuidelines is Lazare Grotesk. We don't
+        // hold a license/font files for it, so we use Inter — the closest
+        // free equivalent (same clean geometric grotesk proportions) —
+        // loaded via next/font/google in app/layout.tsx.
+        sans: ['var(--font-inter)', 'system-ui', '-apple-system', 'sans-serif'],
+        // Brand headline font per BrandGuidelines is PP Formula (tall,
+        // condensed, bold display grotesk). Anton is the closest free
+        // equivalent, loaded via next/font/google in app/layout.tsx.
+        display: ['var(--font-anton)', 'system-ui', '-apple-system', 'sans-serif'],
       },
       borderRadius: {
         xl: '0.875rem',

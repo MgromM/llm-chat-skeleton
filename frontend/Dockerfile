@@ -13,6 +13,14 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # a runtime service variable) or it silently falls back to localhost:8080.
 ARG BACKEND_URL
 ENV BACKEND_URL=$BACKEND_URL
+# lib/api.ts reads NEXT_PUBLIC_BACKEND_URL to send streaming chat requests
+# straight to the backend, bypassing the /api/* rewrite (which drops
+# long-lived SSE connections mid-stream). NEXT_PUBLIC_* vars are inlined
+# into the client bundle at build time, so this must also be a build arg —
+# a runtime-only service variable is silently ignored and every send fails
+# with a 404.
+ARG NEXT_PUBLIC_BACKEND_URL
+ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
 RUN npm run build
 
 FROM node:20-alpine

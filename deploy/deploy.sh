@@ -41,7 +41,13 @@ BACKEND_URL="$(gcloud run services describe salesmore-llm-backend \
 echo "Backend URL: ${BACKEND_URL}"
 
 echo "== Buduję i wypycham obraz frontendu =="
-gcloud builds submit frontend --tag "${FRONTEND_IMAGE}" --project "${PROJECT_ID}"
+# Frontend build needs BACKEND_URL as a build arg (Next.js /api/* rewrite
+# destination and, crucially, NEXT_PUBLIC_BACKEND_URL for the client-side SSE
+# calls) — plain `--tag` doesn't pass build args, so use the explicit config.
+gcloud builds submit frontend \
+  --config frontend/cloudbuild.yaml \
+  --substitutions "_BACKEND_URL=${BACKEND_URL},_IMAGE=${FRONTEND_IMAGE}" \
+  --project "${PROJECT_ID}"
 
 echo "== Wdrażam frontend na Cloud Run =="
 gcloud run deploy salesmore-llm-frontend \
