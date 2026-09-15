@@ -18,6 +18,7 @@ import {
 } from '../attachments/attachmentStore.js';
 
 const CHAT_MODEL = process.env.CHAT_MODEL ?? 'claude-sonnet-5';
+const JUDGE_MODEL = process.env.JUDGE_MODEL ?? 'claude-haiku-4-5-20251001';
 const TOOLS = [bigQueryTool, knowledgeSearchTool];
 
 async function runTool(toolUse) {
@@ -26,6 +27,11 @@ async function runTool(toolUse) {
   throw new Error(`Unknown tool: ${toolUse.name}`);
 }
 const MAX_HISTORY_MESSAGES = 20;
+// Once history grows past this many messages, everything older than the
+// last MAX_HISTORY_MESSAGES gets collapsed into one summary turn instead of
+// being dropped outright — keeps long conversations coherent without
+// sending the whole transcript on every request.
+const SUMMARY_THRESHOLD = 30;
 const MAX_TOOL_ROUNDS = 8;
 const TITLE_MAX_LENGTH = 60;
 const BLOCKED_REPLY = 'Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych (wykryto potencjalnie wrażliwe dane) i nie została wysłana do modelu AI. Jeśli to pomyłka, skontaktuj się z administratorem.';
@@ -95,6 +101,31 @@ async function loadMessageAttachments(messageId) {
  * `beforeId`, when given, stops history before that message id (used by
  * regenerate/edit, which reconstruct history up to a specific point).
  */
+/**
+ * Collapses older messages that would otherwise be dropped into a single
+ * short summary, via one cheap model call, so long conversations keep their
+ * earlier context instead of losing it outright past the history cutoff.
+ */
+async function summarizeOlderMessages(olderRows) {
+  const transcript = olderRows
+    .map((r) => `${r.role === 'user' ? 'Użytkownik' : 'Asystent'}: ${r.content}`)
+    .join('\n\n')
+    .slice(0, 20_000);
+
+  const client = await getAnthropicClient();
+  const response = await client.messages.create({
+    model: JUDGE_MODEL,
+    max_tokens: 400,
+    messages: [
+      {
+        role: 'user',
+        content: `Podsumuj poniższy fragment rozmowy w kilku zdaniach po polsku, zachowując kluczowe fakty, decyzje i kontekst potrzebny do kontynuowania rozmowy. Nie dodawaj komentarzy, zwróć sam tekst podsumowania.\n\n${transcript}`,
+      },
+    ],
+  });
+  return response.content.find((b) => b.type === 'text')?.text?.trim() ?? '';
+}
+
 async function loadHistory(conversationId, { beforeId } = {}) {
   const { rows } = await query(
     beforeId
@@ -102,7 +133,31 @@ async function loadHistory(conversationId, { beforeId } = {}) {
       : 'SELECT id, role, content FROM messages WHERE conversation_id = $1 ORDER BY id ASC',
     beforeId ? [conversationId, beforeId] : [conversationId],
   );
-  return rows.slice(-MAX_HISTORY_MESSAGES).map((r) => ({ role: r.role, content: r.content }));
+
+  if (rows.length <= SUMMARY_THRESHOLD) {
+    return rows.slice(-MAX_HISTORY_MESSAGES).map((r) => ({ role: r.role, content: r.content }));
+  }
+
+  let recentRows = rows.slice(-MAX_HISTORY_MESSAGES);
+  // The pseudo-turns below end on 'assistant', so the kept window must start
+  // on 'user' to keep strict user/assistant alternation for the API.
+  const firstUserIndex = recentRows.findIndex((r) => r.role === 'user');
+  if (firstUserIndex > 0) recentRows = recentRows.slice(firstUserIndex);
+  const olderRows = rows.slice(0, rows.length - recentRows.length);
+  let summary;
+  try {
+    summary = await summarizeOlderMessages(olderRows);
+  } catch {
+    // Best-effort: if summarization fails, fall back to the old hard cutoff
+    // rather than blocking the turn.
+    return recentRows.map((r) => ({ role: r.role, content: r.content }));
+  }
+
+  return [
+    { role: 'user', content: `[Podsumowanie wcześniejszej części rozmowy]\n${summary}` },
+    { role: 'assistant', content: 'Rozumiem, będę pamiętać ten kontekst.' },
+    ...recentRows.map((r) => ({ role: r.role, content: r.content })),
+  ];
 }
 
 async function maybeSetConversationTitle(conversationId, text) {
