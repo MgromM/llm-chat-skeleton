@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import 'highlight.js/styles/github-dark.css';
+
 @font-face {
   font-family: 'Selawik';
   src: url('/fonts/selawik-light.woff2') format('woff2');

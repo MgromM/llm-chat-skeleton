@@ -5,6 +5,7 @@ import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Downl
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
 import { api, type Attachment, type ChatMessage } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
@@ -55,7 +56,7 @@ function ArtifactPanel({ artifact, onClose }: { artifact: Artifact; onClose: () 
       </div>
       <div className="flex-1 overflow-y-auto px-5 py-4">
         <div className="prose prose-sm max-w-none text-brand-dark">
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{artifact.content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{artifact.content}</ReactMarkdown>
         </div>
       </div>
       <div className="border-t border-brand-border px-5 py-3">
@@ -412,7 +413,7 @@ function ChatView() {
                               : 'max-w-full text-brand-dark',
                           )}
                         >
-                          <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{m.content}</ReactMarkdown>
                         </div>
                       )
                     )}
@@ -446,7 +447,7 @@ function ChatView() {
               {sending && (
                 <div className="prose prose-sm max-w-full leading-relaxed text-brand-dark">
                   {streamingText ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingText}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{streamingText}</ReactMarkdown>
                   ) : (
                     <div className="flex items-center gap-2 text-brand-dark/50">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-orange" />
