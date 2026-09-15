@@ -142,12 +142,13 @@ function buildPromptContent(promptText, attachments) {
   ];
 }
 
-async function runToolLoop(client, messages) {
+async function runToolLoop(client, messages, { model = CHAT_MODEL, system } = {}) {
   let response = await client.messages.create({
-    model: CHAT_MODEL,
+    model,
     max_tokens: 1024,
     tools: TOOLS,
     messages,
+    ...(system ? { system } : {}),
   });
 
   let toolRounds = 0;
@@ -173,10 +174,11 @@ async function runToolLoop(client, messages) {
     ];
 
     response = await client.messages.create({
-      model: CHAT_MODEL,
+      model,
       max_tokens: 1024,
       tools: TOOLS,
       messages,
+      ...(system ? { system } : {}),
     });
   }
 
@@ -190,7 +192,7 @@ async function runToolLoop(client, messages) {
  * calls don't produce user-facing text anyway); the round after the tool
  * result resumes streaming normally.
  */
-async function runToolLoopStreaming(client, messages, onChunk, signal) {
+async function runToolLoopStreaming(client, messages, onChunk, signal, { model = CHAT_MODEL, system } = {}) {
   let fullText = '';
   let usage = { input_tokens: 0, output_tokens: 0 };
   let toolRounds = 0;
@@ -199,7 +201,13 @@ async function runToolLoopStreaming(client, messages, onChunk, signal) {
     if (toolRounds > MAX_TOOL_ROUNDS) {
       throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
     }
-    const stream = client.messages.stream({ model: CHAT_MODEL, max_tokens: 1024, tools: TOOLS, messages });
+    const stream = client.messages.stream({
+      model,
+      max_tokens: 1024,
+      tools: TOOLS,
+      messages,
+      ...(system ? { system } : {}),
+    });
     if (signal) {
       if (signal.aborted) stream.abort();
       else signal.addEventListener('abort', () => stream.abort(), { once: true });
@@ -243,11 +251,11 @@ async function runToolLoopStreaming(client, messages, onChunk, signal) {
   return { text: fullText, usage };
 }
 
-async function finishAssistantReply({ conversationId, safeMessage, commandUsed, replyText, usage, latencyMs }) {
+async function finishAssistantReply({ conversationId, safeMessage, commandUsed, replyText, usage, latencyMs, model = CHAT_MODEL }) {
   const assistantMessageId = await saveMessage(conversationId, 'assistant', replyText, commandUsed);
   await recordUsage({
     messageId: assistantMessageId,
-    model: CHAT_MODEL,
+    model,
     inputTokens: usage.input_tokens,
     outputTokens: usage.output_tokens,
     latencyMs,
@@ -256,6 +264,15 @@ async function finishAssistantReply({ conversationId, safeMessage, commandUsed, 
   // Fire-and-forget: never block the user-facing reply on the judge call.
   judgeResponse({ messageId: assistantMessageId, userQuestion: safeMessage, assistantAnswer: replyText });
   return assistantMessageId;
+}
+
+/** Loads the per-conversation model override and system prompt, if set. */
+async function getConversationSettings(conversationId) {
+  const { rows } = await query('SELECT model, system_prompt FROM conversations WHERE id = $1', [conversationId]);
+  return {
+    model: rows[0]?.model || CHAT_MODEL,
+    system: rows[0]?.system_prompt || undefined,
+  };
 }
 
 /**
@@ -315,6 +332,7 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
     currentContent: buildPromptContent(promptForLlm, attachments),
     commandUsed,
     safeMessage,
+    settings: await getConversationSettings(conversationId),
   };
 }
 
@@ -325,7 +343,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
 
   const client = await getAnthropicClient();
   const started = Date.now();
-  const response = await runToolLoop(client, [...prep.history, { role: 'user', content: prep.currentContent }]);
+  const response = await runToolLoop(client, [...prep.history, { role: 'user', content: prep.currentContent }], prep.settings);
   const latencyMs = Date.now() - started;
   const replyText = response.content.find((b) => b.type === 'text')?.text ?? '';
   const assistantMessageId = await finishAssistantReply({
@@ -335,6 +353,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     replyText,
     usage: response.usage,
     latencyMs,
+    model: prep.settings.model,
   });
   return { reply: replyText, messageId: assistantMessageId, commandUsed: prep.commandUsed };
 }
@@ -351,6 +370,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     [...prep.history, { role: 'user', content: prep.currentContent }],
     onChunk,
     signal,
+    prep.settings,
   );
   const latencyMs = Date.now() - started;
   const assistantMessageId = await finishAssistantReply({
@@ -360,6 +380,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     replyText: text,
     usage,
     latencyMs,
+    model: prep.settings.model,
   });
   return { reply: text, messageId: assistantMessageId, commandUsed: prep.commandUsed };
 }
@@ -410,10 +431,17 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
 
   const history = await loadHistory(conversationId, { beforeId: userMessageId });
   const currentContent = buildPromptContent(promptForLlm, attachments);
+  const settings = await getConversationSettings(conversationId);
 
   const client = await getAnthropicClient();
   const started = Date.now();
-  const { text, usage } = await runToolLoopStreaming(client, [...history, { role: 'user', content: currentContent }], onChunk, signal);
+  const { text, usage } = await runToolLoopStreaming(
+    client,
+    [...history, { role: 'user', content: currentContent }],
+    onChunk,
+    signal,
+    settings,
+  );
   const latencyMs = Date.now() - started;
   const assistantMessageId = await finishAssistantReply({
     conversationId,
@@ -421,6 +449,7 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
     commandUsed,
     replyText: text,
     usage,
+    model: settings.model,
     latencyMs,
   });
   return { reply: text, messageId: assistantMessageId, commandUsed };

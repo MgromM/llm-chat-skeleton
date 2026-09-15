@@ -93,7 +93,16 @@ interface Conversation {
   id: number;
   title: string | null;
   created_at: string;
+  model?: string | null;
+  systemPrompt?: string | null;
 }
+
+const DEFAULT_MODEL = 'claude-sonnet-5';
+const MODEL_LABELS: Record<string, string> = {
+  'claude-sonnet-5': 'Claude Sonnet 5',
+  'claude-opus-5': 'Claude Opus 5',
+  'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
+};
 
 function conversationLabel(c: Conversation) {
   return c.title?.trim() || `Rozmowa z ${new Date(c.created_at).toLocaleDateString('pl-PL')}`;
@@ -231,6 +240,80 @@ function friendlyErrorMessage(raw: string): string {
   return raw || 'Coś poszło nie tak. Spróbuj ponownie.';
 }
 
+function ConversationSettingsBar({
+  models,
+  model,
+  systemPrompt,
+  onChangeModel,
+  onChangeSystemPrompt,
+}: {
+  models: string[];
+  model: string;
+  systemPrompt: string;
+  onChangeModel: (model: string) => void;
+  onChangeSystemPrompt: (prompt: string) => void;
+}) {
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [draft, setDraft] = useState(systemPrompt);
+
+  useEffect(() => setDraft(systemPrompt), [systemPrompt]);
+
+  return (
+    <div className="border-b border-brand-border bg-brand-white px-6 py-2">
+      <div className="mx-auto flex max-w-3xl items-center gap-3 text-sm">
+        <label className="flex items-center gap-1.5 text-brand-dark/60">
+          Model:
+          <select
+            value={model}
+            onChange={(e) => onChangeModel(e.target.value)}
+            className="rounded-md border border-brand-border bg-brand-white px-2 py-1 text-brand-dark outline-none focus:border-brand-orange"
+          >
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {MODEL_LABELS[m] ?? m}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          onClick={() => setShowPromptEditor((v) => !v)}
+          className="text-brand-dark/60 underline decoration-dotted hover:text-brand-dark"
+        >
+          {systemPrompt ? 'Edytuj prompt systemowy' : 'Dodaj prompt systemowy'}
+        </button>
+      </div>
+      {showPromptEditor && (
+        <div className="mx-auto mt-2 max-w-3xl">
+          <textarea
+            rows={2}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Opcjonalne instrukcje systemowe dla tej rozmowy…"
+            className="w-full resize-none rounded-lg border border-brand-border px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-orange"
+          />
+          <div className="mt-1 flex justify-end gap-2">
+            <button
+              onClick={() => setShowPromptEditor(false)}
+              className="rounded-md px-3 py-1 text-xs text-brand-dark/60 hover:bg-brand-surface/60"
+            >
+              Anuluj
+            </button>
+            <button
+              onClick={() => {
+                onChangeSystemPrompt(draft);
+                setShowPromptEditor(false);
+              }}
+              className="rounded-md bg-brand-orange px-3 py-1 text-xs font-bold text-brand-white hover:brightness-95"
+            >
+              Zapisz
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChatView() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -244,6 +327,7 @@ function ChatView() {
   const [editingDraft, setEditingDraft] = useState('');
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([DEFAULT_MODEL]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -262,6 +346,7 @@ function ChatView() {
       setConversationId(list[0].id);
       setMessages(await api.listMessages(list[0].id));
     })();
+    api.availableModels().then((r) => setAvailableModels(r.models)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -315,6 +400,27 @@ function ChatView() {
       }
     } catch {
       setErrorMessage('Nie udało się usunąć rozmowy.');
+    }
+  }
+
+  async function handleChangeModel(model: string) {
+    if (conversationId === null) return;
+    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, model } : c)));
+    try {
+      await api.updateConversationSettings(conversationId, { model });
+    } catch {
+      setErrorMessage('Nie udało się zapisać wybranego modelu.');
+    }
+  }
+
+  async function handleChangeSystemPrompt(systemPrompt: string) {
+    if (conversationId === null) return;
+    const trimmed = systemPrompt.trim() || null;
+    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, systemPrompt: trimmed } : c)));
+    try {
+      await api.updateConversationSettings(conversationId, { systemPrompt: trimmed });
+    } catch {
+      setErrorMessage('Nie udało się zapisać promptu systemowego.');
     }
   }
 
@@ -470,6 +576,13 @@ function ChatView() {
           onDelete={handleDeleteConversation}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
+          <ConversationSettingsBar
+            models={availableModels}
+            model={conversations.find((c) => c.id === conversationId)?.model || DEFAULT_MODEL}
+            systemPrompt={conversations.find((c) => c.id === conversationId)?.systemPrompt || ''}
+            onChangeModel={handleChangeModel}
+            onChangeSystemPrompt={handleChangeSystemPrompt}
+          />
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
               {messages.length === 0 && !sending && (

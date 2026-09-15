@@ -10,6 +10,14 @@ export interface Attachment {
   sizeBytes: number;
 }
 
+export interface ConversationSettings {
+  id: number;
+  title: string | null;
+  created_at: string;
+  model: string | null;
+  systemPrompt: string | null;
+}
+
 export interface ChatMessage {
   id: number;
   role: string;
@@ -127,21 +135,27 @@ export const api = {
     apiFetch<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   googleLoginUrl: () => apiFetch<{ url: string }>('/auth/google/login-url'),
   me: () => apiFetch<LoginResponse['user']>('/auth/me'),
-  listConversations: () => apiFetch<{ id: number; title: string | null; created_at: string }[]>('/chat/conversations'),
+  listConversations: () => apiFetch<ConversationSettings[]>('/chat/conversations'),
   createConversation: (title?: string) =>
-    apiFetch<{ id: number; title: string | null }>('/chat/conversations', {
+    apiFetch<ConversationSettings>('/chat/conversations', {
       method: 'POST',
       body: JSON.stringify({ title }),
     }),
   listMessages: (conversationId: number) =>
     apiFetch<ChatMessage[]>(`/chat/conversations/${conversationId}/messages`),
   renameConversation: (conversationId: number, title: string) =>
-    apiFetch<{ id: number; title: string | null; created_at: string }>(`/chat/conversations/${conversationId}`, {
+    apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
       method: 'PATCH',
       body: JSON.stringify({ title }),
     }),
+  updateConversationSettings: (conversationId: number, updates: { model?: string; systemPrompt?: string | null }) =>
+    apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    }),
   deleteConversation: (conversationId: number) =>
     apiFetch<{ ok: true }>(`/chat/conversations/${conversationId}`, { method: 'DELETE' }),
+  availableModels: () => apiFetch<{ models: string[] }>('/chat/conversations/models'),
   sendMessageStream: async (
     conversationId: number,
     message: string,

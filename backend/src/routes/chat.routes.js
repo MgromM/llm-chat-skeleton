@@ -39,10 +39,10 @@ chatRouter.use((req, res, next) => {
 chatRouter.post('/conversations', async (req, res, next) => {
   try {
     const { rows } = await query(
-      'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id, title, created_at',
+      'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id, title, created_at, model, system_prompt',
       [req.user.sub, req.body.title ?? null],
     );
-    res.status(201).json(rows[0]);
+    res.status(201).json({ ...rows[0], systemPrompt: rows[0].system_prompt });
   } catch (err) {
     next(err);
   }
@@ -51,30 +51,68 @@ chatRouter.post('/conversations', async (req, res, next) => {
 chatRouter.get('/conversations', async (req, res, next) => {
   try {
     const { rows } = await query(
-      'SELECT id, title, created_at FROM conversations WHERE user_id = $1 ORDER BY created_at DESC',
+      'SELECT id, title, created_at, model, system_prompt FROM conversations WHERE user_id = $1 ORDER BY created_at DESC',
       [req.user.sub],
     );
-    res.json(rows);
+    res.json(rows.map((r) => ({ ...r, systemPrompt: r.system_prompt })));
   } catch (err) {
     next(err);
   }
 });
 
-/** Renames a conversation's title. */
+// Models the user is allowed to pick per-conversation. Keep in sync with
+// MODEL_PRICING_PER_MTOK in anthropicClient.js.
+const AVAILABLE_MODELS = ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5-20251001'];
+
+/** Renames a conversation's title, and/or updates its model / system prompt. */
 chatRouter.patch('/conversations/:id', async (req, res, next) => {
   try {
-    const title = (req.body.title ?? '').trim();
-    if (!title) return res.status(400).json({ error: 'title required' });
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
 
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title).trim();
+      if (!title) return res.status(400).json({ error: 'title must not be empty' });
+      updates.push(`title = $${paramIndex++}`);
+      values.push(title);
+    }
+    if (req.body.model !== undefined) {
+      const model = req.body.model === null ? null : String(req.body.model);
+      if (model !== null && !AVAILABLE_MODELS.includes(model)) {
+        return res.status(400).json({ error: `model must be one of: ${AVAILABLE_MODELS.join(', ')}` });
+      }
+      updates.push(`model = $${paramIndex++}`);
+      values.push(model);
+    }
+    if (req.body.systemPrompt !== undefined) {
+      const systemPrompt = req.body.systemPrompt === null ? null : String(req.body.systemPrompt).trim() || null;
+      updates.push(`system_prompt = $${paramIndex++}`);
+      values.push(systemPrompt);
+    }
+    if (updates.length === 0) return res.status(400).json({ error: 'nothing to update' });
+
+    values.push(req.params.id, req.user.sub);
     const { rows } = await query(
-      'UPDATE conversations SET title = $1 WHERE id = $2 AND user_id = $3 RETURNING id, title, created_at',
-      [title, req.params.id, req.user.sub],
+      `UPDATE conversations SET ${updates.join(', ')} WHERE id = $${paramIndex++} AND user_id = $${paramIndex}
+       RETURNING id, title, created_at, model, system_prompt`,
+      values,
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
-    res.json(rows[0]);
+    res.json({
+      id: rows[0].id,
+      title: rows[0].title,
+      created_at: rows[0].created_at,
+      model: rows[0].model,
+      systemPrompt: rows[0].system_prompt,
+    });
   } catch (err) {
     next(err);
   }
+});
+
+chatRouter.get('/conversations/models', (req, res) => {
+  res.json({ models: AVAILABLE_MODELS });
 });
 
 /** Deletes a conversation and its messages/attachments (files on disk included). */
