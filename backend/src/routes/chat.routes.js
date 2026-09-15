@@ -140,6 +140,37 @@ chatRouter.delete('/conversations/:id', async (req, res, next) => {
   }
 });
 
+/** Searches the current user's conversations by message content. */
+chatRouter.get('/conversations/search', async (req, res, next) => {
+  try {
+    const q = (req.query.q ?? '').toString().trim();
+    if (!q) return res.json([]);
+
+    const { rows } = await query(
+      `SELECT DISTINCT ON (c.id) c.id, c.title, c.created_at, c.model, c.system_prompt,
+              m.content AS matched_snippet
+       FROM conversations c
+       JOIN messages m ON m.conversation_id = c.id
+       WHERE c.user_id = $1 AND m.content ILIKE $2
+       ORDER BY c.id, m.created_at DESC`,
+      [req.user.sub, `%${q}%`],
+    );
+    rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    res.json(
+      rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        created_at: r.created_at,
+        model: r.model,
+        systemPrompt: r.system_prompt,
+        matchedSnippet: r.matched_snippet.length > 160 ? `${r.matched_snippet.slice(0, 160)}…` : r.matched_snippet,
+      })),
+    );
+  } catch (err) {
+    next(err);
+  }
+});
+
 async function fetchMessages(conversationId, userId) {
   const { rows } = await query(
     `SELECT m.id, m.role, m.content, m.created_at, m.command_used

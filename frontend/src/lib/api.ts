@@ -156,6 +156,8 @@ export const api = {
   deleteConversation: (conversationId: number) =>
     apiFetch<{ ok: true }>(`/chat/conversations/${conversationId}`, { method: 'DELETE' }),
   availableModels: () => apiFetch<{ models: string[] }>('/chat/conversations/models'),
+  searchConversations: (q: string) =>
+    apiFetch<(ConversationSettings & { matchedSnippet: string })[]>(`/chat/conversations/search?q=${encodeURIComponent(q)}`),
   sendMessageStream: async (
     conversationId: number,
     message: string,

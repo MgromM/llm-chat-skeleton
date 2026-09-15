@@ -131,6 +131,22 @@ function ConversationSidebar({
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Conversation[] | null>(null);
+
+  useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setSearchResults(null);
+      return;
+    }
+    const handle = setTimeout(() => {
+      api.searchConversations(q).then(setSearchResults).catch(() => setSearchResults([]));
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [searchQuery]);
+
+  const visibleConversations = searchResults ?? conversations;
 
   function startRename(c: Conversation) {
     setRenamingId(c.id);
@@ -153,8 +169,19 @@ function ConversationSidebar({
           Nowa rozmowa
         </button>
       </div>
+      <div className="px-3 pb-2">
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Szukaj w rozmowach…"
+          className="w-full rounded-lg border border-brand-white/30 bg-brand-white/10 px-3 py-1.5 text-sm text-brand-white placeholder:text-brand-white/50 outline-none focus:border-brand-white/60"
+        />
+      </div>
       <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
-        {conversations.map((c) =>
+        {visibleConversations.length === 0 && (
+          <p className="px-3 py-2 text-sm text-brand-white/60">Brak wyników.</p>
+        )}
+        {visibleConversations.map((c) =>
           renamingId === c.id ? (
             <input
               key={c.id}
