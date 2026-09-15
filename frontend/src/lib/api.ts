@@ -158,6 +158,17 @@ export const api = {
   availableModels: () => apiFetch<{ models: string[] }>('/chat/conversations/models'),
   searchConversations: (q: string) =>
     apiFetch<(ConversationSettings & { matchedSnippet: string })[]>(`/chat/conversations/search?q=${encodeURIComponent(q)}`),
+  exportConversation: async (conversationId: number): Promise<{ blob: Blob; filename: string }> => {
+    const res = await fetch(`/api/chat/conversations/${conversationId}/export`, { headers: authHeaders() });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(body.error ?? `Request failed: ${res.status}`);
+    }
+    const disposition = res.headers.get('Content-Disposition') ?? '';
+    const match = /filename="([^"]+)"/.exec(disposition);
+    const filename = match ? decodeURIComponent(match[1]) : `rozmowa-${conversationId}.md`;
+    return { blob: await res.blob(), filename };
+  },
   sendMessageStream: async (
     conversationId: number,
     message: string,

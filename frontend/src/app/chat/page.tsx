@@ -273,12 +273,14 @@ function ConversationSettingsBar({
   systemPrompt,
   onChangeModel,
   onChangeSystemPrompt,
+  onExport,
 }: {
   models: string[];
   model: string;
   systemPrompt: string;
   onChangeModel: (model: string) => void;
   onChangeSystemPrompt: (prompt: string) => void;
+  onExport: () => void;
 }) {
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [draft, setDraft] = useState(systemPrompt);
@@ -307,6 +309,13 @@ function ConversationSettingsBar({
           className="text-brand-dark/60 underline decoration-dotted hover:text-brand-dark"
         >
           {systemPrompt ? 'Edytuj prompt systemowy' : 'Dodaj prompt systemowy'}
+        </button>
+        <button
+          onClick={onExport}
+          className="ml-auto flex items-center gap-1.5 text-brand-dark/60 hover:text-brand-dark"
+        >
+          <Download size={14} />
+          Eksportuj
         </button>
       </div>
       {showPromptEditor && (
@@ -448,6 +457,21 @@ function ChatView() {
       await api.updateConversationSettings(conversationId, { systemPrompt: trimmed });
     } catch {
       setErrorMessage('Nie udało się zapisać promptu systemowego.');
+    }
+  }
+
+  async function handleExportConversation() {
+    if (conversationId === null) return;
+    try {
+      const { blob, filename } = await api.exportConversation(conversationId);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setErrorMessage('Nie udało się wyeksportować rozmowy.');
     }
   }
 
@@ -609,6 +633,7 @@ function ChatView() {
             systemPrompt={conversations.find((c) => c.id === conversationId)?.systemPrompt || ''}
             onChangeModel={handleChangeModel}
             onChangeSystemPrompt={handleChangeSystemPrompt}
+            onExport={handleExportConversation}
           />
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">

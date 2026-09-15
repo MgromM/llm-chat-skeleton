@@ -218,6 +218,35 @@ chatRouter.get('/conversations/:id/messages', async (req, res, next) => {
   }
 });
 
+/** Exports a conversation's messages as a downloadable markdown file. */
+chatRouter.get('/conversations/:id/export', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id, title FROM conversations WHERE id = $1 AND user_id = $2', [
+      req.params.id,
+      req.user.sub,
+    ]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+
+    const messages = await fetchMessages(req.params.id, req.user.sub);
+    const title = rows[0].title?.trim() || `Rozmowa ${rows[0].id}`;
+    const lines = [`# ${title}`, ''];
+    for (const m of messages) {
+      const speaker = m.role === 'user' ? 'Użytkownik' : 'Asystent';
+      lines.push(`## ${speaker} — ${new Date(m.created_at).toLocaleString('pl-PL')}`, '');
+      if (m.content) lines.push(m.content, '');
+      for (const a of m.attachments) lines.push(`_Załącznik: ${a.filename}_`, '');
+    }
+    const markdown = lines.join('\n');
+
+    const filename = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'rozmowa'}.md`;
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    res.send(markdown);
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** Streams a turn's reply over SSE: `delta` events with text chunks, then one `done` event with metadata. */
 function streamTurnResponse(req, res, runTurn) {
   res.writeHead(200, {
