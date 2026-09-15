@@ -22,6 +22,10 @@ export function isTextAttachment(mimeType) {
   return TEXT_MIME_TYPES.has(mimeType);
 }
 
+export function isPdfAttachment(mimeType) {
+  return mimeType === 'application/pdf';
+}
+
 let gcsClient;
 function getBucket() {
   if (!gcsClient) gcsClient = new Storage({ projectId: process.env.GCP_PROJECT_ID || undefined });

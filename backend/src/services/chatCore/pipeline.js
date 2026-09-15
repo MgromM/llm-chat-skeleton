@@ -15,6 +15,7 @@ import {
   deleteAttachmentFile,
   isImageAttachment,
   isTextAttachment,
+  isPdfAttachment,
 } from '../attachments/attachmentStore.js';
 
 const CHAT_MODEL = process.env.CHAT_MODEL ?? 'claude-sonnet-5';
@@ -172,18 +173,41 @@ async function maybeSetConversationTitle(conversationId, text) {
   await query('UPDATE conversations SET title = $2 WHERE id = $1', [conversationId, title]);
 }
 
+/** Extracts plain text from a PDF buffer, truncated like the other inlined attachments. */
+async function extractPdfText(buffer) {
+  const { PDFParse } = await import('pdf-parse');
+  const parser = new PDFParse({ data: buffer });
+  try {
+    const result = await parser.getText();
+    return result.text.slice(0, 20_000);
+  } finally {
+    await parser.destroy?.();
+  }
+}
+
 /**
  * Builds the content sent to Claude for this turn: the text prompt, plus any
  * image attachments as vision blocks, plus any small text-file attachments
- * inlined as fenced text (Claude has no other way to "see" a .txt/.csv upload).
+ * (and PDF text, extracted via pdf-parse) inlined as fenced text — Claude
+ * has no other way to "see" a .txt/.csv/.pdf upload.
  */
-function buildPromptContent(promptText, attachments) {
+async function buildPromptContent(promptText, attachments) {
   const images = attachments.filter((f) => isImageAttachment(f.mimeType));
   const textFiles = attachments.filter((f) => isTextAttachment(f.mimeType));
+  const pdfFiles = attachments.filter((f) => isPdfAttachment(f.mimeType));
 
   let text = promptText;
   for (const file of textFiles) {
     text += `\n\n--- Załącznik: ${file.filename} ---\n${file.buffer.toString('utf-8').slice(0, 20_000)}`;
+  }
+  for (const file of pdfFiles) {
+    let pdfText;
+    try {
+      pdfText = await extractPdfText(file.buffer);
+    } catch (err) {
+      pdfText = `[Nie udało się odczytać treści PDF: ${err.message}]`;
+    }
+    text += `\n\n--- Załącznik (PDF): ${file.filename} ---\n${pdfText}`;
   }
 
   if (images.length === 0) return text;
@@ -384,7 +408,7 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
   return {
     done: false,
     history,
-    currentContent: buildPromptContent(promptForLlm, attachments),
+    currentContent: await buildPromptContent(promptForLlm, attachments),
     commandUsed,
     safeMessage,
     settings: await getConversationSettings(conversationId),
@@ -485,7 +509,7 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
   }
 
   const history = await loadHistory(conversationId, { beforeId: userMessageId });
-  const currentContent = buildPromptContent(promptForLlm, attachments);
+  const currentContent = await buildPromptContent(promptForLlm, attachments);
   const settings = await getConversationSettings(conversationId);
 
   const client = await getAnthropicClient();
