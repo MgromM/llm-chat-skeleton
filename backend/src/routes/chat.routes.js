@@ -3,7 +3,7 @@ import multer from 'multer';
 import { requireAuth, requireAuthViaHeaderOrQuery } from '../middleware/auth.js';
 import { query } from '../config/db.js';
 import { handleChatTurn, streamChatTurn, continueFromUserMessage, deleteMessagesFrom } from '../services/chatCore/pipeline.js';
-import { readAttachmentFile, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_MESSAGE } from '../services/attachments/attachmentStore.js';
+import { readAttachmentFile, deleteAttachmentFile, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_MESSAGE } from '../services/attachments/attachmentStore.js';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -55,6 +55,48 @@ chatRouter.get('/conversations', async (req, res, next) => {
       [req.user.sub],
     );
     res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Renames a conversation's title. */
+chatRouter.patch('/conversations/:id', async (req, res, next) => {
+  try {
+    const title = (req.body.title ?? '').trim();
+    if (!title) return res.status(400).json({ error: 'title required' });
+
+    const { rows } = await query(
+      'UPDATE conversations SET title = $1 WHERE id = $2 AND user_id = $3 RETURNING id, title, created_at',
+      [title, req.params.id, req.user.sub],
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/** Deletes a conversation and its messages/attachments (files on disk included). */
+chatRouter.delete('/conversations/:id', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id FROM conversations WHERE id = $1 AND user_id = $2', [
+      req.params.id,
+      req.user.sub,
+    ]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+
+    const { rows: attachments } = await query(
+      `SELECT a.storage_path FROM message_attachments a
+       JOIN messages m ON m.id = a.message_id
+       WHERE m.conversation_id = $1`,
+      [req.params.id],
+    );
+    await Promise.all(attachments.map((a) => deleteAttachmentFile(a.storage_path)));
+
+    // ON DELETE CASCADE takes care of messages/message_attachments rows.
+    await query('DELETE FROM conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.user.sub]);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -135,6 +135,13 @@ export const api = {
     }),
   listMessages: (conversationId: number) =>
     apiFetch<ChatMessage[]>(`/chat/conversations/${conversationId}/messages`),
+  renameConversation: (conversationId: number, title: string) =>
+    apiFetch<{ id: number; title: string | null; created_at: string }>(`/chat/conversations/${conversationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ title }),
+    }),
+  deleteConversation: (conversationId: number) =>
+    apiFetch<{ ok: true }>(`/chat/conversations/${conversationId}`, { method: 'DELETE' }),
   sendMessageStream: async (
     conversationId: number,
     message: string,

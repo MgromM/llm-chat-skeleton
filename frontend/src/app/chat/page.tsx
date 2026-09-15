@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -110,12 +110,29 @@ function ConversationSidebar({
   activeId,
   onSelect,
   onNew,
+  onRename,
+  onDelete,
 }: {
   conversations: Conversation[];
   activeId: number | null;
   onSelect: (id: number) => void;
   onNew: () => void;
+  onRename: (id: number, title: string) => void;
+  onDelete: (id: number) => void;
 }) {
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+
+  function startRename(c: Conversation) {
+    setRenamingId(c.id);
+    setRenameDraft(conversationLabel(c));
+  }
+
+  function commitRename() {
+    if (renamingId !== null && renameDraft.trim()) onRename(renamingId, renameDraft.trim());
+    setRenamingId(null);
+  }
+
   return (
     <aside className="flex w-64 shrink-0 flex-col bg-brand-orange">
       <div className="p-3">
@@ -128,21 +145,55 @@ function ConversationSidebar({
         </button>
       </div>
       <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
-        {conversations.map((c) => (
-          <button
-            key={c.id}
-            onClick={() => onSelect(c.id)}
-            className={clsx(
-              'flex w-full items-center gap-2 truncate rounded-lg border-l-2 px-3 py-2 text-left text-sm',
-              c.id === activeId
-                ? 'border-brand-white bg-brand-white/15 font-medium text-brand-white'
-                : 'border-transparent text-brand-white/75 hover:bg-brand-white/10',
-            )}
-          >
-            <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-white' : 'opacity-70')} />
-            <span className="truncate">{conversationLabel(c)}</span>
-          </button>
-        ))}
+        {conversations.map((c) =>
+          renamingId === c.id ? (
+            <input
+              key={c.id}
+              autoFocus
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename();
+                if (e.key === 'Escape') setRenamingId(null);
+              }}
+              className="w-full rounded-lg border-l-2 border-brand-white bg-brand-white/15 px-3 py-2 text-sm text-brand-white outline-none"
+            />
+          ) : (
+            <div
+              key={c.id}
+              className={clsx(
+                'group flex w-full items-center gap-2 truncate rounded-lg border-l-2 pl-3 pr-1 text-left text-sm',
+                c.id === activeId
+                  ? 'border-brand-white bg-brand-white/15 font-medium text-brand-white'
+                  : 'border-transparent text-brand-white/75 hover:bg-brand-white/10',
+              )}
+            >
+              <button onClick={() => onSelect(c.id)} className="flex min-w-0 flex-1 items-center gap-2 py-2">
+                <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-white' : 'opacity-70')} />
+                <span className="truncate">{conversationLabel(c)}</span>
+              </button>
+              <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100">
+                <button
+                  onClick={() => startRename(c)}
+                  aria-label="Zmień nazwę rozmowy"
+                  className="rounded p-1 text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white"
+                >
+                  <Pencil size={13} />
+                </button>
+                <button
+                  onClick={() => {
+                    if (window.confirm('Usunąć tę rozmowę? Tej operacji nie można cofnąć.')) onDelete(c.id);
+                  }}
+                  aria-label="Usuń rozmowę"
+                  className="rounded p-1 text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white"
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            </div>
+          ),
+        )}
       </div>
     </aside>
   );
@@ -235,6 +286,36 @@ function ChatView() {
     setConversations((prev) => [{ ...conversation, created_at: new Date().toISOString() } as Conversation, ...prev]);
     setConversationId(conversation.id);
     setMessages([]);
+  }
+
+  async function handleRenameConversation(id: number, title: string) {
+    try {
+      const updated = await api.renameConversation(id, title);
+      setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: updated.title } : c)));
+    } catch {
+      setErrorMessage('Nie udało się zmienić nazwy rozmowy.');
+    }
+  }
+
+  async function handleDeleteConversation(id: number) {
+    try {
+      await api.deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (id === conversationId) {
+        const remaining = conversations.filter((c) => c.id !== id);
+        if (remaining.length > 0) {
+          setConversationId(remaining[0].id);
+          setMessages(await api.listMessages(remaining[0].id));
+        } else {
+          const conversation = await api.createConversation();
+          setConversations([{ ...conversation, created_at: new Date().toISOString() } as Conversation]);
+          setConversationId(conversation.id);
+          setMessages([]);
+        }
+      }
+    } catch {
+      setErrorMessage('Nie udało się usunąć rozmowy.');
+    }
   }
 
   function handleFilesPicked(fileList: FileList | null) {
@@ -385,6 +466,8 @@ function ChatView() {
           activeId={conversationId}
           onSelect={handleSelectConversation}
           onNew={handleNewConversation}
+          onRename={handleRenameConversation}
+          onDelete={handleDeleteConversation}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <div className="flex-1 overflow-y-auto">
