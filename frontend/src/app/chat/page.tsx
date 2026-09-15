@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { api, type Attachment, type ChatMessage } from '@/lib/api';
+import { api, ApiError, type Attachment, type ChatMessage } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 
@@ -172,6 +172,14 @@ function AttachmentChip({ attachment }: { attachment: Attachment }) {
   );
 }
 
+function friendlyErrorMessage(raw: string): string {
+  if (/429/.test(raw)) return 'Zbyt wiele żądań w krótkim czasie. Odczekaj chwilę i spróbuj ponownie.';
+  if (/^Request failed: 5\d\d/.test(raw) || /500/.test(raw)) {
+    return 'Wystąpił błąd serwera. Spróbuj ponownie za chwilę.';
+  }
+  return raw || 'Coś poszło nie tak. Spróbuj ponownie.';
+}
+
 function ChatView() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationId, setConversationId] = useState<number | null>(null);
@@ -184,6 +192,7 @@ function ChatView() {
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -263,24 +272,36 @@ function ChatView() {
     abortControllerRef.current = controller;
     setSending(true);
     setStreamingText('');
+    setErrorMessage(null);
     try {
       await startRequest(
         {
           onDelta: (text) => setStreamingText((prev) => prev + text),
+          onError: (message) => setErrorMessage(friendlyErrorMessage(message)),
         },
         controller.signal,
       );
     } catch (err) {
-      if (!(err instanceof DOMException && err.name === 'AbortError')) throw err;
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        // user-initiated stop, not an error
+      } else if (err instanceof ApiError) {
+        setErrorMessage(friendlyErrorMessage(err.message));
+      } else {
+        setErrorMessage('Nie udało się połączyć z serwerem. Sprawdź połączenie z internetem i spróbuj ponownie.');
+      }
     } finally {
       if (controller.signal.aborted) {
         // Give the backend a beat to finish writing the partial reply it
         // saves when a stream is stopped mid-flight.
         await new Promise((resolve) => setTimeout(resolve, 400));
       }
-      setMessages(await api.listMessages(conversationId));
-      const wasFirstTurn = conversations.find((c) => c.id === conversationId)?.title === 'Nowa rozmowa';
-      if (wasFirstTurn) setConversations(await api.listConversations());
+      try {
+        setMessages(await api.listMessages(conversationId));
+        const wasFirstTurn = conversations.find((c) => c.id === conversationId)?.title === 'Nowa rozmowa';
+        if (wasFirstTurn) setConversations(await api.listConversations());
+      } catch {
+        setErrorMessage((prev) => prev ?? 'Nie udało się odświeżyć rozmowy. Odśwież stronę.');
+      }
       setSending(false);
       setStreamingText('');
       abortControllerRef.current = null;
@@ -346,6 +367,18 @@ function ChatView() {
   return (
     <div className="flex h-screen flex-col">
       <BrandHeader />
+      {errorMessage && (
+        <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700">
+          <span>{errorMessage}</span>
+          <button
+            onClick={() => setErrorMessage(null)}
+            aria-label="Zamknij komunikat błędu"
+            className="shrink-0 text-red-700/60 hover:text-red-700"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
       <div className="flex flex-1 overflow-hidden">
         <ConversationSidebar
           conversations={conversations}
