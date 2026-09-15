@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { query } from '../config/db.js';
 import { getSecret } from '../config/secrets.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { deleteAttachmentFile } from '../services/attachments/attachmentStore.js';
 import {
   GoogleOAuthError,
   googleExchangeCode,
@@ -18,6 +19,31 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
     const { rows } = await query('SELECT id, email, role FROM users WHERE id = $1', [req.user.sub]);
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
     res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GDPR "right to erasure": deletes the account and every row that belongs to
+// it. ON DELETE CASCADE (users -> conversations -> messages -> attachments/
+// usage_metrics/quality_scores, and leak_alerts) handles the DB rows; the
+// attachment files on disk/GCS aren't covered by that, so they're removed
+// explicitly first. Knowledge base documents the user uploaded are kept
+// (shared company resource) with their uploaded_by reference nulled out.
+authRouter.delete('/me', requireAuth, async (req, res, next) => {
+  try {
+    const { rows: attachments } = await query(
+      `SELECT a.storage_path FROM message_attachments a
+       JOIN messages m ON m.id = a.message_id
+       JOIN conversations c ON c.id = m.conversation_id
+       WHERE c.user_id = $1`,
+      [req.user.sub],
+    );
+    await Promise.all(attachments.map((a) => deleteAttachmentFile(a.storage_path)));
+
+    const { rowCount } = await query('DELETE FROM users WHERE id = $1', [req.user.sub]);
+    if (rowCount === 0) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

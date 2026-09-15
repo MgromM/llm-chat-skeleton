@@ -135,6 +135,7 @@ export const api = {
     apiFetch<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   googleLoginUrl: () => apiFetch<{ url: string }>('/auth/google/login-url'),
   me: () => apiFetch<LoginResponse['user']>('/auth/me'),
+  deleteAccount: () => apiFetch<{ ok: true }>('/auth/me', { method: 'DELETE' }),
   listConversations: () => apiFetch<ConversationSettings[]>('/chat/conversations'),
   createConversation: (title?: string) =>
     apiFetch<ConversationSettings>('/chat/conversations', {

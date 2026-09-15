@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { LogOut, Settings } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 export function BrandHeader() {
@@ -20,6 +21,13 @@ export function BrandHeader() {
           <span className="hidden text-sm text-brand-white/90 sm:inline">
             {user.email} <span className="text-brand-white/60">· {user.role}</span>
           </span>
+          <Link
+            href="/settings"
+            aria-label="Ustawienia konta"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+          >
+            <Settings size={15} />
+          </Link>
           <button
             onClick={logout}
             className="flex h-9 items-center gap-1.5 rounded-lg border border-brand-white/30 px-3 text-sm font-medium text-brand-white transition hover:bg-brand-white/10"
