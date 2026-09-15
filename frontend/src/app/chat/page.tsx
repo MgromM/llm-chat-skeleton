@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2 } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -44,7 +44,7 @@ function ArtifactPanel({ artifact, onClose }: { artifact: Artifact; onClose: () 
   }
 
   return (
-    <aside className="flex w-[420px] shrink-0 flex-col border-l border-brand-border bg-brand-white">
+    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col border-l border-brand-border bg-brand-white sm:static sm:z-auto sm:w-[420px]">
       <div className="flex items-center justify-between border-b border-brand-border px-5 py-4">
         <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark">
           <FileOutput size={16} className="text-brand-orange" />
@@ -121,6 +121,8 @@ function ConversationSidebar({
   onNew,
   onRename,
   onDelete,
+  open,
+  onClose,
 }: {
   conversations: Conversation[];
   activeId: number | null;
@@ -128,6 +130,8 @@ function ConversationSidebar({
   onNew: () => void;
   onRename: (id: number, title: string) => void;
   onDelete: (id: number) => void;
+  open: boolean;
+  onClose: () => void;
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -159,10 +163,26 @@ function ConversationSidebar({
   }
 
   return (
-    <aside className="flex w-64 shrink-0 flex-col bg-brand-orange">
+    <>
+      {open && (
+        <div
+          onClick={onClose}
+          aria-hidden
+          className="fixed inset-0 z-30 bg-black/30 md:hidden"
+        />
+      )}
+      <aside
+        className={clsx(
+          'fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col bg-brand-orange transition-transform duration-200 md:static md:z-auto md:translate-x-0',
+          open ? 'translate-x-0' : '-translate-x-full',
+        )}
+      >
       <div className="p-3">
         <button
-          onClick={onNew}
+          onClick={() => {
+            onNew();
+            onClose();
+          }}
           className="flex w-full items-center gap-2 rounded-lg border border-brand-white/40 bg-brand-white/10 px-3 py-2 text-sm font-medium text-brand-white hover:bg-brand-white/20"
         >
           <Plus size={16} />
@@ -205,7 +225,13 @@ function ConversationSidebar({
                   : 'border-transparent text-brand-white/75 hover:bg-brand-white/10',
               )}
             >
-              <button onClick={() => onSelect(c.id)} className="flex min-w-0 flex-1 items-center gap-2 py-2">
+              <button
+                onClick={() => {
+                  onSelect(c.id);
+                  onClose();
+                }}
+                className="flex min-w-0 flex-1 items-center gap-2 py-2"
+              >
                 <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-white' : 'opacity-70')} />
                 <span className="truncate">{conversationLabel(c)}</span>
               </button>
@@ -231,7 +257,8 @@ function ConversationSidebar({
           ),
         )}
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 
@@ -274,6 +301,7 @@ function ConversationSettingsBar({
   onChangeModel,
   onChangeSystemPrompt,
   onExport,
+  onOpenSidebar,
 }: {
   models: string[];
   model: string;
@@ -281,6 +309,7 @@ function ConversationSettingsBar({
   onChangeModel: (model: string) => void;
   onChangeSystemPrompt: (prompt: string) => void;
   onExport: () => void;
+  onOpenSidebar: () => void;
 }) {
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [draft, setDraft] = useState(systemPrompt);
@@ -288,8 +317,15 @@ function ConversationSettingsBar({
   useEffect(() => setDraft(systemPrompt), [systemPrompt]);
 
   return (
-    <div className="border-b border-brand-border bg-brand-white px-6 py-2">
-      <div className="mx-auto flex max-w-3xl items-center gap-3 text-sm">
+    <div className="border-b border-brand-border bg-brand-white px-3 py-2 sm:px-6">
+      <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 text-sm">
+        <button
+          onClick={onOpenSidebar}
+          aria-label="Otwórz listę rozmów"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-brand-dark/60 hover:bg-brand-surface/60 md:hidden"
+        >
+          <Menu size={18} />
+        </button>
         <label className="flex items-center gap-1.5 text-brand-dark/60">
           Model:
           <select
@@ -364,6 +400,7 @@ function ChatView() {
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([DEFAULT_MODEL]);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -625,6 +662,8 @@ function ChatView() {
           onNew={handleNewConversation}
           onRename={handleRenameConversation}
           onDelete={handleDeleteConversation}
+          open={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <ConversationSettingsBar
@@ -634,9 +673,10 @@ function ChatView() {
             onChangeModel={handleChangeModel}
             onChangeSystemPrompt={handleChangeSystemPrompt}
             onExport={handleExportConversation}
+            onOpenSidebar={() => setSidebarOpen(true)}
           />
           <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 py-8">
+            <div className="mx-auto flex max-w-3xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
               {messages.length === 0 && !sending && (
                 <p className="mt-16 text-center text-brand-dark/50">
                   Napisz wiadomość albo spróbuj <span className="font-mono">/pomoc</span>.
@@ -740,7 +780,7 @@ function ChatView() {
               <div ref={bottomRef} />
             </div>
           </div>
-          <div className="border-t border-brand-orange/20 bg-brand-orange/10 px-6 py-4">
+          <div className="border-t border-brand-orange/20 bg-brand-orange/10 px-3 py-3 sm:px-6 sm:py-4">
             <div className="mx-auto max-w-3xl">
               {fileError && <p className="mb-2 text-sm text-brand-orange">{fileError}</p>}
               {pendingFiles.length > 0 && (
