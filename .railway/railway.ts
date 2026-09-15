@@ -1,4 +1,4 @@
-import { defineRailway, github, postgres, project, service, volume } from "railway/iac";
+import { defineRailway, github, postgres, preserve, project, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
   const salesmoreLLMMvp = github("salesandmore/salesmore-LLM-mvp");
@@ -18,10 +18,20 @@ export default defineRailway(() => {
       NODE_ENV: "production",
       USE_LOCAL_SECRETS: "true",
       DATABASE_URL: "${{Postgres.DATABASE_URL}}",
-      // ANTHROPIC_API_KEY, JWT_SECRET, CORS_ALLOWED_ORIGINS, GCS_BUCKET_NAME,
-      // GOOGLE_APPLICATION_CREDENTIALS (or its JSON) are set directly on the
-      // service via `railway variables set` (not tracked here) so secrets
-      // never land in git.
+      // Values set directly on the service via `railway variables set` (not
+      // tracked here) so secrets never land in git. preserve() tells
+      // `railway config apply` "this variable exists, leave its value
+      // alone" — omitting it entirely reads as "delete this variable" and
+      // config apply would wipe it out.
+      JWT_SECRET: preserve(),
+      CORS_ALLOWED_ORIGINS: preserve(),
+      FRONTEND_URL: preserve(),
+      GOOGLE_OAUTH_CLIENT_ID: preserve(),
+      GOOGLE_OAUTH_CLIENT_SECRET: preserve(),
+      GOOGLE_OAUTH_REDIRECT_URL: preserve(),
+      // ANTHROPIC_API_KEY, GCS_BUCKET_NAME, GOOGLE_APPLICATION_CREDENTIALS
+      // (or its JSON) are documented here for when they get set, but aren't
+      // currently live on the service, so they're not preserve()'d.
       CHAT_MODEL: "claude-sonnet-5",
       JUDGE_MODEL: "claude-haiku-4-5-20251001",
       PRECHECK_MODEL: "claude-haiku-4-5-20251001",
@@ -37,6 +47,14 @@ export default defineRailway(() => {
     replicas: { sfo: 1 },
     variables: {
       BACKEND_URL: "http://${{backend.RAILWAY_PRIVATE_DOMAIN}}:${{backend.PORT}}",
+      // Streaming chat calls (lib/api.ts) go straight to the backend from the
+      // browser, bypassing the Next.js /api/* rewrite — so this needs the
+      // backend's PUBLIC domain, not the private one above. It's also a
+      // NEXT_PUBLIC_* var, which Next.js inlines into the client bundle at
+      // build time, so the Dockerfile forwards it as a build arg. Already
+      // set correctly on the live service; preserve() just stops
+      // `config apply` from deleting it.
+      NEXT_PUBLIC_BACKEND_URL: preserve(),
     },
   });
 
