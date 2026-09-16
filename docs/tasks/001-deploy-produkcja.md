@@ -1,11 +1,5 @@
 # 001 — Dokończyć deploy produkcyjny
 
-**Status: ZROBIONE (2026-09-16).** Backend i frontend zdeployowane na
-Railway z aktualnym kodem (`main` po `9dceeed`), login page ładuje się bez
-błędów na produkcyjnym URL. Uwaga: linkowanie Railway CLI dla `frontend/`
-było błędnie podpięte do serwisu `backend` — naprawione trwałym
-`railway link -s frontend` (patrz commit historii deployów z 16.09).
-
 ## Cel
 Wszystkie 10 commitów z nowymi funkcjami ma działać na
 `https://backend-production-bff3.up.railway.app` /
