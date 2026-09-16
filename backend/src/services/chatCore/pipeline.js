@@ -310,7 +310,7 @@ export async function branchConversation({ conversationId, userId, messageId }) 
   if (messageRows.length === 0) throw new Error('Message not found');
 
   const { rows: toCopy } = await query(
-    'SELECT id, role, content, command_used, citations, created_at FROM messages WHERE conversation_id = $1 AND id <= $2 ORDER BY id ASC',
+    'SELECT id, role, content, command_used, citations, generated_files, created_at FROM messages WHERE conversation_id = $1 AND id <= $2 ORDER BY id ASC',
     [conversationId, messageId],
   );
 
@@ -324,8 +324,16 @@ export async function branchConversation({ conversationId, userId, messageId }) 
 
   for (const message of toCopy) {
     const { rows: insertedRows } = await query(
-      'INSERT INTO messages (conversation_id, role, content, command_used, citations, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
-      [newConversation.id, message.role, message.content, message.command_used, message.citations, message.created_at],
+      'INSERT INTO messages (conversation_id, role, content, command_used, citations, generated_files, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+      [
+        newConversation.id,
+        message.role,
+        message.content,
+        message.command_used,
+        message.citations,
+        message.generated_files,
+        message.created_at,
+      ],
     );
     const newMessageId = insertedRows[0].id;
     await query(
