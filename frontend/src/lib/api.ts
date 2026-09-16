@@ -218,9 +218,11 @@ export const api = {
     files: File[] = [],
     handlers: StreamHandlers,
     signal?: AbortSignal,
+    override = false,
   ) => {
     const form = new FormData();
     form.append('message', message);
+    if (override) form.append('override', 'true');
     for (const file of files) form.append('files', file);
     const res = await fetch(`${BACKEND_URL}/chat/conversations/${conversationId}/messages`, {
       method: 'POST',

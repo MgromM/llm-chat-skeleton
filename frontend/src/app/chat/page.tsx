@@ -6,7 +6,7 @@ import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { api, ApiError, type Attachment, type ChatMessage, type Citation } from '@/lib/api';
+import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 
@@ -300,6 +300,27 @@ function CitationList({ citations }: { citations: Citation[] }) {
         >
           <Link2 size={11} className="shrink-0 opacity-60" />
           <span className="truncate">{c.title}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/** Download chips for files the model generated via code execution (e.g. a .csv report). */
+function GeneratedFileList({ files }: { files: GeneratedFile[] }) {
+  return (
+    <div className="mt-1 flex max-w-full flex-wrap gap-2">
+      {files.map((f) => (
+        <a
+          key={f.fileId}
+          href={api.generatedFileUrl(f.fileId)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-white px-3 py-2 text-sm text-brand-dark hover:bg-brand-surface/50"
+        >
+          <Download size={16} className="shrink-0 text-brand-orange" />
+          <span className="truncate">{f.filename}</span>
+          <span className="shrink-0 text-xs text-brand-dark/40">{formatSize(f.sizeBytes)}</span>
         </a>
       ))}
     </div>
@@ -800,6 +821,9 @@ function ChatView() {
                     {m.role === 'assistant' && m.citations && m.citations.length > 0 && (
                       <CitationList citations={m.citations} />
                     )}
+                    {m.role === 'assistant' && m.generatedFiles && m.generatedFiles.length > 0 && (
+                      <GeneratedFileList files={m.generatedFiles} />
+                    )}
                     {!isEditing && !sending && (
                       <div className="flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                         {m.role === 'user' && (
@@ -937,12 +961,33 @@ function ChatView() {
                 Wiadomość zablokowana — poziom {blockedNotice.level === 'czerwona' ? 'czerwony' : 'żółty'}
               </h2>
               <p className="mt-2 text-sm text-brand-dark/70">{blockedNotice.reply}</p>
-              <div className="mt-5 flex justify-end">
+              <p className="mt-3 text-xs text-brand-dark/50">
+                Wysłanie mimo blokady jest świadomym wyjątkiem od polityki bezpieczeństwa danych — zostanie odnotowane w dzienniku audytowym.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
                 <button
                   onClick={() => setBlockedNotice(null)}
-                  className="rounded-full bg-brand-orange px-4 py-2 text-sm font-medium text-brand-white hover:brightness-95"
+                  disabled={overriding}
+                  className="rounded-full border border-brand-dark/20 px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 disabled:opacity-50"
                 >
-                  Rozumiem
+                  Anuluj / edytuj
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!blockedNotice) return;
+                    const { content, files } = blockedNotice;
+                    setOverriding(true);
+                    try {
+                      await submitMessage(content, files, true);
+                      setBlockedNotice(null);
+                    } finally {
+                      setOverriding(false);
+                    }
+                  }}
+                  disabled={overriding}
+                  className="rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50"
+                >
+                  {overriding ? 'Wysyłanie…' : 'Wyślij mimo to'}
                 </button>
               </div>
             </div>
