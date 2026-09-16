@@ -2,9 +2,20 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getCostSummary } from '../services/metrics/usageTracker.js';
 import { query } from '../config/db.js';
+import { checkBigQueryConnection } from '../services/mcp/bigqueryServer.js';
 
 export const metricsRouter = Router();
 metricsRouter.use(requireAuth, requireRole('manager', 'admin'));
+
+// Diagnostic for admins to confirm the BigQuery service account/dataset is
+// wired up correctly, without needing to go through the chat/LLM path.
+metricsRouter.get('/bigquery-status', async (req, res, next) => {
+  try {
+    res.json(await checkBigQueryConnection());
+  } catch (err) {
+    next(err);
+  }
+});
 
 metricsRouter.get('/leak-alerts', async (req, res, next) => {
   try {
