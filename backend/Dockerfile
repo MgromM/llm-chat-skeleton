@@ -10,7 +10,9 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
 
-RUN addgroup -S app && adduser -S app -G app
+RUN addgroup -S app && adduser -S app -G app \
+  && mkdir -p uploads/knowledge \
+  && chown -R app:app /app
 USER app
 
 EXPOSE 8080
