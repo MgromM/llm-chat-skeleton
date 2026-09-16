@@ -44,8 +44,8 @@ function ArtifactPanel({ artifact, onClose }: { artifact: Artifact; onClose: () 
   }
 
   return (
-    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col border-l border-brand-border bg-brand-white sm:static sm:z-auto sm:w-[420px]">
-      <div className="flex items-center justify-between border-b border-brand-border px-5 py-4">
+    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white shadow-soft sm:static sm:z-auto sm:w-[420px]">
+      <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-border px-5 py-4">
         <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark">
           <FileOutput size={16} className="text-brand-orange" />
           {artifact.title}
@@ -59,7 +59,7 @@ function ArtifactPanel({ artifact, onClose }: { artifact: Artifact; onClose: () 
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{artifact.content}</ReactMarkdown>
         </div>
       </div>
-      <div className="border-t border-brand-border px-5 py-3">
+      <div className="rounded-b-2xl border-t border-brand-border px-5 py-3">
         <button
           onClick={handleDownload}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95"
@@ -167,7 +167,7 @@ function ConversationSidebar({
       )}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col bg-brand-orange transition-transform duration-200 md:static md:z-auto md:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 m-3 flex w-64 shrink-0 flex-col rounded-2xl bg-brand-orange shadow-soft transition-transform duration-200 md:static md:m-0 md:z-auto md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -305,7 +305,7 @@ function ConversationSettingsBar({
   useEffect(() => setDraft(systemPrompt), [systemPrompt]);
 
   return (
-    <div className="border-b border-brand-border bg-brand-white px-3 py-2 sm:px-6">
+    <div className="rounded-t-2xl border-b border-brand-border bg-brand-white px-3 py-2 sm:px-6">
       <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 text-sm">
         <button
           onClick={onOpenSidebar}
@@ -651,10 +651,10 @@ function ChatView() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col gap-3 bg-brand-surface p-3">
       <BrandHeader />
       {errorMessage && (
-        <div className="flex items-center justify-between gap-3 border-b border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700">
           <span>{errorMessage}</span>
           <button
             onClick={() => setErrorMessage(null)}
@@ -665,7 +665,7 @@ function ChatView() {
           </button>
         </div>
       )}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 gap-3 overflow-hidden">
         <ConversationSidebar
           conversations={conversations}
           activeId={conversationId}
@@ -676,7 +676,7 @@ function ChatView() {
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
-        <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl bg-brand-white shadow-soft">
           <ConversationSettingsBar
             systemPrompt={conversations.find((c) => c.id === conversationId)?.systemPrompt || ''}
             onChangeSystemPrompt={handleChangeSystemPrompt}

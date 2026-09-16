@@ -9,7 +9,7 @@ export function BrandHeader() {
   const { user, logout } = useAuth();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between bg-brand-orange px-6">
+    <header className="flex h-16 shrink-0 items-center justify-between rounded-2xl bg-brand-orange px-6 shadow-soft">
       <div className="flex items-center gap-3">
         <div className="rounded-lg bg-brand-white px-3 py-1.5">
           <Image src="/logo-salesmore.png" alt="Sales&More" width={140} height={23} priority className="h-5 w-auto" />
