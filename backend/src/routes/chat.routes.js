@@ -2,7 +2,17 @@ import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth, requireAuthViaHeaderOrQuery } from '../middleware/auth.js';
 import { query } from '../config/db.js';
-import { handleChatTurn, streamChatTurn, continueFromUserMessage, deleteMessagesFrom, classifyDraftMessage } from '../services/chatCore/pipeline.js';
+import {
+  handleChatTurn,
+  streamChatTurn,
+  continueFromUserMessage,
+  deleteMessagesFrom,
+  classifyDraftMessage,
+  estimateTurnCost,
+  branchConversation,
+} from '../services/chatCore/pipeline.js';
+import { getAnthropicClient } from '../services/anthropicClient.js';
+import { FILES_API_BETA } from '../services/mcp/codeExecutionTool.js';
 import { readAttachmentFile, deleteAttachmentFile, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_MESSAGE } from '../services/attachments/attachmentStore.js';
 
 const upload = multer({
@@ -32,7 +42,7 @@ export const chatRouter = Router();
 // attachment-download route below is the sole exception (it also accepts a
 // `?token=` query param, since `<img>`/`<a>` tags can't set headers).
 chatRouter.use((req, res, next) => {
-  if (req.path.startsWith('/attachments/')) return next();
+  if (req.path.startsWith('/attachments/') || req.path.startsWith('/generated-files/')) return next();
   return requireAuth(req, res, next);
 });
 
@@ -51,11 +61,40 @@ chatRouter.post('/conversations', async (req, res, next) => {
 chatRouter.get('/conversations', async (req, res, next) => {
   try {
     const { rows } = await query(
-      'SELECT id, title, created_at, model, system_prompt FROM conversations WHERE user_id = $1 ORDER BY created_at DESC',
+      `SELECT id, title, created_at, model, system_prompt, branched_from_conversation_id, branched_from_message_id
+       FROM conversations WHERE user_id = $1 ORDER BY created_at DESC`,
       [req.user.sub],
     );
-    res.json(rows.map((r) => ({ ...r, systemPrompt: r.system_prompt })));
+    res.json(
+      rows.map((r) => ({
+        ...r,
+        systemPrompt: r.system_prompt,
+        branchedFromConversationId: r.branched_from_conversation_id,
+        branchedFromMessageId: r.branched_from_message_id,
+      })),
+    );
   } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Branches a conversation from a given message: creates a new conversation
+ * that starts as a copy of everything up to that point, so the specialist
+ * can try a different direction without disturbing the original thread.
+ */
+chatRouter.post('/conversations/:id/messages/:messageId/branch', async (req, res, next) => {
+  try {
+    const newConversation = await branchConversation({
+      conversationId: req.params.id,
+      userId: req.user.sub,
+      messageId: req.params.messageId,
+    });
+    res.status(201).json(newConversation);
+  } catch (err) {
+    if (err.message === 'Conversation not found' || err.message === 'Message not found') {
+      return res.status(404).json({ error: err.message });
+    }
     next(err);
   }
 });
@@ -125,15 +164,27 @@ chatRouter.delete('/conversations/:id', async (req, res, next) => {
     if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
 
     const { rows: attachments } = await query(
-      `SELECT a.storage_path FROM message_attachments a
+      `SELECT DISTINCT a.storage_path FROM message_attachments a
        JOIN messages m ON m.id = a.message_id
        WHERE m.conversation_id = $1`,
       [req.params.id],
     );
-    await Promise.all(attachments.map((a) => deleteAttachmentFile(a.storage_path)));
 
     // ON DELETE CASCADE takes care of messages/message_attachments rows.
     await query('DELETE FROM conversations WHERE id = $1 AND user_id = $2', [req.params.id, req.user.sub]);
+
+    // A branched conversation shares attachment storage_paths with its
+    // source instead of duplicating files on disk — only delete a file once
+    // no message (in any conversation) still references it.
+    await Promise.all(
+      attachments.map(async (a) => {
+        const { rows: stillReferenced } = await query(
+          'SELECT 1 FROM message_attachments WHERE storage_path = $1 LIMIT 1',
+          [a.storage_path],
+        );
+        if (stillReferenced.length === 0) await deleteAttachmentFile(a.storage_path);
+      }),
+    );
     res.json({ ok: true });
   } catch (err) {
     next(err);
@@ -173,7 +224,7 @@ chatRouter.get('/conversations/search', async (req, res, next) => {
 
 async function fetchMessages(conversationId, userId) {
   const { rows } = await query(
-    `SELECT m.id, m.role, m.content, m.created_at, m.command_used
+    `SELECT m.id, m.role, m.content, m.created_at, m.command_used, m.citations, m.generated_files
      FROM messages m
      JOIN conversations c ON c.id = m.conversation_id
      WHERE m.conversation_id = $1 AND c.user_id = $2
@@ -206,6 +257,8 @@ async function fetchMessages(conversationId, userId) {
     content: r.content,
     created_at: r.created_at,
     commandUsed: r.command_used,
+    citations: r.citations ?? null,
+    generatedFiles: r.generated_files ?? null,
     attachments: attachmentsByMessage.get(r.id) ?? [],
   }));
 }
@@ -305,6 +358,26 @@ chatRouter.post('/conversations/:id/classify', async (req, res, next) => {
   }
 });
 
+/**
+ * Estimates the input-token cost of the current draft BEFORE sending it, so
+ * the frontend can show it next to the send button. Doesn't touch the DB or
+ * spend any real tokens — `countTokens` is free.
+ */
+chatRouter.post('/conversations/:id/estimate', async (req, res, next) => {
+  try {
+    const { rows } = await query('SELECT id FROM conversations WHERE id = $1 AND user_id = $2', [
+      req.params.id,
+      req.user.sub,
+    ]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+
+    const estimate = await estimateTurnCost({ conversationId: req.params.id, draftText: req.body.message ?? '' });
+    res.json(estimate);
+  } catch (err) {
+    next(err);
+  }
+});
+
 chatRouter.post('/conversations/:id/messages', upload.array('files', MAX_FILES_PER_MESSAGE), async (req, res, next) => {
   try {
     const message = req.body.message ?? '';
@@ -320,9 +393,10 @@ chatRouter.post('/conversations/:id/messages', upload.array('files', MAX_FILES_P
     if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
 
     const attachments = files.map((f) => ({ buffer: f.buffer, filename: f.originalname, mimeType: f.mimetype, sizeBytes: f.size }));
+    const overrideBlock = req.body.override === 'true' || req.body.override === true;
 
     streamTurnResponse(req, res, (onChunk, signal) =>
-      streamChatTurn({ conversationId: req.params.id, userId: req.user.sub, userMessage: message, attachments, onChunk, signal }),
+      streamChatTurn({ conversationId: req.params.id, userId: req.user.sub, userMessage: message, attachments, onChunk, signal, overrideBlock }),
     );
   } catch (err) {
     next(err);
@@ -439,6 +513,39 @@ chatRouter.get('/attachments/:id', requireAuthViaHeaderOrQuery, async (req, res,
     const disposition = isInlineSafe ? 'inline' : 'attachment';
     res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(attachment.filename)}"`);
     res.send(buffer);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * Streams a file the model generated via `code_execution` (e.g. a .csv/.xlsx
+ * report) from Anthropic's Files API. Ownership is checked by looking for
+ * the file_id inside some message's `generated_files` in a conversation the
+ * requesting user owns — the id alone isn't a capability token, since
+ * Anthropic file ids aren't scoped per-user.
+ */
+chatRouter.get('/generated-files/:fileId', requireAuthViaHeaderOrQuery, async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT elem->>'filename' AS filename, elem->>'mimeType' AS mime_type
+       FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       CROSS JOIN LATERAL jsonb_array_elements(m.generated_files) elem
+       WHERE c.user_id = $1 AND elem->>'fileId' = $2
+       LIMIT 1`,
+      [req.user.sub, req.params.fileId],
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'File not found' });
+
+    const { filename, mime_type: mimeType } = rows[0];
+    const client = await getAnthropicClient();
+    const download = await client.beta.files.download(req.params.fileId, {}, { headers: { 'anthropic-beta': FILES_API_BETA } });
+
+    const isInlineSafe = INLINE_SAFE_MIME_TYPES.has(mimeType);
+    res.setHeader('Content-Type', isInlineSafe ? mimeType : 'application/octet-stream');
+    res.setHeader('Content-Disposition', `${isInlineSafe ? 'inline' : 'attachment'}; filename="${encodeURIComponent(filename)}"`);
+    res.send(Buffer.from(await download.arrayBuffer()));
   } catch (err) {
     next(err);
   }

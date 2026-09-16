@@ -16,6 +16,20 @@ export interface ConversationSettings {
   created_at: string;
   model: string | null;
   systemPrompt: string | null;
+  branchedFromConversationId?: number | null;
+  branchedFromMessageId?: number | null;
+}
+
+export interface Citation {
+  url: string;
+  title: string;
+}
+
+export interface GeneratedFile {
+  fileId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
 }
 
 export interface ChatMessage {
@@ -25,6 +39,8 @@ export interface ChatMessage {
   created_at: string;
   attachments?: Attachment[];
   commandUsed?: string | null;
+  citations?: Citation[] | null;
+  generatedFiles?: GeneratedFile[] | null;
 }
 
 export interface CostRow {
@@ -86,6 +102,8 @@ export interface StreamResult {
   messageId: number;
   commandUsed: string | null;
   blocked?: boolean;
+  citations?: Citation[] | null;
+  generatedFiles?: GeneratedFile[] | null;
 }
 
 export interface StreamHandlers {
@@ -165,6 +183,10 @@ export const api = {
     }),
   deleteConversation: (conversationId: number) =>
     apiFetch<{ ok: true }>(`/chat/conversations/${conversationId}`, { method: 'DELETE' }),
+  branchConversation: (conversationId: number, messageId: number) =>
+    apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}/messages/${messageId}/branch`, {
+      method: 'POST',
+    }),
   availableModels: () => apiFetch<{ models: string[] }>('/chat/conversations/models'),
   searchConversations: (q: string) =>
     apiFetch<(ConversationSettings & { matchedSnippet: string })[]>(`/chat/conversations/search?q=${encodeURIComponent(q)}`),
@@ -183,6 +205,11 @@ export const api = {
   classifyMessage: (conversationId: number, message: string) =>
     apiFetch<{ blocked: boolean; level: 'zielona' | 'żółta' | 'czerwona'; category: string | null; reply: string | null }>(
       `/chat/conversations/${conversationId}/classify`,
+      { method: 'POST', body: JSON.stringify({ message }) },
+    ),
+  estimateCost: (conversationId: number, message: string) =>
+    apiFetch<{ inputTokens: number; estimatedCostUsd: number; model: string }>(
+      `/chat/conversations/${conversationId}/estimate`,
       { method: 'POST', body: JSON.stringify({ message }) },
     ),
   sendMessageStream: async (
@@ -234,6 +261,10 @@ export const api = {
   attachmentUrl: (attachmentId: number) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return `/api/chat/attachments/${attachmentId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
+  generatedFileUrl: (fileId: string) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return `/api/chat/generated-files/${fileId}${token ? `?token=${encodeURIComponent(token)}` : ''}`;
   },
   listKnowledgeDocuments: () => apiFetch<KnowledgeDocument[]>('/knowledge/documents'),
   uploadKnowledgeDocument: async (file: File, title?: string) => {

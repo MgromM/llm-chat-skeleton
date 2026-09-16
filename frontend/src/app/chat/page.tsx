@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { api, ApiError, type Attachment, type ChatMessage } from '@/lib/api';
+import { api, ApiError, type Attachment, type ChatMessage, type Citation } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 
@@ -95,6 +95,7 @@ interface Conversation {
   created_at: string;
   model?: string | null;
   systemPrompt?: string | null;
+  branchedFromConversationId?: number | null;
 }
 
 
@@ -226,7 +227,11 @@ function ConversationSidebar({
                 }}
                 className="flex min-w-0 flex-1 items-center gap-2 py-2"
               >
-                <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-orange' : 'opacity-70')} />
+                {c.branchedFromConversationId ? (
+                  <GitBranch size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-orange' : 'opacity-70')} />
+                ) : (
+                  <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-orange' : 'opacity-70')} />
+                )}
                 <span className="truncate">{conversationLabel(c)}</span>
               </button>
               <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100">
@@ -277,6 +282,27 @@ function AttachmentChip({ attachment }: { attachment: Attachment }) {
       <span className="truncate">{attachment.filename}</span>
       <span className="shrink-0 text-xs text-brand-dark/40">{formatSize(attachment.sizeBytes)}</span>
     </a>
+  );
+}
+
+/** Small source-link row shown under an assistant reply that used web search. */
+function CitationList({ citations }: { citations: Citation[] }) {
+  return (
+    <div className="mt-1 flex max-w-full flex-wrap gap-1.5">
+      {citations.map((c) => (
+        <a
+          key={c.url}
+          href={c.url}
+          target="_blank"
+          rel="noreferrer"
+          title={c.url}
+          className="flex max-w-[220px] items-center gap-1 rounded-full border border-brand-border bg-brand-white px-2.5 py-1 text-xs text-brand-dark/70 hover:bg-brand-surface/50 hover:text-brand-dark"
+        >
+          <Link2 size={11} className="shrink-0 opacity-60" />
+          <span className="truncate">{c.title}</span>
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -376,9 +402,16 @@ function ChatView() {
   const [editingDraft, setEditingDraft] = useState('');
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [blockedNotice, setBlockedNotice] = useState<{ level: 'żółta' | 'czerwona'; reply: string } | null>(null);
+  const [blockedNotice, setBlockedNotice] = useState<{
+    level: 'żółta' | 'czerwona';
+    reply: string;
+    content: string;
+    files: File[];
+  } | null>(null);
+  const [overriding, setOverriding] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);
+  const [draftEstimate, setDraftEstimate] = useState<{ inputTokens: number; estimatedCostUsd: number } | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -409,6 +442,22 @@ function ChatView() {
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, [draft]);
+
+  // Debounced input-token/cost preview: waits for a pause in typing so it
+  // doesn't fire a countTokens call on every keystroke.
+  useEffect(() => {
+    if (!conversationId || !draft.trim()) {
+      setDraftEstimate(null);
+      return;
+    }
+    const handle = setTimeout(() => {
+      api
+        .estimateCost(conversationId, draft)
+        .then((res) => setDraftEstimate({ inputTokens: res.inputTokens, estimatedCostUsd: res.estimatedCostUsd }))
+        .catch(() => setDraftEstimate(null));
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [conversationId, draft]);
 
   async function handleSelectConversation(id: number) {
     if (id === conversationId) return;
@@ -555,7 +604,7 @@ function ChatView() {
   }
 
   /** Actually submits the turn — called once the message has cleared classification (or the user confirmed anyway). */
-  async function submitMessage(content: string, filesToSend: File[]) {
+  async function submitMessage(content: string, filesToSend: File[], override = false) {
     if (conversationId === null) return;
     const userMessage: ChatMessage = {
       id: Date.now(),
@@ -570,12 +619,13 @@ function ChatView() {
       })),
     };
     setMessages((prev) => [...prev, userMessage]);
-    await runStream((handlers, signal) => api.sendMessageStream(conversationId, content, filesToSend, handlers, signal));
+    await runStream((handlers, signal) => api.sendMessageStream(conversationId, content, filesToSend, handlers, signal, override));
   }
 
   /**
    * Every draft goes through the data-sensitivity classifier first: żółta/
-   * czerwona block outright with the reason shown as an error; zielona sends
+   * czerwona block with the reason shown, and a "wyślij mimo to" option that
+   * deliberately overrides the block for this one message; zielona sends
    * immediately with no extra confirmation step.
    */
   async function handleSend() {
@@ -585,6 +635,7 @@ function ChatView() {
     setDraft('');
     setPendingFiles([]);
     setFileError(null);
+    setDraftEstimate(null);
 
     if (!content.trim()) {
       await submitMessage(content, filesToSend);
@@ -598,6 +649,8 @@ function ChatView() {
         setBlockedNotice({
           level: classification.level === 'czerwona' ? 'czerwona' : 'żółta',
           reply: classification.reply ?? 'Ta wiadomość narusza politykę bezpieczeństwa danych i nie została wysłana.',
+          content,
+          files: filesToSend,
         });
         return;
       }
@@ -614,6 +667,15 @@ function ChatView() {
     if (conversationId === null) return;
     setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId));
     await runStream((handlers, signal) => api.regenerateMessageStream(conversationId, assistantMessageId, handlers, signal));
+  }
+
+  /** Branches the conversation from a given message into a new, independent conversation. */
+  async function handleBranch(messageId: number) {
+    if (conversationId === null) return;
+    const branch = await api.branchConversation(conversationId, messageId);
+    setConversations((prev) => [{ ...branch, created_at: branch.created_at ?? new Date().toISOString() } as Conversation, ...prev]);
+    setConversationId(branch.id);
+    setMessages(await api.listMessages(branch.id));
   }
 
   function handleStartEdit(message: ChatMessage) {
@@ -735,6 +797,9 @@ function ChatView() {
                         </div>
                       )
                     )}
+                    {m.role === 'assistant' && m.citations && m.citations.length > 0 && (
+                      <CitationList citations={m.citations} />
+                    )}
                     {!isEditing && !sending && (
                       <div className="flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                         {m.role === 'user' && (
@@ -757,6 +822,14 @@ function ChatView() {
                             Regeneruj
                           </button>
                         )}
+                        <button
+                          onClick={() => handleBranch(m.id)}
+                          aria-label="Rozgałęź rozmowę od tego miejsca"
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 hover:bg-brand-surface/60 hover:text-brand-dark"
+                        >
+                          <GitBranch size={12} />
+                          Rozgałęź
+                        </button>
                       </div>
                     )}
                   </div>
@@ -847,6 +920,12 @@ function ChatView() {
                   </button>
                 )}
               </div>
+              {draftEstimate && draftEstimate.inputTokens > 0 && (
+                <p className="mt-1.5 text-right text-xs text-brand-dark/40">
+                  ~{draftEstimate.inputTokens.toLocaleString('pl-PL')} tok. wejściowych · ~$
+                  {draftEstimate.estimatedCostUsd.toFixed(4)} (bez odpowiedzi)
+                </p>
+              )}
             </div>
           </div>
         </div>

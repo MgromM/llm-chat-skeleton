@@ -10,20 +10,28 @@ function escapeRegExp(str) {
 }
 
 /**
- * Holds the token<->value map and running per-category counters for ONE
- * request, so every piece of text redacted through it (the specialist's
- * message, and later any BigQuery/RAG tool output) shares a single token
- * numbering and a single map — a second `redact()` call continues counting
- * from `[EMAIL_2]` instead of restarting at `[EMAIL_1]` and silently
- * clobbering the first match's map entry. `terms` are literal client/brand
- * names (loaded from the `redaction_terms` table) redacted the same way as
- * the regex patterns, categorized under each term's own category (e.g.
- * `KLIENT`). The map lives only in memory for the session's lifetime — never
- * logged, never persisted.
+ * Holds the token<->value map and running per-category counters, so every
+ * piece of text redacted through it (the specialist's message, and later
+ * any BigQuery/RAG tool output) shares a single token numbering and a
+ * single map — a second `redact()` call continues counting from `[EMAIL_2]`
+ * instead of restarting at `[EMAIL_1]` and silently clobbering the first
+ * match's map entry. `terms` are literal client/brand names (loaded from
+ * the `redaction_terms` table) redacted the same way as the regex patterns,
+ * categorized under each term's own category (e.g. `KLIENT`).
+ *
+ * `initialState` (`{ map, counts }`) seeds the session from a conversation's
+ * previously persisted state — without this, every turn would restart
+ * counters at 1, so the literal token `[KLIENT_1]` saved in turn 1's history
+ * and a freshly minted `[KLIENT_1]` in turn 3 could refer to two completely
+ * different real values once both are replayed together in the same
+ * `messages` array sent to the model. Seeding keeps tokens unique for the
+ * lifetime of the conversation. The map itself still never leaves this
+ * process's memory except via the caller persisting `session.map`/
+ * `session.counts` back to storage — it's never sent to the model or logged.
  */
-export function createRedactionSession(terms = []) {
-  const map = {};
-  const counts = {};
+export function createRedactionSession(terms = [], initialState = {}) {
+  const map = { ...(initialState.map ?? {}) };
+  const counts = { ...(initialState.counts ?? {}) };
   const categories = new Set();
 
   function tokenize(name, match) {
@@ -58,6 +66,7 @@ export function createRedactionSession(terms = []) {
     restore: (text) => restorePii(text, map),
     createChunker: (onChunk) => createDetokenizingChunker(map, onChunk),
     map,
+    counts,
     get categories() {
       return Array.from(categories);
     },
