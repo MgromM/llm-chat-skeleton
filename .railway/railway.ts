@@ -29,9 +29,11 @@ export default defineRailway(() => {
       GOOGLE_OAUTH_CLIENT_ID: preserve(),
       GOOGLE_OAUTH_CLIENT_SECRET: preserve(),
       GOOGLE_OAUTH_REDIRECT_URL: preserve(),
-      // ANTHROPIC_API_KEY, GCS_BUCKET_NAME, GOOGLE_APPLICATION_CREDENTIALS
-      // (or its JSON) are documented here for when they get set, but aren't
-      // currently live on the service, so they're not preserve()'d.
+      // Now live on the service (set directly via `railway variables set`,
+      // not tracked here) — preserve() so `config apply` doesn't delete them.
+      ANTHROPIC_API_KEY: preserve(),
+      VOYAGE_API_KEY: preserve(),
+      PORT: preserve(),
       CHAT_MODEL: "claude-sonnet-5",
       JUDGE_MODEL: "claude-haiku-4-5-20251001",
       PRECHECK_MODEL: "claude-haiku-4-5-20251001",
@@ -43,7 +45,10 @@ export default defineRailway(() => {
   });
 
   const frontend = service("frontend", {
-    source: { ...salesmoreLLMMvp, rootDirectory: "frontend" },
+    // next.config.mjs and lib/api.ts read BACKEND_URL / NEXT_PUBLIC_BACKEND_URL
+    // at build time via Dockerfile ARGs (see frontend/Dockerfile) — railpack's
+    // autodetected build doesn't pass build args, so it must build via Docker.
+    source: { ...salesmoreLLMMvp, rootDirectory: "frontend", builder: "DOCKERFILE" },
     replicas: { sfo: 1 },
     variables: {
       BACKEND_URL: "http://${{backend.RAILWAY_PRIVATE_DOMAIN}}:${{backend.PORT}}",

@@ -298,7 +298,7 @@ chatRouter.post('/conversations/:id/classify', async (req, res, next) => {
     ]);
     if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
 
-    const classification = await classifyDraftMessage({ conversationId: req.params.id, userMessage: message });
+    const classification = await classifyDraftMessage({ conversationId: req.params.id, userId: req.user.sub, userMessage: message });
     res.json(classification);
   } catch (err) {
     next(err);

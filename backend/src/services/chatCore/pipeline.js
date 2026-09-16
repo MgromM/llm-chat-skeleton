@@ -4,10 +4,12 @@ import { knowledgeSearchTool, runKnowledgeSearchTool } from '../mcp/knowledgeSer
 import { recordUsage } from '../metrics/usageTracker.js';
 import { judgeResponse } from '../judge/qualityJudge.js';
 import { parseCommand, dispatchCommand } from './slashDispatch.js';
-import { redactPii } from '../security/piiRedaction.js';
-import { precheckMessage } from '../security/sensitiveDataPrecheck.js';
+import { createRedactionSession } from '../security/piiRedaction.js';
+import { getRedactionTerms } from '../security/redactionTerms.js';
+import { precheckMessage, PRECHECK_MODEL } from '../security/sensitiveDataPrecheck.js';
 import { extractTextFromImages } from '../security/ocrExtraction.js';
 import { detectUncertainLeak } from '../security/uncertainLeakAgent.js';
+import { logAiAudit } from '../security/aiAuditLog.js';
 import { checkMonthlyBudget } from '../../config/budget.js';
 import { query } from '../../config/db.js';
 import {
@@ -55,8 +57,14 @@ function stripThinkingBlocks(content) {
  * own try/catch so one failing tool still lets every other tool_use in the
  * same turn get its matching tool_result (an error one, if needed) — no
  * tool_use is ever left dangling because of a thrown error.
+ *
+ * `redaction` (a session from `createRedactionSession`) is run over every
+ * tool result before it's stringified into the message sent back to
+ * Claude — BigQuery/RAG results can contain the same raw client names,
+ * budgets, and PII as a pasted-in prompt, and without this they'd reach the
+ * model (and, on the way back, the specialist) completely unredacted.
  */
-async function runAllToolUses(content) {
+async function runAllToolUses(content, redaction) {
   const toolUses = content.filter((b) => b.type === 'tool_use');
   const results = await Promise.all(
     toolUses.map(async (toolUse) => {
@@ -66,7 +74,8 @@ async function runAllToolUses(content) {
       } catch (err) {
         toolResult = { error: err.message };
       }
-      return { type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(toolResult) };
+      const redactedContent = redaction.redact(JSON.stringify(toolResult));
+      return { type: 'tool_result', tool_use_id: toolUse.id, content: redactedContent };
     }),
   );
   return results;
@@ -298,7 +307,7 @@ async function buildPromptContent(promptText, attachments) {
   ];
 }
 
-async function runToolLoop(client, messages, { model = CHAT_MODEL, system } = {}) {
+async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, system } = {}) {
   messages = stripOrphanedToolUses(messages);
   let response = await client.messages.create({
     model,
@@ -313,7 +322,7 @@ async function runToolLoop(client, messages, { model = CHAT_MODEL, system } = {}
     if (++toolRounds > MAX_TOOL_ROUNDS) {
       throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
     }
-    const toolResults = await runAllToolUses(response.content);
+    const toolResults = await runAllToolUses(response.content, redaction);
 
     messages = stripOrphanedToolUses([
       ...messages,
@@ -340,7 +349,7 @@ async function runToolLoop(client, messages, { model = CHAT_MODEL, system } = {}
  * calls don't produce user-facing text anyway); the round after the tool
  * result resumes streaming normally.
  */
-async function runToolLoopStreaming(client, messages, onChunk, signal, { model = CHAT_MODEL, system } = {}) {
+async function runToolLoopStreaming(client, messages, redaction, onChunk, signal, { model = CHAT_MODEL, system } = {}) {
   let fullText = '';
   let usage = { input_tokens: 0, output_tokens: 0 };
   let toolRounds = 0;
@@ -382,7 +391,7 @@ async function runToolLoopStreaming(client, messages, onChunk, signal, { model =
     if (message.stop_reason !== 'tool_use') break;
     toolRounds += 1;
 
-    const toolResults = await runAllToolUses(message.content);
+    const toolResults = await runAllToolUses(message.content, redaction);
 
     messages = stripOrphanedToolUses([
       ...messages,
@@ -436,10 +445,16 @@ async function buildPrecheckText(safeMessage, attachments) {
  * block reason immediately, zielona still needs the user to confirm the
  * message contains none of that data before the real send proceeds.
  */
-export async function classifyDraftMessage({ conversationId, userMessage, attachments = [] }) {
-  const safeMessage = redactPii(userMessage);
+export async function classifyDraftMessage({ conversationId, userId, userMessage, attachments = [] }) {
+  const terms = await getRedactionTerms();
+  const session = createRedactionSession(terms);
+  const safeMessage = session.redact(userMessage);
+  const piiCategories = session.categories;
   const precheckText = await buildPrecheckText(safeMessage, attachments);
   const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
+  if (userId) {
+    logAiAudit({ conversationId, userId, piiCategories, precheck, model: PRECHECK_MODEL, purpose: 'classify-draft' });
+  }
   return {
     blocked: precheck.blocked,
     level: precheck.level,
@@ -455,11 +470,15 @@ export async function classifyDraftMessage({ conversationId, userMessage, attach
  * budget — nothing left to do) or everything needed to call Claude.
  */
 async function prepareNewTurn({ conversationId, userId, userMessage, attachments }) {
-  const safeMessage = redactPii(userMessage);
+  const terms = await getRedactionTerms();
+  const session = createRedactionSession(terms);
+  const safeMessage = session.redact(userMessage);
+  const piiCategories = session.categories;
   await maybeSetConversationTitle(conversationId, safeMessage);
 
   const precheckText = await buildPrecheckText(safeMessage, attachments);
   const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
+  logAiAudit({ conversationId, userId, piiCategories, precheck, model: PRECHECK_MODEL, purpose: 'precheck' });
   if (precheck.blocked) {
     const userMessageId = await saveMessage(conversationId, 'user', safeMessage);
     await saveAttachments(userMessageId, attachments);
@@ -501,13 +520,16 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
     return { done: true, result: { reply, messageId: assistantMessageId, commandUsed } };
   }
 
+  const settings = await getConversationSettings(conversationId);
+
   return {
     done: false,
     history,
     currentContent: await buildPromptContent(promptForLlm, attachments),
     commandUsed,
     safeMessage,
-    settings: await getConversationSettings(conversationId),
+    session,
+    settings,
   };
 }
 
@@ -518,8 +540,26 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
 
   const client = await getAnthropicClient();
   const started = Date.now();
-  const response = await runToolLoop(client, [...prep.history, { role: 'user', content: prep.currentContent }], prep.settings);
+  const response = await runToolLoop(
+    client,
+    [...prep.history, { role: 'user', content: prep.currentContent }],
+    prep.session,
+    prep.settings,
+  );
   const latencyMs = Date.now() - started;
+  // Categories logged here (after the tool loop) include anything the
+  // redaction session picked up from BigQuery/RAG tool results, not just
+  // the specialist's own message.
+  logAiAudit({
+    conversationId,
+    userId,
+    piiCategories: prep.session.categories,
+    model: prep.settings.model,
+    purpose: prep.commandUsed ?? 'chat',
+  });
+  // Stored/DB copy stays tokenized (data minimization); only the copy
+  // handed back to the specialist for this response is de-tokenized — the
+  // real values were never sent to the model and are never persisted.
   const replyText = response.content.find((b) => b.type === 'text')?.text ?? '';
   const assistantMessageId = await finishAssistantReply({
     conversationId,
@@ -530,7 +570,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     latencyMs,
     model: prep.settings.model,
   });
-  return { reply: replyText, messageId: assistantMessageId, commandUsed: prep.commandUsed };
+  return { reply: prep.session.restore(replyText), messageId: assistantMessageId, commandUsed: prep.commandUsed };
 }
 
 /** Streaming entry point for a brand-new user turn (`onChunk` gets each text delta). */
@@ -540,14 +580,28 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
 
   const client = await getAnthropicClient();
   const started = Date.now();
+  // Chunks reach the browser de-tokenized live; the accumulated `text` used
+  // for DB storage/judging below stays tokenized — see restorePii's docstring.
+  // The chunker reads prep.session.map live, so tokens discovered in a
+  // BigQuery/RAG tool result mid-stream still get de-tokenized correctly.
+  const chunker = prep.session.createChunker(onChunk);
   const { text, usage } = await runToolLoopStreaming(
     client,
     [...prep.history, { role: 'user', content: prep.currentContent }],
-    onChunk,
+    prep.session,
+    (delta) => chunker.push(delta),
     signal,
     prep.settings,
   );
+  chunker.flush();
   const latencyMs = Date.now() - started;
+  logAiAudit({
+    conversationId,
+    userId,
+    piiCategories: prep.session.categories,
+    model: prep.settings.model,
+    purpose: prep.commandUsed ?? 'chat',
+  });
   const assistantMessageId = await finishAssistantReply({
     conversationId,
     safeMessage: prep.safeMessage,
@@ -557,7 +611,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     latencyMs,
     model: prep.settings.model,
   });
-  return { reply: text, messageId: assistantMessageId, commandUsed: prep.commandUsed };
+  return { reply: prep.session.restore(text), messageId: assistantMessageId, commandUsed: prep.commandUsed };
 }
 
 /**
@@ -576,8 +630,17 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
   const safeMessage = rows[0].content;
   const attachments = await loadMessageAttachments(userMessageId);
 
+  const terms = await getRedactionTerms();
+  const session = createRedactionSession(terms);
+
   const precheckText = await buildPrecheckText(safeMessage, attachments);
   const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
+  // safeMessage here is already-tokenized text re-read from the DB (redactPii
+  // ran once, at the original send) — no new PII categories to detect in it.
+  // `session` still exists to redact anything a BigQuery/RAG tool call
+  // returns below; the response on this path stays tokenized either way
+  // (no map to restore from for the original message).
+  logAiAudit({ conversationId, userId, piiCategories: [], precheck, model: PRECHECK_MODEL, purpose: 'precheck' });
   if (precheck.blocked) {
     const blockedReply = buildBlockedReply(precheck);
     const assistantMessageId = await saveMessage(conversationId, 'assistant', blockedReply);
@@ -615,11 +678,20 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
   const { text, usage } = await runToolLoopStreaming(
     client,
     [...history, { role: 'user', content: currentContent }],
+    session,
     onChunk,
     signal,
     settings,
   );
   const latencyMs = Date.now() - started;
+  logAiAudit({
+    conversationId,
+    userId,
+    piiCategories: session.categories,
+    precheck,
+    model: settings.model,
+    purpose: commandUsed ?? 'chat',
+  });
   const assistantMessageId = await finishAssistantReply({
     conversationId,
     safeMessage,

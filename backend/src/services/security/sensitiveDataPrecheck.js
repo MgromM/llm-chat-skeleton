@@ -2,15 +2,30 @@ import { getAnthropicClient } from '../anthropicClient.js';
 import { query } from '../../config/db.js';
 import { logger } from '../../config/logger.js';
 
-const PRECHECK_MODEL = process.env.PRECHECK_MODEL ?? 'claude-haiku-4-5-20251001';
+export const PRECHECK_MODEL = process.env.PRECHECK_MODEL ?? 'claude-haiku-4-5-20251001';
 const PRECHECK_ENABLED = process.env.PRECHECK_ENABLED !== 'false';
 
 // Mirrors Agencji's 3-poziomowa klasyfikacja danych (zielona/żółta/czerwona).
-const PRECHECK_PROMPT = `Klasyfikujesz jedną wiadomość użytkownika Sales&More PRZED wysłaniem jej do modelu AI, wg firmowej klasyfikacji danych:
-ZIELONA — dane publiczne, nieosobowe, niezastrzeżone (ogólnodostępne dane rynkowe, treści kreatywne do ćwiczeń). Bez ograniczeń.
-ZOLTA — dane wewnętrzne Agencji, dane osobowe pracowników, informacje handlowe (dane finansowe Agencji, nazwy klientów, wewnętrzne strategie).
-CZERWONA — dane klientów, dane osobowe konsumentów, tajemnica handlowa, umowy (briefy z danymi osobowymi, wyniki badań z danymi respondentów).
-Jeśli wiadomość jest zwykłym pytaniem biznesowym/marketingowym bez takich danych — to ZIELONA, nawet jeśli dotyczy kampanii czy klientów w sposób ogólny.
+// Kluczowa zasada: klasyfikujemy KONKRETNE DANE zawarte w wiadomości, nie jej
+// temat. Pytanie specjalisty o poradę, strategię czy sposób pracy — nawet
+// dotyczące klientów, kampanii czy branży w sposób ogólny — jest ZIELONE,
+// dopóki nie niesie ze sobą realnych, identyfikujących danych (nazwisk,
+// nazw konkretnych klientów, numerów, kwot, treści umów, danych kontaktowych
+// itp.). Blokujemy dane, nie ciekawość czy pytania.
+const PRECHECK_PROMPT = `Klasyfikujesz jedną wiadomość użytkownika Sales&More PRZED wysłaniem jej do modelu AI, wg firmowej klasyfikacji danych. Oceniasz WYŁĄCZNIE to, czy wiadomość zawiera KONKRETNE, REALNE dane — nie to, jakiego tematu dotyczy pytanie.
+
+ZIELONA — pytanie/prośba specjalisty bez konkretnych, realnych danych: ogólne pytania biznesowe, marketingowe, o strategię, sposób pracy, definicje, przykłady, ćwiczenia — nawet jeśli wspominają o "kliencie", "kampanii", "budżecie" czy branży w sposób ogólny/hipotetyczny, bez podawania faktycznych nazw, liczb czy danych osobowych. To domyślna kategoria dla zwykłych pytań.
+ZOLTA — wiadomość zawiera konkretne dane wewnętrzne Agencji: realne dane osobowe pracowników, faktyczne nazwy klientów Agencji, konkretne dane finansowe/handlowe Agencji, fragmenty wewnętrznych strategii z detalami.
+CZERWONA — wiadomość zawiera konkretne dane klientów/konsumentów: realne dane osobowe (imiona+nazwiska, kontakty, PESEL itp.), treści umów, tajemnicę handlową, wyniki badań z danymi respondentów, briefy z danymi osobowymi.
+
+Przykłady:
+- "Jak zbudować strategię social media dla klienta z branży FMCG?" → ZIELONA (brak konkretnych danych, ogólne pytanie).
+- "Napisz mi przykładowy brief kreatywny" → ZIELONA.
+- "Klient XYZ Sp. z o.o., budżet 50000 zł na Q3, kontakt: Jan Kowalski jan@xyz.pl" → zawiera konkretne dane (mimo redakcji e-maila) → ZOLTA/CZERWONA w zależności od typu danych.
+- "Podsumuj ten brief: [treść z danymi respondentów badania]" → CZERWONA.
+
+Jeśli nie masz pewności, czy dane są konkretne/realne czy tylko przykładowe/hipotetyczne — traktuj jako ZIELONA (nie blokuj samego pytania, blokuj tylko wtedy, gdy realne dane faktycznie są obecne w treści).
+
 Odpowiedz WYŁĄCZNIE w formacie JSON: {"level": "<ZIELONA|ZOLTA|CZERWONA>", "category": "<PII|DANE_FIRMOWE|TAJEMNICA_HANDLOWA|AI_ACT|PROMPT_INJECTION|BRAK>", "confidence": <0-1>, "rationale": "<jedno zdanie po polsku>"}.`;
 
 const LEVEL_LABELS = { ZIELONA: 'zielona', ZOLTA: 'żółta', CZERWONA: 'czerwona' };

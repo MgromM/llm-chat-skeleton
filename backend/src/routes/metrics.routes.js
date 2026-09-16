@@ -3,6 +3,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getCostSummary } from '../services/metrics/usageTracker.js';
 import { query } from '../config/db.js';
 import { checkBigQueryConnection } from '../services/mcp/bigqueryServer.js';
+import { listRedactionTerms, addRedactionTerm, deactivateRedactionTerm } from '../services/security/redactionTerms.js';
 
 export const metricsRouter = Router();
 metricsRouter.use(requireAuth, requireRole('manager', 'admin'));
@@ -41,6 +42,37 @@ metricsRouter.post('/leak-alerts/:id/review', async (req, res, next) => {
       [req.params.id],
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Alert not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Client/brand names to redact from every chat turn (message + tool
+// results) before it reaches the model — see docs/AI_DATA_POLICY.md.
+metricsRouter.get('/redaction-terms', async (req, res, next) => {
+  try {
+    res.json(await listRedactionTerms());
+  } catch (err) {
+    next(err);
+  }
+});
+
+metricsRouter.post('/redaction-terms', async (req, res, next) => {
+  try {
+    const term = String(req.body.term ?? '').trim();
+    if (!term) return res.status(400).json({ error: 'term is required' });
+    const category = req.body.category ? String(req.body.category).trim() : undefined;
+    const created = await addRedactionTerm({ term, category, createdBy: req.user.sub });
+    res.status(201).json(created);
+  } catch (err) {
+    next(err);
+  }
+});
+
+metricsRouter.delete('/redaction-terms/:id', async (req, res, next) => {
+  try {
+    await deactivateRedactionTerm(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     next(err);
