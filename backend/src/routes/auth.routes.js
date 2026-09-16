@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { query } from '../config/db.js';
@@ -59,8 +60,9 @@ authRouter.get('/google/login-url', async (req, res, next) => {
   }
 });
 
-// Google OAuth callback: only lets already-provisioned users in (no
-// self-signup), mirroring the admin-only /register flow above.
+// Google OAuth callback: any @salesmore.pl account self-provisions on first
+// login (as 'specialist' — /register stays the way to grant 'admin'), since
+// the Google domain check is already the access gate.
 authRouter.get('/google/callback', async (req, res, next) => {
   const frontendUrl = await getSecret('FRONTEND_URL');
   try {
@@ -77,9 +79,17 @@ authRouter.get('/google/callback', async (req, res, next) => {
     }
 
     const { rows } = await query('SELECT * FROM users WHERE email = $1', [payload.email]);
-    const user = rows[0];
+    let user = rows[0];
     if (!user) {
-      return res.redirect(`${frontendUrl}/auth/callback?error=no_access`);
+      // Password login stays unusable for a self-provisioned account (no one
+      // is ever told this hash) — it exists only to satisfy the NOT NULL
+      // column, since these users only ever authenticate via Google.
+      const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+      const inserted = await query(
+        'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id, email, role',
+        [payload.email, randomPasswordHash, 'specialist'],
+      );
+      user = inserted.rows[0];
     }
 
     const secret = await getSecret('JWT_SECRET');
