@@ -315,7 +315,7 @@ function ConversationSettingsBar({
           <Menu size={18} />
         </button>
         <div className="flex items-center gap-1.5 text-brand-dark/60">
-          Model: <span className="font-medium text-brand-dark">Sonnet 5</span>
+          Pracujesz na modelu <span className="font-medium text-brand-dark">Claude Sonnet 5</span>
         </div>
         <button
           onClick={() => setShowPromptEditor((v) => !v)}
