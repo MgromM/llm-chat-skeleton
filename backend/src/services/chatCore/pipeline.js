@@ -1,5 +1,5 @@
 import { getAnthropicClient } from '../anthropicClient.js';
-import { bigQueryTool, runBigQueryTool } from '../mcp/bigqueryServer.js';
+import { bigQueryTool, runBigQueryTool, isBigQueryConfigured } from '../mcp/bigqueryServer.js';
 import { knowledgeSearchTool, runKnowledgeSearchTool } from '../mcp/knowledgeServer.js';
 import { recordUsage } from '../metrics/usageTracker.js';
 import { judgeResponse } from '../judge/qualityJudge.js';
@@ -23,7 +23,11 @@ import {
 
 const CHAT_MODEL = process.env.CHAT_MODEL ?? 'claude-sonnet-5';
 const JUDGE_MODEL = process.env.JUDGE_MODEL ?? 'claude-haiku-4-5-20251001';
-const TOOLS = [bigQueryTool, knowledgeSearchTool];
+// Only offer the BigQuery tool once it's actually configured (an allowlisted
+// table exists) — otherwise every call the model makes fails closed, and it
+// burns through the tool-use round limit retrying instead of just answering,
+// which looks like the chat has gotten stuck.
+const TOOLS = isBigQueryConfigured() ? [bigQueryTool, knowledgeSearchTool] : [knowledgeSearchTool];
 
 async function runTool(toolUse) {
   if (toolUse.name === 'query_bigquery') return runBigQueryTool(toolUse.input);

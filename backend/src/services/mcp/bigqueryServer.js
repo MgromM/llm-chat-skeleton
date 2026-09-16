@@ -17,6 +17,15 @@ function getAllowedTables() {
     .filter(Boolean);
 }
 
+// Whether the tool has anything it could actually query. With an empty
+// allowlist every query is rejected before it reaches BigQuery — exposing
+// the tool to the model anyway just makes it retry different queries until
+// it burns through the tool-use round limit, which reads as the chat
+// "getting stuck" on a request that can never succeed.
+export function isBigQueryConfigured() {
+  return getAllowedTables().length > 0;
+}
+
 // Extracts `dataset.table` (optionally `project.dataset.table`, optionally backtick-quoted)
 // references following FROM/JOIN, so we can check each one against the allowlist.
 function extractReferencedTables(sql) {
