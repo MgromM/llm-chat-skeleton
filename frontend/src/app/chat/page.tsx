@@ -377,7 +377,6 @@ function ChatView() {
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [pendingConfirm, setPendingConfirm] = useState<{ content: string; files: File[] } | null>(null);
   const [classifying, setClassifying] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -575,8 +574,8 @@ function ChatView() {
 
   /**
    * Every draft goes through the data-sensitivity classifier first: żółta/
-   * czerwona block outright with the reason shown as an error; zielona still
-   * needs an explicit user confirmation before the real send fires.
+   * czerwona block outright with the reason shown as an error; zielona sends
+   * immediately with no extra confirmation step.
    */
   async function handleSend() {
     if ((!draft.trim() && pendingFiles.length === 0) || conversationId === null) return;
@@ -598,27 +597,13 @@ function ChatView() {
         setErrorMessage(classification.reply ?? 'Ta wiadomość narusza politykę bezpieczeństwa danych i nie została wysłana.');
         return;
       }
-      setPendingConfirm({ content, files: filesToSend });
+      await submitMessage(content, filesToSend);
     } catch {
       // Classifier outage shouldn't block the chat — fail open, same as the backend precheck.
       await submitMessage(content, filesToSend);
     } finally {
       setClassifying(false);
     }
-  }
-
-  async function handleConfirmSend() {
-    if (!pendingConfirm) return;
-    const { content, files } = pendingConfirm;
-    setPendingConfirm(null);
-    await submitMessage(content, files);
-  }
-
-  function handleCancelSend() {
-    if (!pendingConfirm) return;
-    setDraft(pendingConfirm.content);
-    setPendingFiles(pendingConfirm.files);
-    setPendingConfirm(null);
   }
 
   async function handleRegenerate(assistantMessageId: number) {
@@ -862,32 +847,6 @@ function ChatView() {
           </div>
         </div>
         {openArtifact && <ArtifactPanel artifact={openArtifact} onClose={() => setOpenArtifact(null)} />}
-        {pendingConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-2xl bg-brand-white p-6 shadow-xl">
-              <h2 className="text-base font-semibold text-brand-dark">Potwierdź przed wysłaniem</h2>
-              <p className="mt-2 text-sm text-brand-dark/70">
-                System oznaczył wiadomość jako potencjalnie naruszającą nasze wymagania dot. danych. Czy Twoja wiadomość
-                zawiera dane osobowe klientów lub pracowników, dane wewnętrzne Agencji, tajemnicę handlową lub inne dane
-                wrażliwe?
-              </p>
-              <div className="mt-5 flex justify-end gap-2">
-                <button
-                  onClick={handleCancelSend}
-                  className="rounded-full border border-brand-dark/20 px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60"
-                >
-                  Tak, wstrzymaj
-                </button>
-                <button
-                  onClick={handleConfirmSend}
-                  className="rounded-full bg-brand-orange px-4 py-2 text-sm font-medium text-brand-white hover:brightness-95"
-                >
-                  Nie, wyślij
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

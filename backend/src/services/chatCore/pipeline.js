@@ -315,7 +315,7 @@ async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, sy
   messages = stripOrphanedToolUses(messages);
   let response = await client.messages.create({
     model,
-    max_tokens: 1024,
+    max_tokens: 4096,
     tools: TOOLS,
     messages,
     ...(system ? { system } : {}),
@@ -336,7 +336,7 @@ async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, sy
 
     response = await client.messages.create({
       model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       tools: TOOLS,
       messages,
       ...(system ? { system } : {}),
@@ -365,7 +365,7 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
     }
     const stream = client.messages.stream({
       model,
-      max_tokens: 1024,
+      max_tokens: 4096,
       tools: TOOLS,
       messages,
       ...(system ? { system } : {}),
