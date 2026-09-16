@@ -1,0 +1,42 @@
+import { createWorker } from 'tesseract.js';
+import { logger } from '../../config/logger.js';
+
+const OCR_LANGS = process.env.OCR_LANGS ?? 'eng+pol';
+const MAX_OCR_CHARS_PER_IMAGE = 5_000;
+
+/**
+ * Extracts text from a single image attachment via Tesseract OCR. Runs
+ * locally, no network call — this is the "basic OCR" step, swappable later
+ * for a cloud OCR provider (e.g. Google Cloud Vision) without touching the
+ * call site in pipeline.js.
+ */
+async function ocrImage(buffer) {
+  const worker = await createWorker(OCR_LANGS);
+  try {
+    const { data } = await worker.recognize(buffer);
+    return (data.text ?? '').trim().slice(0, MAX_OCR_CHARS_PER_IMAGE);
+  } finally {
+    await worker.terminate();
+  }
+}
+
+/**
+ * Runs OCR over every image attachment and returns their extracted text
+ * joined into one block, so it can be fed into the sensitive-data precheck
+ * alongside the message text. Fails open per-image: an OCR error on one
+ * attachment is logged and skipped, never blocks the turn.
+ */
+export async function extractTextFromImages(images) {
+  if (!images || images.length === 0) return '';
+
+  const chunks = [];
+  for (const file of images) {
+    try {
+      const text = await ocrImage(file.buffer);
+      if (text) chunks.push(`--- OCR (${file.filename}) ---\n${text}`);
+    } catch (err) {
+      logger.error('OCR extraction failed for attachment, skipping', { filename: file.filename, error: err.message });
+    }
+  }
+  return chunks.join('\n\n');
+}

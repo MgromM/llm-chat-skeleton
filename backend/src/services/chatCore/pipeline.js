@@ -6,6 +6,7 @@ import { judgeResponse } from '../judge/qualityJudge.js';
 import { parseCommand, dispatchCommand } from './slashDispatch.js';
 import { redactPii } from '../security/piiRedaction.js';
 import { precheckMessage } from '../security/sensitiveDataPrecheck.js';
+import { extractTextFromImages } from '../security/ocrExtraction.js';
 import { detectUncertainLeak } from '../security/uncertainLeakAgent.js';
 import { checkMonthlyBudget } from '../../config/budget.js';
 import { query } from '../../config/db.js';
@@ -412,6 +413,18 @@ async function getConversationSettings(conversationId) {
 }
 
 /**
+ * Runs local OCR over any image attachments and appends the extracted text
+ * to the message text, so the sensitive-data precheck sees what's actually
+ * in the photos, not just the typed prompt.
+ */
+async function buildPrecheckText(safeMessage, attachments) {
+  const images = attachments.filter((f) => isImageAttachment(f.mimeType));
+  if (images.length === 0) return safeMessage;
+  const ocrText = await extractTextFromImages(images);
+  return ocrText ? `${safeMessage}\n\n${ocrText}` : safeMessage;
+}
+
+/**
  * Shared prep for a brand-new user turn: redaction, auto-title, hard-block
  * precheck, slash-command dispatch, conversation history load, and monthly
  * budget check. Returns either a finished result (bypass/blocked/over
@@ -421,7 +434,8 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
   const safeMessage = redactPii(userMessage);
   await maybeSetConversationTitle(conversationId, safeMessage);
 
-  const precheck = await precheckMessage({ conversationId, userMessage: safeMessage });
+  const precheckText = await buildPrecheckText(safeMessage, attachments);
+  const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
   if (precheck.blocked) {
     const userMessageId = await saveMessage(conversationId, 'user', safeMessage);
     await saveAttachments(userMessageId, attachments);
@@ -431,7 +445,7 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
 
   // Fire-and-forget: flags ambiguous-but-worrying messages that didn't meet
   // the hard-block confidence threshold, without adding latency to the chat.
-  detectUncertainLeak({ conversationId, userId, userMessage: safeMessage });
+  detectUncertainLeak({ conversationId, userId, userMessage: precheckText });
 
   const parsed = parseCommand(safeMessage);
   let commandUsed = null;
@@ -537,13 +551,14 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
   const safeMessage = rows[0].content;
   const attachments = await loadMessageAttachments(userMessageId);
 
-  const precheck = await precheckMessage({ conversationId, userMessage: safeMessage });
+  const precheckText = await buildPrecheckText(safeMessage, attachments);
+  const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
   if (precheck.blocked) {
     const assistantMessageId = await saveMessage(conversationId, 'assistant', BLOCKED_REPLY);
     return { reply: BLOCKED_REPLY, messageId: assistantMessageId, commandUsed: null, blocked: true };
   }
 
-  detectUncertainLeak({ conversationId, userId, userMessage: safeMessage });
+  detectUncertainLeak({ conversationId, userId, userMessage: precheckText });
 
   const parsed = parseCommand(safeMessage);
   let commandUsed = null;
