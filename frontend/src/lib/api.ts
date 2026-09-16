@@ -77,6 +77,13 @@ export interface McpConnector {
   created_at: string;
 }
 
+export interface MemoryFile {
+  id: number;
+  path: string;
+  size_bytes: number;
+  updated_at: string;
+}
+
 export interface EnterpriseComparison {
   periodFrom: string;
   periodTo: string;
@@ -172,6 +179,9 @@ export const api = {
   googleLoginUrl: () => apiFetch<{ url: string }>('/auth/google/login-url'),
   me: () => apiFetch<LoginResponse['user']>('/auth/me'),
   deleteAccount: () => apiFetch<{ ok: true }>('/auth/me', { method: 'DELETE' }),
+  listMemoryFiles: () => apiFetch<MemoryFile[]>('/memory'),
+  deleteMemoryFile: (id: number) => apiFetch<{ ok: true }>(`/memory/${id}`, { method: 'DELETE' }),
+  clearMemory: () => apiFetch<{ ok: true }>('/memory', { method: 'DELETE' }),
   listConversations: () => apiFetch<ConversationSettings[]>('/chat/conversations'),
   createConversation: (title?: string) =>
     apiFetch<ConversationSettings>('/chat/conversations', {

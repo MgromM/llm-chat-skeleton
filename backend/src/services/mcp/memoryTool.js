@@ -144,6 +144,26 @@ async function renameCommand(userId, { old_path: oldPath, new_path: newPath }) {
   return `Renamed ${rows.length} file(s) from ${from} to ${to}`;
 }
 
+/** For the user-facing "what does it remember about me" settings view. */
+export async function listUserMemoryFiles(userId) {
+  const { rows } = await query(
+    'SELECT id, path, length(content) AS size_bytes, updated_at FROM user_memory_files WHERE user_id = $1 ORDER BY path ASC',
+    [userId],
+  );
+  return rows;
+}
+
+/** Lets a user delete one of their own remembered files from the settings page. */
+export async function deleteUserMemoryFile(userId, id) {
+  const { rowCount } = await query('DELETE FROM user_memory_files WHERE user_id = $1 AND id = $2', [userId, id]);
+  return rowCount > 0;
+}
+
+/** Lets a user wipe everything the model remembers about them in one go. */
+export async function clearUserMemory(userId) {
+  await query('DELETE FROM user_memory_files WHERE user_id = $1', [userId]);
+}
+
 export async function runMemoryTool(userId, input) {
   try {
     switch (input.command) {
