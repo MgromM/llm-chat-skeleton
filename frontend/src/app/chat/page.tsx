@@ -167,7 +167,7 @@ function ConversationSidebar({
       )}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 m-3 flex w-64 shrink-0 flex-col rounded-2xl bg-brand-orange shadow-soft transition-transform duration-200 md:static md:m-0 md:z-auto md:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 m-3 flex w-64 shrink-0 flex-col rounded-2xl bg-brand-dark shadow-soft transition-transform duration-200 md:static md:m-0 md:z-auto md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -177,7 +177,7 @@ function ConversationSidebar({
             onNew();
             onClose();
           }}
-          className="flex w-full items-center gap-2 rounded-lg border border-brand-white/40 bg-brand-white/10 px-3 py-2 text-sm font-medium text-brand-white hover:bg-brand-white/20"
+          className="flex w-full items-center gap-2 rounded-lg bg-brand-orange px-3 py-2 text-sm font-medium text-brand-white hover:brightness-95"
         >
           <Plus size={16} />
           Nowa rozmowa
@@ -215,8 +215,8 @@ function ConversationSidebar({
               className={clsx(
                 'group flex w-full items-center gap-2 truncate rounded-lg border-l-2 pl-3 pr-1 text-left text-sm',
                 c.id === activeId
-                  ? 'border-brand-white bg-brand-white/15 font-medium text-brand-white'
-                  : 'border-transparent text-brand-white/75 hover:bg-brand-white/10',
+                  ? 'border-brand-orange bg-brand-white/10 font-medium text-brand-white'
+                  : 'border-transparent text-brand-white/70 hover:bg-brand-white/5',
               )}
             >
               <button
@@ -226,7 +226,7 @@ function ConversationSidebar({
                 }}
                 className="flex min-w-0 flex-1 items-center gap-2 py-2"
               >
-                <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-white' : 'opacity-70')} />
+                <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-orange' : 'opacity-70')} />
                 <span className="truncate">{conversationLabel(c)}</span>
               </button>
               <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100">
@@ -676,7 +676,7 @@ function ChatView() {
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
-        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl bg-brand-white shadow-soft">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border bg-brand-white shadow-soft">
           <ConversationSettingsBar
             systemPrompt={conversations.find((c) => c.id === conversationId)?.systemPrompt || ''}
             onChangeSystemPrompt={handleChangeSystemPrompt}
