@@ -376,6 +376,7 @@ function ChatView() {
   const [editingDraft, setEditingDraft] = useState('');
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [blockedNotice, setBlockedNotice] = useState<{ level: 'żółta' | 'czerwona'; reply: string } | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -594,7 +595,10 @@ function ChatView() {
     try {
       const classification = await api.classifyMessage(conversationId, content);
       if (classification.blocked) {
-        setErrorMessage(classification.reply ?? 'Ta wiadomość narusza politykę bezpieczeństwa danych i nie została wysłana.');
+        setBlockedNotice({
+          level: classification.level === 'czerwona' ? 'czerwona' : 'żółta',
+          reply: classification.reply ?? 'Ta wiadomość narusza politykę bezpieczeństwa danych i nie została wysłana.',
+        });
         return;
       }
       await submitMessage(content, filesToSend);
@@ -847,6 +851,24 @@ function ChatView() {
           </div>
         </div>
         {openArtifact && <ArtifactPanel artifact={openArtifact} onClose={() => setOpenArtifact(null)} />}
+        {blockedNotice && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-brand-white p-6 shadow-xl">
+              <h2 className="text-base font-semibold text-brand-dark">
+                Wiadomość zablokowana — poziom {blockedNotice.level === 'czerwona' ? 'czerwony' : 'żółty'}
+              </h2>
+              <p className="mt-2 text-sm text-brand-dark/70">{blockedNotice.reply}</p>
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={() => setBlockedNotice(null)}
+                  className="rounded-full bg-brand-orange px-4 py-2 text-sm font-medium text-brand-white hover:brightness-95"
+                >
+                  Rozumiem
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
