@@ -1,7 +1,7 @@
 import { defineRailway, github, postgres, preserve, project, service, volume } from "railway/iac";
 
 export default defineRailway(() => {
-  const salesmoreLLMMvp = github("salesandmore/salesmore-LLM-mvp");
+  const salesmoreLLMMvp = github("michalgrom-salesmore/salesmore-LLM-mvp");
 
   const Postgres = postgres("Postgres", { region: "sfo" });
   Postgres.networking = { privateNetworkEndpoint: "postgres" };
