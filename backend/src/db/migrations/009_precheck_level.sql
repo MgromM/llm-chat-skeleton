@@ -1,0 +1,1 @@
+ALTER TABLE precheck_results ADD COLUMN IF NOT EXISTS level TEXT;

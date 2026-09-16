@@ -180,6 +180,11 @@ export const api = {
     const filename = match ? decodeURIComponent(match[1]) : `rozmowa-${conversationId}.md`;
     return { blob: await res.blob(), filename };
   },
+  classifyMessage: (conversationId: number, message: string) =>
+    apiFetch<{ blocked: boolean; level: 'zielona' | 'żółta' | 'czerwona'; category: string | null; reply: string | null }>(
+      `/chat/conversations/${conversationId}/classify`,
+      { method: 'POST', body: JSON.stringify({ message }) },
+    ),
   sendMessageStream: async (
     conversationId: number,
     message: string,

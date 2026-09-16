@@ -377,6 +377,8 @@ function ChatView() {
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingConfirm, setPendingConfirm] = useState<{ content: string; files: File[] } | null>(null);
+  const [classifying, setClassifying] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -552,10 +554,9 @@ function ChatView() {
     abortControllerRef.current?.abort();
   }
 
-  async function handleSend() {
-    if ((!draft.trim() && pendingFiles.length === 0) || conversationId === null) return;
-    const filesToSend = pendingFiles;
-    const content = draft;
+  /** Actually submits the turn — called once the message has cleared classification (or the user confirmed anyway). */
+  async function submitMessage(content: string, filesToSend: File[]) {
+    if (conversationId === null) return;
     const userMessage: ChatMessage = {
       id: Date.now(),
       role: 'user',
@@ -569,10 +570,55 @@ function ChatView() {
       })),
     };
     setMessages((prev) => [...prev, userMessage]);
+    await runStream((handlers, signal) => api.sendMessageStream(conversationId, content, filesToSend, handlers, signal));
+  }
+
+  /**
+   * Every draft goes through the data-sensitivity classifier first: żółta/
+   * czerwona block outright with the reason shown as an error; zielona still
+   * needs an explicit user confirmation before the real send fires.
+   */
+  async function handleSend() {
+    if ((!draft.trim() && pendingFiles.length === 0) || conversationId === null) return;
+    const filesToSend = pendingFiles;
+    const content = draft;
     setDraft('');
     setPendingFiles([]);
     setFileError(null);
-    await runStream((handlers, signal) => api.sendMessageStream(conversationId, content, filesToSend, handlers, signal));
+
+    if (!content.trim()) {
+      await submitMessage(content, filesToSend);
+      return;
+    }
+
+    setClassifying(true);
+    try {
+      const classification = await api.classifyMessage(conversationId, content);
+      if (classification.blocked) {
+        setErrorMessage(classification.reply ?? 'Ta wiadomość narusza politykę bezpieczeństwa danych i nie została wysłana.');
+        return;
+      }
+      setPendingConfirm({ content, files: filesToSend });
+    } catch {
+      // Classifier outage shouldn't block the chat — fail open, same as the backend precheck.
+      await submitMessage(content, filesToSend);
+    } finally {
+      setClassifying(false);
+    }
+  }
+
+  async function handleConfirmSend() {
+    if (!pendingConfirm) return;
+    const { content, files } = pendingConfirm;
+    setPendingConfirm(null);
+    await submitMessage(content, files);
+  }
+
+  function handleCancelSend() {
+    if (!pendingConfirm) return;
+    setDraft(pendingConfirm.content);
+    setPendingFiles(pendingConfirm.files);
+    setPendingConfirm(null);
   }
 
   async function handleRegenerate(assistantMessageId: number) {
@@ -804,7 +850,7 @@ function ChatView() {
                 ) : (
                   <button
                     onClick={handleSend}
-                    disabled={!draft.trim() && pendingFiles.length === 0}
+                    disabled={(!draft.trim() && pendingFiles.length === 0) || classifying}
                     aria-label="Wyślij"
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange text-brand-white transition hover:brightness-95 disabled:opacity-30"
                   >
@@ -816,6 +862,32 @@ function ChatView() {
           </div>
         </div>
         {openArtifact && <ArtifactPanel artifact={openArtifact} onClose={() => setOpenArtifact(null)} />}
+        {pendingConfirm && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-brand-white p-6 shadow-xl">
+              <h2 className="text-base font-semibold text-brand-dark">Potwierdź przed wysłaniem</h2>
+              <p className="mt-2 text-sm text-brand-dark/70">
+                System oznaczył wiadomość jako potencjalnie naruszającą nasze wymagania dot. danych. Czy Twoja wiadomość
+                zawiera dane osobowe klientów lub pracowników, dane wewnętrzne Agencji, tajemnicę handlową lub inne dane
+                wrażliwe?
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  onClick={handleCancelSend}
+                  className="rounded-full border border-brand-dark/20 px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60"
+                >
+                  Tak, wstrzymaj
+                </button>
+                <button
+                  onClick={handleConfirmSend}
+                  className="rounded-full bg-brand-orange px-4 py-2 text-sm font-medium text-brand-white hover:brightness-95"
+                >
+                  Nie, wyślij
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

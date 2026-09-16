@@ -106,7 +106,13 @@ function stripOrphanedToolUses(messages) {
   return sanitized.filter((m) => !Array.isArray(m.content) || m.content.length > 0);
 }
 const TITLE_MAX_LENGTH = 60;
-const BLOCKED_REPLY = 'Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych (wykryto potencjalnie wrażliwe dane) i nie została wysłana do modelu AI. Jeśli to pomyłka, skontaktuj się z administratorem.';
+
+/** Builds the user-facing block message, naming the classification level and reason. */
+function buildBlockedReply(precheck) {
+  const levelLabel = precheck.level === 'czerwona' ? 'CZERWONA' : 'ŻÓŁTA';
+  const reason = precheck.rationale ? ` Powód: ${precheck.rationale}.` : '';
+  return `Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych — sklasyfikowano ją jako ${levelLabel} (kategoria: ${precheck.category ?? 'nieokreślona'}).${reason} Zgodnie z polityką Agencji wiadomości z tej kategorii wymagają narzędzi z Listy Zatwierdzonej w wersji Enterprise/Pro i nie mogą być wysyłane tym kanałem. Jeśli to pomyłka, skontaktuj się z administratorem.`;
+}
 
 export async function saveMessage(conversationId, role, content, commandUsed = null) {
   const { rows } = await query(
@@ -425,6 +431,24 @@ async function buildPrecheckText(safeMessage, attachments) {
 }
 
 /**
+ * Classifies a draft message WITHOUT saving anything or calling the chat
+ * model — used by the frontend to gate sending: żółta/czerwona surface the
+ * block reason immediately, zielona still needs the user to confirm the
+ * message contains none of that data before the real send proceeds.
+ */
+export async function classifyDraftMessage({ conversationId, userMessage, attachments = [] }) {
+  const safeMessage = redactPii(userMessage);
+  const precheckText = await buildPrecheckText(safeMessage, attachments);
+  const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
+  return {
+    blocked: precheck.blocked,
+    level: precheck.level,
+    category: precheck.category,
+    reply: precheck.blocked ? buildBlockedReply(precheck) : null,
+  };
+}
+
+/**
  * Shared prep for a brand-new user turn: redaction, auto-title, hard-block
  * precheck, slash-command dispatch, conversation history load, and monthly
  * budget check. Returns either a finished result (bypass/blocked/over
@@ -439,8 +463,9 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
   if (precheck.blocked) {
     const userMessageId = await saveMessage(conversationId, 'user', safeMessage);
     await saveAttachments(userMessageId, attachments);
-    const assistantMessageId = await saveMessage(conversationId, 'assistant', BLOCKED_REPLY);
-    return { done: true, result: { reply: BLOCKED_REPLY, messageId: assistantMessageId, commandUsed: null, blocked: true } };
+    const blockedReply = buildBlockedReply(precheck);
+    const assistantMessageId = await saveMessage(conversationId, 'assistant', blockedReply);
+    return { done: true, result: { reply: blockedReply, messageId: assistantMessageId, commandUsed: null, blocked: true } };
   }
 
   // Fire-and-forget: flags ambiguous-but-worrying messages that didn't meet
@@ -554,8 +579,9 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
   const precheckText = await buildPrecheckText(safeMessage, attachments);
   const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
   if (precheck.blocked) {
-    const assistantMessageId = await saveMessage(conversationId, 'assistant', BLOCKED_REPLY);
-    return { reply: BLOCKED_REPLY, messageId: assistantMessageId, commandUsed: null, blocked: true };
+    const blockedReply = buildBlockedReply(precheck);
+    const assistantMessageId = await saveMessage(conversationId, 'assistant', blockedReply);
+    return { reply: blockedReply, messageId: assistantMessageId, commandUsed: null, blocked: true };
   }
 
   detectUncertainLeak({ conversationId, userId, userMessage: precheckText });

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth, requireAuthViaHeaderOrQuery } from '../middleware/auth.js';
 import { query } from '../config/db.js';
-import { handleChatTurn, streamChatTurn, continueFromUserMessage, deleteMessagesFrom } from '../services/chatCore/pipeline.js';
+import { handleChatTurn, streamChatTurn, continueFromUserMessage, deleteMessagesFrom, classifyDraftMessage } from '../services/chatCore/pipeline.js';
 import { readAttachmentFile, deleteAttachmentFile, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_MESSAGE } from '../services/attachments/attachmentStore.js';
 
 const upload = multer({
@@ -281,6 +281,29 @@ function streamTurnResponse(req, res, runTurn) {
       res.end();
     });
 }
+
+/**
+ * Classifies a draft message against the data-sensitivity policy BEFORE it
+ * is sent — lets the frontend show the block reason or a confirmation
+ * prompt without spending a real chat turn (no message is saved here).
+ */
+chatRouter.post('/conversations/:id/classify', async (req, res, next) => {
+  try {
+    const message = (req.body.message ?? '').toString();
+    if (!message.trim()) return res.status(400).json({ error: 'message required' });
+
+    const { rows } = await query('SELECT id FROM conversations WHERE id = $1 AND user_id = $2', [
+      req.params.id,
+      req.user.sub,
+    ]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
+
+    const classification = await classifyDraftMessage({ conversationId: req.params.id, userMessage: message });
+    res.json(classification);
+  } catch (err) {
+    next(err);
+  }
+});
 
 chatRouter.post('/conversations/:id/messages', upload.array('files', MAX_FILES_PER_MESSAGE), async (req, res, next) => {
   try {
