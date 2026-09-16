@@ -43,6 +43,67 @@ function stripThinkingBlocks(content) {
   if (!Array.isArray(content)) return content;
   return content.filter((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking');
 }
+
+/**
+ * Runs every `tool_use` block found in a Claude response (not just the
+ * first) and returns one `tool_result` block per call, matched by
+ * `tool_use_id`. Claude can request several tools in a single turn
+ * (parallel tool calls); if any of them were left unanswered, the next
+ * request to the API is rejected with "tool_use ids were found without
+ * tool_result blocks immediately after". Each tool call is isolated in its
+ * own try/catch so one failing tool still lets every other tool_use in the
+ * same turn get its matching tool_result (an error one, if needed) — no
+ * tool_use is ever left dangling because of a thrown error.
+ */
+async function runAllToolUses(content) {
+  const toolUses = content.filter((b) => b.type === 'tool_use');
+  const results = await Promise.all(
+    toolUses.map(async (toolUse) => {
+      let toolResult;
+      try {
+        toolResult = await runTool(toolUse);
+      } catch (err) {
+        toolResult = { error: err.message };
+      }
+      return { type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(toolResult) };
+    }),
+  );
+  return results;
+}
+
+/**
+ * Defensive net for whatever built `messages`: drops any `tool_use` blocks
+ * in the last assistant message that don't have a matching `tool_result` in
+ * the message right after (and drops that trailing assistant message
+ * entirely if it becomes tool_use-only and empty). This mirrors
+ * `stripThinkingBlocks` in spirit — sanitizing history right before it's
+ * sent to the API, so a persistence gap or a partial-loop bug can't crash
+ * the whole turn with a 400 from Anthropic.
+ */
+function stripOrphanedToolUses(messages) {
+  const sanitized = messages.map((m) => ({ ...m }));
+  for (let i = 0; i < sanitized.length; i++) {
+    const msg = sanitized[i];
+    if (msg.role !== 'assistant' || !Array.isArray(msg.content)) continue;
+    const toolUseIds = msg.content.filter((b) => b.type === 'tool_use').map((b) => b.id);
+    if (toolUseIds.length === 0) continue;
+
+    const next = sanitized[i + 1];
+    const resultIds = new Set(
+      next && next.role === 'user' && Array.isArray(next.content)
+        ? next.content.filter((b) => b.type === 'tool_result').map((b) => b.tool_use_id)
+        : [],
+    );
+    const missing = toolUseIds.filter((id) => !resultIds.has(id));
+    if (missing.length === 0) continue;
+
+    const missingSet = new Set(missing);
+    msg.content = msg.content.filter((b) => b.type !== 'tool_use' || !missingSet.has(b.id));
+  }
+  // Drop any assistant message that ended up with no content left at all
+  // (e.g. it was purely orphaned tool_use blocks).
+  return sanitized.filter((m) => !Array.isArray(m.content) || m.content.length > 0);
+}
 const TITLE_MAX_LENGTH = 60;
 const BLOCKED_REPLY = 'Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych (wykryto potencjalnie wrażliwe dane) i nie została wysłana do modelu AI. Jeśli to pomyłka, skontaktuj się z administratorem.';
 
@@ -231,6 +292,7 @@ async function buildPromptContent(promptText, attachments) {
 }
 
 async function runToolLoop(client, messages, { model = CHAT_MODEL, system } = {}) {
+  messages = stripOrphanedToolUses(messages);
   let response = await client.messages.create({
     model,
     max_tokens: 1024,
@@ -244,22 +306,13 @@ async function runToolLoop(client, messages, { model = CHAT_MODEL, system } = {}
     if (++toolRounds > MAX_TOOL_ROUNDS) {
       throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
     }
-    const toolUse = response.content.find((b) => b.type === 'tool_use');
-    let toolResult;
-    try {
-      toolResult = await runTool(toolUse);
-    } catch (err) {
-      toolResult = { error: err.message };
-    }
+    const toolResults = await runAllToolUses(response.content);
 
-    messages = [
+    messages = stripOrphanedToolUses([
       ...messages,
       { role: 'assistant', content: stripThinkingBlocks(response.content) },
-      {
-        role: 'user',
-        content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }],
-      },
-    ];
+      { role: 'user', content: toolResults },
+    ]);
 
     response = await client.messages.create({
       model,
@@ -284,6 +337,7 @@ async function runToolLoopStreaming(client, messages, onChunk, signal, { model =
   let fullText = '';
   let usage = { input_tokens: 0, output_tokens: 0 };
   let toolRounds = 0;
+  messages = stripOrphanedToolUses(messages);
 
   for (;;) {
     if (toolRounds > MAX_TOOL_ROUNDS) {
@@ -321,19 +375,13 @@ async function runToolLoopStreaming(client, messages, onChunk, signal, { model =
     if (message.stop_reason !== 'tool_use') break;
     toolRounds += 1;
 
-    const toolUse = message.content.find((b) => b.type === 'tool_use');
-    let toolResult;
-    try {
-      toolResult = await runTool(toolUse);
-    } catch (err) {
-      toolResult = { error: err.message };
-    }
+    const toolResults = await runAllToolUses(message.content);
 
-    messages = [
+    messages = stripOrphanedToolUses([
       ...messages,
       { role: 'assistant', content: stripThinkingBlocks(message.content) },
-      { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }] },
-    ];
+      { role: 'user', content: toolResults },
+    ]);
   }
 
   return { text: fullText, usage };
