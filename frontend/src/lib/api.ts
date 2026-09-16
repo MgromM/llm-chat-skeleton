@@ -74,6 +74,13 @@ function authHeaders(): Record<string, string> {
 
 export class ApiError extends Error {}
 
+/** On a 401, the stored token is stale (expired or signed with a rotated secret) — clear it and send the user back to login. */
+function handleUnauthorized() {
+  if (typeof window === 'undefined') return;
+  localStorage.removeItem('token');
+  if (window.location.pathname !== '/login') window.location.href = '/login';
+}
+
 export interface StreamResult {
   reply: string;
   messageId: number;
@@ -94,6 +101,7 @@ export interface StreamHandlers {
  */
 async function consumeSseResponse(res: Response, handlers: StreamHandlers) {
   if (!res.ok || !res.body) {
+    if (res.status === 401) handleUnauthorized();
     const body = await res.json().catch(() => ({}));
     throw new ApiError(body.error ?? `Request failed: ${res.status}`);
   }
@@ -124,6 +132,7 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
     headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options.headers },
   });
   if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
     const body = await res.json().catch(() => ({}));
     throw new ApiError(body.error ?? `Request failed: ${res.status}`);
   }
@@ -162,6 +171,7 @@ export const api = {
   exportConversation: async (conversationId: number): Promise<{ blob: Blob; filename: string }> => {
     const res = await fetch(`/api/chat/conversations/${conversationId}/export`, { headers: authHeaders() });
     if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
       const body = await res.json().catch(() => ({}));
       throw new ApiError(body.error ?? `Request failed: ${res.status}`);
     }
@@ -227,6 +237,7 @@ export const api = {
     if (title) form.append('title', title);
     const res = await fetch('/api/knowledge/documents', { method: 'POST', headers: authHeaders(), body: form });
     if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
       const body = await res.json().catch(() => ({}));
       throw new ApiError(body.error ?? `Request failed: ${res.status}`);
     }

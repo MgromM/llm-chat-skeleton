@@ -11,7 +11,12 @@ async function verifyToken(token, req, res, next) {
     const payload = jwt.verify(token, secret);
     req.user = payload;
     next();
-  } catch {
+  } catch (err) {
+    if (err instanceof jwt.TokenExpiredError) {
+      console.warn('Auth: token expired', { expiredAt: err.expiredAt });
+    } else {
+      console.warn('Auth: token invalid', { name: err.name, message: err.message });
+    }
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
