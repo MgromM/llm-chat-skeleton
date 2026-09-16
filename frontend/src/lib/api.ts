@@ -68,6 +68,15 @@ export interface KnowledgeDocument {
   chunk_count: number;
 }
 
+export interface McpConnector {
+  id: number;
+  name: string;
+  url: string;
+  enabled: boolean;
+  has_token: boolean;
+  created_at: string;
+}
+
 export interface EnterpriseComparison {
   periodFrom: string;
   periodTo: string;
@@ -282,6 +291,11 @@ export const api = {
     return res.json() as Promise<{ id: number; chunkCount: number }>;
   },
   deleteKnowledgeDocument: (id: number) => apiFetch<{ ok: true }>(`/knowledge/documents/${id}`, { method: 'DELETE' }),
+  addMcpConnector: (payload: { name: string; url: string; authToken?: string }) =>
+    apiFetch<McpConnector>('/metrics/mcp-connectors', { method: 'POST', body: JSON.stringify(payload) }),
+  setMcpConnectorEnabled: (id: number, enabled: boolean) =>
+    apiFetch<{ ok: true }>(`/metrics/mcp-connectors/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
+  deleteMcpConnector: (id: number) => apiFetch<{ ok: true }>(`/metrics/mcp-connectors/${id}`, { method: 'DELETE' }),
   costSummary: () => apiFetch<CostRow[]>('/metrics/costs'),
   qualitySummary: () => apiFetch<QualityRow[]>('/metrics/quality'),
   enterpriseComparison: () => apiFetch<EnterpriseComparison>('/metrics/enterprise-comparison'),

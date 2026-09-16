@@ -4,6 +4,7 @@ import { knowledgeSearchTool, runKnowledgeSearchTool } from '../mcp/knowledgeSer
 import { webSearchTool } from '../mcp/webSearchTool.js';
 import { subAgentTool, runSubAgentTool } from '../mcp/subAgentTool.js';
 import { codeExecutionTool, CODE_EXECUTION_BETA, FILES_API_BETA } from '../mcp/codeExecutionTool.js';
+import { getEnabledMcpServers, MCP_CLIENT_BETA } from '../mcp/mcpConnectors.js';
 import { recordUsage } from '../metrics/usageTracker.js';
 import { judgeResponse } from '../judge/qualityJudge.js';
 import { parseCommand, dispatchCommand } from './slashDispatch.js';
@@ -560,7 +561,12 @@ async function buildPromptContent(promptText, attachments) {
 // the stable `client.messages` — the beta endpoint accepts every parameter
 // the stable one does, so this is a drop-in replacement for the other tools.
 async function createChatMessage(client, params) {
-  return client.beta.messages.create({ ...params, betas: [CODE_EXECUTION_BETA, FILES_API_BETA] });
+  const mcpServers = await getEnabledMcpServers();
+  return client.beta.messages.create({
+    ...params,
+    ...(mcpServers.length > 0 ? { mcp_servers: mcpServers } : {}),
+    betas: [CODE_EXECUTION_BETA, FILES_API_BETA, MCP_CLIENT_BETA],
+  });
 }
 
 async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, system } = {}) {
@@ -606,8 +612,14 @@ async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, sy
  * delta to `onChunk` as it arrives.
  */
 async function streamChatMessage(client, params, onChunk, signal) {
+  const mcpServers = await getEnabledMcpServers();
   const stream = await client.beta.messages.create(
-    { ...params, betas: [CODE_EXECUTION_BETA, FILES_API_BETA], stream: true },
+    {
+      ...params,
+      ...(mcpServers.length > 0 ? { mcp_servers: mcpServers } : {}),
+      betas: [CODE_EXECUTION_BETA, FILES_API_BETA, MCP_CLIENT_BETA],
+      stream: true,
+    },
     { signal },
   );
 

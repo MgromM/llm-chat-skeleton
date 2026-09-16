@@ -4,6 +4,7 @@ import { getCostSummary } from '../services/metrics/usageTracker.js';
 import { query } from '../config/db.js';
 import { checkBigQueryConnection } from '../services/mcp/bigqueryServer.js';
 import { listRedactionTerms, addRedactionTerm, deactivateRedactionTerm } from '../services/security/redactionTerms.js';
+import { listMcpConnectors, addMcpConnector, setMcpConnectorEnabled, deleteMcpConnector } from '../services/mcp/mcpConnectors.js';
 
 export const metricsRouter = Router();
 metricsRouter.use(requireAuth, requireRole('manager', 'admin'));
@@ -73,6 +74,49 @@ metricsRouter.post('/redaction-terms', async (req, res, next) => {
 metricsRouter.delete('/redaction-terms/:id', async (req, res, next) => {
   try {
     await deactivateRedactionTerm(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Remote MCP servers (Anthropic's native MCP connector) an admin has wired
+// up — Claude calls these directly, server-side, on every chat turn.
+metricsRouter.get('/mcp-connectors', async (req, res, next) => {
+  try {
+    res.json(await listMcpConnectors());
+  } catch (err) {
+    next(err);
+  }
+});
+
+metricsRouter.post('/mcp-connectors', async (req, res, next) => {
+  try {
+    const name = String(req.body.name ?? '').trim();
+    const url = String(req.body.url ?? '').trim();
+    if (!name || !url) return res.status(400).json({ error: 'name and url are required' });
+    if (!/^https:\/\//.test(url)) return res.status(400).json({ error: 'url must be https' });
+    const authToken = req.body.authToken ? String(req.body.authToken) : undefined;
+    const created = await addMcpConnector({ name, url, authToken, createdBy: req.user.sub });
+    res.status(201).json(created);
+  } catch (err) {
+    next(err);
+  }
+});
+
+metricsRouter.patch('/mcp-connectors/:id', async (req, res, next) => {
+  try {
+    if (typeof req.body.enabled !== 'boolean') return res.status(400).json({ error: 'enabled (boolean) is required' });
+    await setMcpConnectorEnabled(req.params.id, req.body.enabled);
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
+metricsRouter.delete('/mcp-connectors/:id', async (req, res, next) => {
+  try {
+    await deleteMcpConnector(req.params.id);
     res.json({ ok: true });
   } catch (err) {
     next(err);
