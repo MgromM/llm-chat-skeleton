@@ -34,6 +34,15 @@ const MAX_HISTORY_MESSAGES = 20;
 // sending the whole transcript on every request.
 const SUMMARY_THRESHOLD = 30;
 const MAX_TOOL_ROUNDS = 8;
+// Sonnet 5 emits a `thinking` content block by default whenever `tools` is
+// passed (even with an empty `thinking` field) — if that raw block is echoed
+// back verbatim as history for the next call in the tool-use loop, the API
+// rejects it ("each thinking block must contain thinking"). We don't rely on
+// preserving that reasoning across our own loop, so drop it before resending.
+function stripThinkingBlocks(content) {
+  if (!Array.isArray(content)) return content;
+  return content.filter((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking');
+}
 const TITLE_MAX_LENGTH = 60;
 const BLOCKED_REPLY = 'Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych (wykryto potencjalnie wrażliwe dane) i nie została wysłana do modelu AI. Jeśli to pomyłka, skontaktuj się z administratorem.';
 
@@ -245,7 +254,7 @@ async function runToolLoop(client, messages, { model = CHAT_MODEL, system } = {}
 
     messages = [
       ...messages,
-      { role: 'assistant', content: response.content },
+      { role: 'assistant', content: stripThinkingBlocks(response.content) },
       {
         role: 'user',
         content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }],
@@ -322,7 +331,7 @@ async function runToolLoopStreaming(client, messages, onChunk, signal, { model =
 
     messages = [
       ...messages,
-      { role: 'assistant', content: message.content },
+      { role: 'assistant', content: stripThinkingBlocks(message.content) },
       { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUse.id, content: JSON.stringify(toolResult) }] },
     ];
   }

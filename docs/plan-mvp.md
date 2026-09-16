@@ -336,6 +336,17 @@ Jeszcze do zweryfikowania:
   backend --set ANTHROPIC_API_KEY=...`), potem pełny test end-to-end
   (login → czat → realna odpowiedź Claude) pod publicznym URL frontendu.
 
+  **P0 zrobione (2026-09-16): `ANTHROPIC_API_KEY` ustawiony na Railway
+  (`backend`).** Klucz podany przez użytkownika, ustawiony przez `railway
+  variables --service backend --set ANTHROPIC_API_KEY=...`. Pierwszy
+  redeploy (auto po zmianie zmiennej) wystartował przed samym `--set` i
+  jeszcze rzucał `Could not resolve authentication method` w UI — po
+  ręcznym `railway redeploy --service backend` nowy kontener wystartował
+  bez błędów w logach (`railway logs --service backend`). **Do
+  potwierdzenia przez użytkownika**: realna wiadomość w czacie pod
+  publicznym URL frontendu (`frontend-production-c7e96.up.railway.app`)
+  zwraca odpowiedź Claude bez banera błędu.
+
 - **Dodane (2026-09-10): frontend przepisany wg realnego PDF-a brand
   guidelines.** Przeczytany cały `BrandGuidelines-Sales&More v3-kopia.pdf`
   (18 stron). Kolory już wcześniej ustawione w
@@ -678,13 +689,8 @@ Historyczne P0-P2 (pre-check, eksporty, agent wycieku, kod deployu GCP) —
 zrobione, patrz „Status weryfikacji MVP”. Poniżej aktualna kolejność na
 **2026-09-11**, po prototypie na Railway i audycie kodu:
 
-1. **P0 — Ustawić `ANTHROPIC_API_KEY` na Railway (`backend`)** — jedyny
-   brakujący element, żeby prototyp online realnie odpowiadał w czacie.
-   Blokowane: czeka na klucz od użytkownika (patrz „Prototyp na Railway”
-   wyżej — jak go zdobyć: console.anthropic.com → Settings → API Keys).
-   Gdy będzie: `railway variables --service backend --set
-   ANTHROPIC_API_KEY=...`, potem pełny test end-to-end (login → czat →
-   realna odpowiedź) pod publicznym URL.
+1. ~~P0 — Ustawić `ANTHROPIC_API_KEY` na Railway (`backend`)~~ — zrobione
+   2026-09-16, patrz „Status weryfikacji MVP” / wpis „Prototyp na Railway”.
 2. ~~P1 — Reszta znalezisk z audytu kodu (rate-limit per-user, trust
    proxy, batch insert chunków wiedzy, whitelist mime_type załączników)~~
    — zrobione 2026-09-11, patrz „Status weryfikacji MVP”. Jedyny punkt z
