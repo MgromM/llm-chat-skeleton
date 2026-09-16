@@ -97,12 +97,6 @@ interface Conversation {
   systemPrompt?: string | null;
 }
 
-const DEFAULT_MODEL = 'claude-sonnet-5';
-const MODEL_LABELS: Record<string, string> = {
-  'claude-sonnet-5': 'Claude Sonnet 5',
-  'claude-opus-5': 'Claude Opus 5',
-  'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
-};
 
 function conversationLabel(c: Conversation) {
   return c.title?.trim() || `Rozmowa z ${new Date(c.created_at).toLocaleDateString('pl-PL')}`;
@@ -295,18 +289,12 @@ function friendlyErrorMessage(raw: string): string {
 }
 
 function ConversationSettingsBar({
-  models,
-  model,
   systemPrompt,
-  onChangeModel,
   onChangeSystemPrompt,
   onExport,
   onOpenSidebar,
 }: {
-  models: string[];
-  model: string;
   systemPrompt: string;
-  onChangeModel: (model: string) => void;
   onChangeSystemPrompt: (prompt: string) => void;
   onExport: () => void;
   onOpenSidebar: () => void;
@@ -326,20 +314,9 @@ function ConversationSettingsBar({
         >
           <Menu size={18} />
         </button>
-        <label className="flex items-center gap-1.5 text-brand-dark/60">
-          Model:
-          <select
-            value={model}
-            onChange={(e) => onChangeModel(e.target.value)}
-            className="rounded-md border border-brand-border bg-brand-white px-2 py-1 text-brand-dark outline-none focus:border-brand-orange"
-          >
-            {models.map((m) => (
-              <option key={m} value={m}>
-                {MODEL_LABELS[m] ?? m}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-center gap-1.5 text-brand-dark/60">
+          Model: <span className="font-medium text-brand-dark">Sonnet 5</span>
+        </div>
         <button
           onClick={() => setShowPromptEditor((v) => !v)}
           className="text-brand-dark/60 underline decoration-dotted hover:text-brand-dark"
@@ -399,7 +376,6 @@ function ChatView() {
   const [editingDraft, setEditingDraft] = useState('');
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [availableModels, setAvailableModels] = useState<string[]>([DEFAULT_MODEL]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -419,7 +395,6 @@ function ChatView() {
       setConversationId(list[0].id);
       setMessages(await api.listMessages(list[0].id));
     })();
-    api.availableModels().then((r) => setAvailableModels(r.models)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -473,16 +448,6 @@ function ChatView() {
       }
     } catch {
       setErrorMessage('Nie udało się usunąć rozmowy.');
-    }
-  }
-
-  async function handleChangeModel(model: string) {
-    if (conversationId === null) return;
-    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, model } : c)));
-    try {
-      await api.updateConversationSettings(conversationId, { model });
-    } catch {
-      setErrorMessage('Nie udało się zapisać wybranego modelu.');
     }
   }
 
@@ -667,10 +632,7 @@ function ChatView() {
         />
         <div className="flex flex-1 flex-col overflow-hidden">
           <ConversationSettingsBar
-            models={availableModels}
-            model={conversations.find((c) => c.id === conversationId)?.model || DEFAULT_MODEL}
             systemPrompt={conversations.find((c) => c.id === conversationId)?.systemPrompt || ''}
-            onChangeModel={handleChangeModel}
             onChangeSystemPrompt={handleChangeSystemPrompt}
             onExport={handleExportConversation}
             onOpenSidebar={() => setSidebarOpen(true)}
