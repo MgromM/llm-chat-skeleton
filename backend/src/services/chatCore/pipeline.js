@@ -1,6 +1,10 @@
-import { getAnthropicClient } from '../anthropicClient.js';
+import { getAnthropicClient, estimateCostUsd } from '../anthropicClient.js';
 import { bigQueryTool, runBigQueryTool, isBigQueryConfigured } from '../mcp/bigqueryServer.js';
 import { knowledgeSearchTool, runKnowledgeSearchTool } from '../mcp/knowledgeServer.js';
+import { webSearchTool } from '../mcp/webSearchTool.js';
+import { subAgentTool, runSubAgentTool } from '../mcp/subAgentTool.js';
+import { codeExecutionTool, CODE_EXECUTION_BETA, FILES_API_BETA } from '../mcp/codeExecutionTool.js';
+import { getEnabledMcpServers, MCP_CLIENT_BETA } from '../mcp/mcpConnectors.js';
 import { recordUsage } from '../metrics/usageTracker.js';
 import { judgeResponse } from '../judge/qualityJudge.js';
 import { parseCommand, dispatchCommand } from './slashDispatch.js';
@@ -10,6 +14,7 @@ import { precheckMessage, PRECHECK_MODEL } from '../security/sensitiveDataPreche
 import { extractTextFromImages } from '../security/ocrExtraction.js';
 import { detectUncertainLeak } from '../security/uncertainLeakAgent.js';
 import { logAiAudit } from '../security/aiAuditLog.js';
+import { logger } from '../../config/logger.js';
 import { checkMonthlyBudget } from '../../config/budget.js';
 import { query } from '../../config/db.js';
 import {
@@ -19,6 +24,9 @@ import {
   isImageAttachment,
   isTextAttachment,
   isPdfAttachment,
+  isDocxAttachment,
+  isXlsxAttachment,
+  isPptxAttachment,
 } from '../attachments/attachmentStore.js';
 
 const CHAT_MODEL = process.env.CHAT_MODEL ?? 'claude-sonnet-5';
@@ -27,11 +35,49 @@ const JUDGE_MODEL = process.env.JUDGE_MODEL ?? 'claude-haiku-4-5-20251001';
 // table exists) — otherwise every call the model makes fails closed, and it
 // burns through the tool-use round limit retrying instead of just answering,
 // which looks like the chat has gotten stuck.
-const TOOLS = isBigQueryConfigured() ? [bigQueryTool, knowledgeSearchTool] : [knowledgeSearchTool];
+// Tool definitions are identical on every call, so marking the last one with
+// a cache breakpoint lets Anthropic reuse the (large) tool-schema prefix
+// across turns instead of re-processing it as fresh input every time.
+function withCacheBreakpoint(tools) {
+  if (tools.length === 0) return tools;
+  return tools.map((tool, i, arr) =>
+    i === arr.length - 1 ? { ...tool, cache_control: { type: 'ephemeral' } } : tool,
+  );
+}
+const TOOLS = withCacheBreakpoint(
+  isBigQueryConfigured()
+    ? [bigQueryTool, knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool]
+    : [knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool],
+);
+
+/** Wraps a plain-string system prompt as a cacheable content block. */
+function systemParam(system) {
+  if (!system) return undefined;
+  return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+}
+
+/**
+ * Marks the last message of the (already-loaded) history as a cache
+ * breakpoint, so the growing conversation prefix is served from Anthropic's
+ * cache on every subsequent turn instead of being reprocessed in full.
+ */
+function withHistoryCacheBreakpoint(messages) {
+  if (messages.length === 0) return messages;
+  const lastIndex = messages.length - 1;
+  const last = messages[lastIndex];
+  const content =
+    typeof last.content === 'string'
+      ? [{ type: 'text', text: last.content, cache_control: { type: 'ephemeral' } }]
+      : last.content.map((block, i, arr) =>
+          i === arr.length - 1 ? { ...block, cache_control: { type: 'ephemeral' } } : block,
+        );
+  return [...messages.slice(0, lastIndex), { ...last, content }];
+}
 
 async function runTool(toolUse) {
   if (toolUse.name === 'query_bigquery') return runBigQueryTool(toolUse.input);
   if (toolUse.name === 'search_knowledge_base') return runKnowledgeSearchTool(toolUse.input);
+  if (toolUse.name === 'spawn_subagent') return runSubAgentTool(toolUse.input);
   throw new Error(`Unknown tool: ${toolUse.name}`);
 }
 const MAX_HISTORY_MESSAGES = 20;
@@ -127,12 +173,69 @@ function buildBlockedReply(precheck) {
   return `Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych — sklasyfikowano ją jako ${levelLabel} (kategoria: ${precheck.category ?? 'nieokreślona'}).${reason} Zgodnie z polityką Agencji wiadomości z tej kategorii wymagają narzędzi z Listy Zatwierdzonej w wersji Enterprise/Pro i nie mogą być wysyłane tym kanałem. Jeśli to pomyłka, skontaktuj się z administratorem.`;
 }
 
-export async function saveMessage(conversationId, role, content, commandUsed = null) {
+export async function saveMessage(conversationId, role, content, commandUsed = null, citations = null, generatedFiles = null) {
   const { rows } = await query(
-    'INSERT INTO messages (conversation_id, role, content, command_used) VALUES ($1, $2, $3, $4) RETURNING id',
-    [conversationId, role, content, commandUsed],
+    'INSERT INTO messages (conversation_id, role, content, command_used, citations, generated_files) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+    [
+      conversationId,
+      role,
+      content,
+      commandUsed,
+      citations ? JSON.stringify(citations) : null,
+      generatedFiles ? JSON.stringify(generatedFiles) : null,
+    ],
   );
   return rows[0].id;
+}
+
+/**
+ * Pulls web-search citations (url/title) off a finished response's `text`
+ * blocks and dedupes them by URL, so the frontend can render a source list
+ * under the reply instead of the user only seeing bare prose with no
+ * indication the model actually looked anything up.
+ */
+function extractCitations(content) {
+  const seen = new Map();
+  for (const block of content) {
+    if (block.type !== 'text' || !Array.isArray(block.citations)) continue;
+    for (const citation of block.citations) {
+      if (citation.type !== 'web_search_result_location' || !citation.url) continue;
+      if (!seen.has(citation.url)) seen.set(citation.url, { url: citation.url, title: citation.title || citation.url });
+    }
+  }
+  return seen.size > 0 ? Array.from(seen.values()) : null;
+}
+
+/**
+ * Pulls `file_id`s the sandbox wrote out (via `code_execution`) off a
+ * finished response and fetches each one's filename/mime type/size from the
+ * Files API, so the frontend can offer a real download link instead of the
+ * user only seeing the code's stdout mentioning a file it can't get to.
+ */
+async function extractGeneratedFiles(client, content) {
+  const fileIds = new Set();
+  for (const block of content) {
+    if (block.type !== 'code_execution_tool_result') continue;
+    const outputs = block.content?.content;
+    if (!Array.isArray(outputs)) continue;
+    for (const output of outputs) {
+      if (output.type === 'code_execution_output' && output.file_id) fileIds.add(output.file_id);
+    }
+  }
+  if (fileIds.size === 0) return null;
+
+  const files = await Promise.all(
+    [...fileIds].map(async (fileId) => {
+      try {
+        const meta = await client.beta.files.retrieveMetadata(fileId, {}, { headers: { 'anthropic-beta': FILES_API_BETA } });
+        return { fileId, filename: meta.filename, mimeType: meta.mime_type, sizeBytes: meta.size_bytes };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const resolved = files.filter(Boolean);
+  return resolved.length > 0 ? resolved : null;
 }
 
 /** Persists uploaded files to disk and links them to the given message. */
@@ -159,14 +262,80 @@ export async function deleteMessagesFrom(conversationId, op, messageId) {
     `SELECT id FROM messages WHERE conversation_id = $1 AND id ${op} $2`,
     [conversationId, messageId],
   );
-  if (toDelete.length > 0) {
-    const { rows: attachments } = await query(
-      'SELECT storage_path FROM message_attachments WHERE message_id = ANY($1)',
-      [toDelete.map((r) => r.id)],
-    );
-    await Promise.all(attachments.map((a) => deleteAttachmentFile(a.storage_path)));
-  }
+  if (toDelete.length === 0) return;
+
+  const { rows: attachments } = await query(
+    'SELECT DISTINCT storage_path FROM message_attachments WHERE message_id = ANY($1)',
+    [toDelete.map((r) => r.id)],
+  );
+
   await query(`DELETE FROM messages WHERE conversation_id = $1 AND id ${op} $2`, [conversationId, messageId]);
+
+  // Branching a conversation copies attachment rows by storage_path instead
+  // of duplicating the file on disk, so a shared file must only be deleted
+  // once no message (in any conversation) still points at it.
+  await deleteUnreferencedAttachmentFiles(attachments.map((a) => a.storage_path));
+}
+
+/** Deletes each storage path that no `message_attachments` row references any more. */
+async function deleteUnreferencedAttachmentFiles(storagePaths) {
+  await Promise.all(
+    storagePaths.map(async (storagePath) => {
+      const { rows } = await query('SELECT 1 FROM message_attachments WHERE storage_path = $1 LIMIT 1', [storagePath]);
+      if (rows.length === 0) await deleteAttachmentFile(storagePath);
+    }),
+  );
+}
+
+/**
+ * Branches a conversation from a given message: creates a new conversation
+ * that starts as an exact copy of every message up to and including
+ * `messageId` (same model/system prompt), so the specialist can explore a
+ * different direction from that point without losing or mutating the
+ * original thread. Attachments are copied by reference (same storage_path,
+ * a new `message_attachments` row) rather than duplicated on disk.
+ */
+export async function branchConversation({ conversationId, userId, messageId }) {
+  const { rows: convRows } = await query(
+    'SELECT title, model, system_prompt FROM conversations WHERE id = $1 AND user_id = $2',
+    [conversationId, userId],
+  );
+  if (convRows.length === 0) throw new Error('Conversation not found');
+  const source = convRows[0];
+
+  const { rows: messageRows } = await query(
+    'SELECT id FROM messages WHERE conversation_id = $1 AND id = $2',
+    [conversationId, messageId],
+  );
+  if (messageRows.length === 0) throw new Error('Message not found');
+
+  const { rows: toCopy } = await query(
+    'SELECT id, role, content, command_used, citations, created_at FROM messages WHERE conversation_id = $1 AND id <= $2 ORDER BY id ASC',
+    [conversationId, messageId],
+  );
+
+  const branchTitle = `${source.title?.trim() || 'Rozmowa'} (gałąź)`;
+  const { rows: newConvRows } = await query(
+    `INSERT INTO conversations (user_id, title, model, system_prompt, branched_from_conversation_id, branched_from_message_id)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, title, created_at, model, system_prompt`,
+    [userId, branchTitle, source.model, source.system_prompt, conversationId, messageId],
+  );
+  const newConversation = newConvRows[0];
+
+  for (const message of toCopy) {
+    const { rows: insertedRows } = await query(
+      'INSERT INTO messages (conversation_id, role, content, command_used, citations, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [newConversation.id, message.role, message.content, message.command_used, message.citations, message.created_at],
+    );
+    const newMessageId = insertedRows[0].id;
+    await query(
+      `INSERT INTO message_attachments (message_id, filename, mime_type, size_bytes, storage_path)
+       SELECT $1, filename, mime_type, size_bytes, storage_path FROM message_attachments WHERE message_id = $2`,
+      [newMessageId, message.id],
+    );
+  }
+
+  return { ...newConversation, systemPrompt: newConversation.system_prompt };
 }
 
 /** Reloads a previously-saved message's attachments from disk (used by regenerate/edit). */
@@ -275,20 +444,96 @@ async function extractPdfText(buffer) {
   }
 }
 
+/** Extracts plain text from a .docx buffer via mammoth. */
+async function extractDocxText(buffer) {
+  const mammoth = (await import('mammoth')).default;
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value.slice(0, 20_000);
+}
+
+/** Renders a .xlsx workbook as tab-separated text, one block per sheet. */
+async function extractXlsxText(buffer) {
+  const ExcelJS = (await import('exceljs')).default;
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+  const sheets = [];
+  workbook.eachSheet((sheet) => {
+    const rows = [];
+    sheet.eachRow((row) => {
+      rows.push(row.values.slice(1).map((v) => (v ?? '').toString()).join('\t'));
+    });
+    sheets.push(`## Arkusz: ${sheet.name}\n${rows.join('\n')}`);
+  });
+  return sheets.join('\n\n').slice(0, 20_000);
+}
+
+/**
+ * Extracts slide text from a .pptx by reading each slide's XML directly out
+ * of the zip (a full OOXML parser would be overkill just to pull `<a:t>`
+ * runs) — `pptxgenjs`'s writer doesn't help us read files, so this goes
+ * straight through `jszip`.
+ */
+async function extractPptxText(buffer) {
+  const JSZip = (await import('jszip')).default;
+  const zip = await JSZip.loadAsync(buffer);
+  const slideFiles = Object.keys(zip.files)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort((a, b) => Number(a.match(/\d+/)[0]) - Number(b.match(/\d+/)[0]));
+
+  const slides = [];
+  for (const name of slideFiles) {
+    const xml = await zip.files[name].async('text');
+    const runs = [...xml.matchAll(/<a:t>([^<]*)<\/a:t>/g)].map((m) => m[1]);
+    slides.push(`## Slajd ${slides.length + 1}\n${runs.join(' ')}`);
+  }
+  return slides.join('\n\n').slice(0, 20_000);
+}
+
 /**
  * Builds the content sent to Claude for this turn: the text prompt, plus any
  * image attachments as vision blocks, plus any small text-file attachments
- * (and PDF text, extracted via pdf-parse) inlined as fenced text — Claude
- * has no other way to "see" a .txt/.csv/.pdf upload.
+ * (PDF, docx, xlsx, pptx text, extracted via the libraries above) inlined as
+ * fenced text — Claude has no other way to "see" a .txt/.csv/.pdf/.docx/
+ * .xlsx/.pptx upload.
  */
 async function buildPromptContent(promptText, attachments) {
   const images = attachments.filter((f) => isImageAttachment(f.mimeType));
   const textFiles = attachments.filter((f) => isTextAttachment(f.mimeType));
   const pdfFiles = attachments.filter((f) => isPdfAttachment(f.mimeType));
+  const docxFiles = attachments.filter((f) => isDocxAttachment(f.mimeType));
+  const xlsxFiles = attachments.filter((f) => isXlsxAttachment(f.mimeType));
+  const pptxFiles = attachments.filter((f) => isPptxAttachment(f.mimeType));
 
   let text = promptText;
   for (const file of textFiles) {
     text += `\n\n--- Załącznik: ${file.filename} ---\n${file.buffer.toString('utf-8').slice(0, 20_000)}`;
+  }
+  for (const file of docxFiles) {
+    let docxText;
+    try {
+      docxText = await extractDocxText(file.buffer);
+    } catch (err) {
+      docxText = `[Nie udało się odczytać treści dokumentu Word: ${err.message}]`;
+    }
+    text += `\n\n--- Załącznik (Word): ${file.filename} ---\n${docxText}`;
+  }
+  for (const file of xlsxFiles) {
+    let xlsxText;
+    try {
+      xlsxText = await extractXlsxText(file.buffer);
+    } catch (err) {
+      xlsxText = `[Nie udało się odczytać treści arkusza Excel: ${err.message}]`;
+    }
+    text += `\n\n--- Załącznik (Excel): ${file.filename} ---\n${xlsxText}`;
+  }
+  for (const file of pptxFiles) {
+    let pptxText;
+    try {
+      pptxText = await extractPptxText(file.buffer);
+    } catch (err) {
+      pptxText = `[Nie udało się odczytać treści prezentacji PowerPoint: ${err.message}]`;
+    }
+    text += `\n\n--- Załącznik (PowerPoint): ${file.filename} ---\n${pptxText}`;
   }
   for (const file of pdfFiles) {
     let pdfText;
@@ -311,14 +556,27 @@ async function buildPromptContent(promptText, attachments) {
   ];
 }
 
+// `code_execution` is still a beta tool, so every chat completion call goes
+// through `client.beta.messages` (with the beta header below) instead of
+// the stable `client.messages` — the beta endpoint accepts every parameter
+// the stable one does, so this is a drop-in replacement for the other tools.
+async function createChatMessage(client, params) {
+  const mcpServers = await getEnabledMcpServers();
+  return client.beta.messages.create({
+    ...params,
+    ...(mcpServers.length > 0 ? { mcp_servers: mcpServers } : {}),
+    betas: [CODE_EXECUTION_BETA, FILES_API_BETA, MCP_CLIENT_BETA],
+  });
+}
+
 async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, system } = {}) {
   messages = stripOrphanedToolUses(messages);
-  let response = await client.messages.create({
+  let response = await createChatMessage(client, {
     model,
     max_tokens: 4096,
     tools: TOOLS,
     messages,
-    ...(system ? { system } : {}),
+    ...(system ? { system: systemParam(system) } : {}),
   });
 
   let toolRounds = 0;
@@ -334,16 +592,69 @@ async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, sy
       { role: 'user', content: toolResults },
     ]);
 
-    response = await client.messages.create({
+    response = await createChatMessage(client, {
       model,
       max_tokens: 4096,
       tools: TOOLS,
       messages,
-      ...(system ? { system } : {}),
+      ...(system ? { system: systemParam(system) } : {}),
     });
   }
 
   return response;
+}
+
+/**
+ * Manually consumes a raw beta SSE stream (`client.beta.messages` has no
+ * `.stream()` convenience wrapper like the stable client does) and
+ * reassembles it into the same shape `stream.finalMessage()` would have
+ * returned — `{ content, stop_reason, usage }` — while forwarding each text
+ * delta to `onChunk` as it arrives.
+ */
+async function streamChatMessage(client, params, onChunk, signal) {
+  const mcpServers = await getEnabledMcpServers();
+  const stream = await client.beta.messages.create(
+    {
+      ...params,
+      ...(mcpServers.length > 0 ? { mcp_servers: mcpServers } : {}),
+      betas: [CODE_EXECUTION_BETA, FILES_API_BETA, MCP_CLIENT_BETA],
+      stream: true,
+    },
+    { signal },
+  );
+
+  const blocks = [];
+  let stopReason = null;
+  let usage = { input_tokens: 0, output_tokens: 0 };
+
+  for await (const event of stream) {
+    if (event.type === 'message_start') {
+      usage = { ...event.message.usage };
+    } else if (event.type === 'content_block_start') {
+      blocks[event.index] = { ...event.content_block };
+    } else if (event.type === 'content_block_delta') {
+      const block = blocks[event.index];
+      if (event.delta.type === 'text_delta') {
+        block.text = (block.text ?? '') + event.delta.text;
+        onChunk(event.delta.text);
+      } else if (event.delta.type === 'input_json_delta') {
+        block._partialJson = (block._partialJson ?? '') + event.delta.partial_json;
+      } else if (event.delta.type === 'citations_delta') {
+        block.citations = [...(block.citations ?? []), event.delta.citation];
+      }
+    } else if (event.type === 'content_block_stop') {
+      const block = blocks[event.index];
+      if (block._partialJson !== undefined) {
+        block.input = block._partialJson ? JSON.parse(block._partialJson) : {};
+        delete block._partialJson;
+      }
+    } else if (event.type === 'message_delta') {
+      stopReason = event.delta.stop_reason;
+      if (event.usage) usage = { ...usage, ...event.usage };
+    }
+  }
+
+  return { content: blocks, stop_reason: stopReason, usage };
 }
 
 /**
@@ -355,43 +666,41 @@ async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, sy
  */
 async function runToolLoopStreaming(client, messages, redaction, onChunk, signal, { model = CHAT_MODEL, system } = {}) {
   let fullText = '';
-  let usage = { input_tokens: 0, output_tokens: 0 };
+  let usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   let toolRounds = 0;
+  let lastContent = [];
   messages = stripOrphanedToolUses(messages);
 
   for (;;) {
     if (toolRounds > MAX_TOOL_ROUNDS) {
       throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
     }
-    const stream = client.messages.stream({
-      model,
-      max_tokens: 4096,
-      tools: TOOLS,
-      messages,
-      ...(system ? { system } : {}),
-    });
-    if (signal) {
-      if (signal.aborted) stream.abort();
-      else signal.addEventListener('abort', () => stream.abort(), { once: true });
-    }
-    stream.on('text', (delta) => {
-      fullText += delta;
-      onChunk(delta);
-    });
 
     let message;
     try {
-      message = await stream.finalMessage();
+      message = await streamChatMessage(
+        client,
+        { model, max_tokens: 4096, tools: TOOLS, messages, ...(system ? { system: systemParam(system) } : {}) },
+        (delta) => {
+          fullText += delta;
+          onChunk(delta);
+        },
+        signal,
+      );
     } catch (err) {
-      if (stream.aborted) break;
+      if (signal?.aborted) break;
       throw err;
     }
 
     usage = {
       input_tokens: usage.input_tokens + message.usage.input_tokens,
       output_tokens: usage.output_tokens + message.usage.output_tokens,
+      cache_creation_input_tokens:
+        usage.cache_creation_input_tokens + (message.usage.cache_creation_input_tokens ?? 0),
+      cache_read_input_tokens: usage.cache_read_input_tokens + (message.usage.cache_read_input_tokens ?? 0),
     };
 
+    lastContent = message.content;
     if (message.stop_reason !== 'tool_use') break;
     toolRounds += 1;
 
@@ -404,16 +713,33 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
     ]);
   }
 
-  return { text: fullText, usage };
+  return {
+    text: fullText,
+    usage,
+    citations: extractCitations(lastContent),
+    generatedFiles: await extractGeneratedFiles(client, lastContent),
+  };
 }
 
-async function finishAssistantReply({ conversationId, safeMessage, commandUsed, replyText, usage, latencyMs, model = CHAT_MODEL }) {
-  const assistantMessageId = await saveMessage(conversationId, 'assistant', replyText, commandUsed);
+async function finishAssistantReply({
+  conversationId,
+  safeMessage,
+  commandUsed,
+  replyText,
+  usage,
+  latencyMs,
+  model = CHAT_MODEL,
+  citations = null,
+  generatedFiles = null,
+}) {
+  const assistantMessageId = await saveMessage(conversationId, 'assistant', replyText, commandUsed, citations, generatedFiles);
   await recordUsage({
     messageId: assistantMessageId,
     model,
     inputTokens: usage.input_tokens,
     outputTokens: usage.output_tokens,
+    cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+    cacheReadTokens: usage.cache_read_input_tokens ?? 0,
     latencyMs,
     commandUsed,
   });
@@ -429,6 +755,25 @@ async function getConversationSettings(conversationId) {
     model: rows[0]?.model || CHAT_MODEL,
     system: rows[0]?.system_prompt || undefined,
   };
+}
+
+/**
+ * Loads this conversation's persisted PII/client-name token map and
+ * per-category counters, so a new redaction session continues numbering
+ * (`[KLIENT_7]`, not a restarted `[KLIENT_1]`) instead of colliding with
+ * tokens already saved into this conversation's message history.
+ */
+async function loadRedactionState(conversationId) {
+  const { rows } = await query('SELECT redaction_state FROM conversations WHERE id = $1', [conversationId]);
+  return rows[0]?.redaction_state ?? {};
+}
+
+/** Persists a redaction session's current map/counters back onto the conversation. */
+async function saveRedactionState(conversationId, session) {
+  await query('UPDATE conversations SET redaction_state = $2 WHERE id = $1', [
+    conversationId,
+    JSON.stringify({ map: session.map, counts: session.counts }),
+  ]);
 }
 
 /**
@@ -468,28 +813,78 @@ export async function classifyDraftMessage({ conversationId, userId, userMessage
 }
 
 /**
+ * Estimates the input-token cost of sending `draftText` right now, using the
+ * real conversation history/settings/tools so the count matches what the
+ * actual call would send. `countTokens` doesn't consume any tokens itself,
+ * so this is safe to call on every draft edit (the frontend debounces it).
+ * Output tokens aren't known ahead of time, so the estimate covers only the
+ * input side of the turn — the eventual reply adds more.
+ */
+export async function estimateTurnCost({ conversationId, draftText }) {
+  const trimmed = (draftText ?? '').trim();
+  if (!trimmed) return { inputTokens: 0, estimatedCostUsd: 0, model: CHAT_MODEL };
+
+  const [history, settings] = await Promise.all([loadHistory(conversationId), getConversationSettings(conversationId)]);
+  const client = await getAnthropicClient();
+  // The count_tokens endpoint rejects server tools (code_execution,
+  // web_search) outright — only our own custom tools (plain `input_schema`
+  // objects, no top-level `type`) can be included here.
+  const countableTools = TOOLS.filter((tool) => !tool.type);
+  const { input_tokens: inputTokens } = await client.beta.messages.countTokens({
+    model: settings.model,
+    tools: countableTools,
+    messages: [...withHistoryCacheBreakpoint(history), { role: 'user', content: trimmed }],
+    ...(settings.system ? { system: systemParam(settings.system) } : {}),
+  });
+
+  return {
+    inputTokens,
+    estimatedCostUsd: estimateCostUsd(settings.model, inputTokens, 0) ?? 0,
+    model: settings.model,
+  };
+}
+
+/**
  * Shared prep for a brand-new user turn: redaction, auto-title, hard-block
  * precheck, slash-command dispatch, conversation history load, and monthly
  * budget check. Returns either a finished result (bypass/blocked/over
  * budget — nothing left to do) or everything needed to call Claude.
  */
-async function prepareNewTurn({ conversationId, userId, userMessage, attachments }) {
+async function prepareNewTurn({ conversationId, userId, userMessage, attachments, overrideBlock = false }) {
   const terms = await getRedactionTerms();
-  const session = createRedactionSession(terms);
+  const redactionState = await loadRedactionState(conversationId);
+  const session = createRedactionSession(terms, redactionState);
   const safeMessage = session.redact(userMessage);
   const piiCategories = session.categories;
+  // Persist right after tokenizing the incoming message (before any early
+  // return below) so every path that saves `safeMessage` to `messages` has
+  // already reserved its tokens against this conversation's running counters.
+  await saveRedactionState(conversationId, session);
   await maybeSetConversationTitle(conversationId, safeMessage);
 
   const precheckText = await buildPrecheckText(safeMessage, attachments);
   const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
-  logAiAudit({ conversationId, userId, piiCategories, precheck, model: PRECHECK_MODEL, purpose: 'precheck' });
-  if (precheck.blocked) {
+  if (precheck.blocked && !overrideBlock) {
+    logAiAudit({ conversationId, userId, piiCategories, precheck, model: PRECHECK_MODEL, purpose: 'precheck' });
     const userMessageId = await saveMessage(conversationId, 'user', safeMessage);
     await saveAttachments(userMessageId, attachments);
     const blockedReply = buildBlockedReply(precheck);
     const assistantMessageId = await saveMessage(conversationId, 'assistant', blockedReply);
     return { done: true, result: { reply: blockedReply, messageId: assistantMessageId, commandUsed: null, blocked: true } };
   }
+  if (precheck.blocked && overrideBlock) {
+    // The specialist explicitly clicked through the żółta/czerwona warning —
+    // this is a deliberate policy exception, not a normal turn, so it gets
+    // its own loud log line and a distinct audit `purpose` instead of being
+    // indistinguishable from an ordinary allowed message.
+    logger.warn('Sensitive data pre-check block overridden by user', {
+      conversationId,
+      userId,
+      level: precheck.level,
+      category: precheck.category,
+    });
+  }
+  logAiAudit({ conversationId, userId, piiCategories, precheck, model: PRECHECK_MODEL, purpose: precheck.blocked ? 'precheck-override' : 'precheck' });
 
   // Fire-and-forget: flags ambiguous-but-worrying messages that didn't meet
   // the hard-block confidence threshold, without adding latency to the chat.
@@ -538,15 +933,15 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
 }
 
 /** Non-streaming entry point for a brand-new user turn. */
-export async function handleChatTurn({ conversationId, userId, userMessage, attachments = [] }) {
-  const prep = await prepareNewTurn({ conversationId, userId, userMessage, attachments });
+export async function handleChatTurn({ conversationId, userId, userMessage, attachments = [], overrideBlock = false }) {
+  const prep = await prepareNewTurn({ conversationId, userId, userMessage, attachments, overrideBlock });
   if (prep.done) return prep.result;
 
   const client = await getAnthropicClient();
   const started = Date.now();
   const response = await runToolLoop(
     client,
-    [...prep.history, { role: 'user', content: prep.currentContent }],
+    [...withHistoryCacheBreakpoint(prep.history), { role: 'user', content: prep.currentContent }],
     prep.session,
     prep.settings,
   );
@@ -564,7 +959,15 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
   // Stored/DB copy stays tokenized (data minimization); only the copy
   // handed back to the specialist for this response is de-tokenized — the
   // real values were never sent to the model and are never persisted.
-  const replyText = response.content.find((b) => b.type === 'text')?.text ?? '';
+  // Web search responses often come back as several `text` blocks
+  // interleaved with citations/search blocks, not a single block — joining
+  // all of them (not just the first) avoids silently truncating the answer.
+  const replyText = response.content
+    .filter((b) => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+  const citations = extractCitations(response.content);
+  const generatedFiles = await extractGeneratedFiles(client, response.content);
   const assistantMessageId = await finishAssistantReply({
     conversationId,
     safeMessage: prep.safeMessage,
@@ -573,13 +976,24 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     usage: response.usage,
     latencyMs,
     model: prep.settings.model,
+    citations,
+    generatedFiles,
   });
-  return { reply: prep.session.restore(replyText), messageId: assistantMessageId, commandUsed: prep.commandUsed };
+  // Tool results (BigQuery/RAG) can mint additional tokens mid-turn — persist
+  // the session's final state so the next turn's counters continue from here.
+  await saveRedactionState(conversationId, prep.session);
+  return {
+    reply: prep.session.restore(replyText),
+    messageId: assistantMessageId,
+    commandUsed: prep.commandUsed,
+    citations,
+    generatedFiles,
+  };
 }
 
 /** Streaming entry point for a brand-new user turn (`onChunk` gets each text delta). */
-export async function streamChatTurn({ conversationId, userId, userMessage, attachments = [], onChunk, signal }) {
-  const prep = await prepareNewTurn({ conversationId, userId, userMessage, attachments });
+export async function streamChatTurn({ conversationId, userId, userMessage, attachments = [], onChunk, signal, overrideBlock = false }) {
+  const prep = await prepareNewTurn({ conversationId, userId, userMessage, attachments, overrideBlock });
   if (prep.done) return prep.result;
 
   const client = await getAnthropicClient();
@@ -589,9 +1003,9 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
   // The chunker reads prep.session.map live, so tokens discovered in a
   // BigQuery/RAG tool result mid-stream still get de-tokenized correctly.
   const chunker = prep.session.createChunker(onChunk);
-  const { text, usage } = await runToolLoopStreaming(
+  const { text, usage, citations, generatedFiles } = await runToolLoopStreaming(
     client,
-    [...prep.history, { role: 'user', content: prep.currentContent }],
+    [...withHistoryCacheBreakpoint(prep.history), { role: 'user', content: prep.currentContent }],
     prep.session,
     (delta) => chunker.push(delta),
     signal,
@@ -614,8 +1028,17 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     usage,
     latencyMs,
     model: prep.settings.model,
+    citations,
+    generatedFiles,
   });
-  return { reply: prep.session.restore(text), messageId: assistantMessageId, commandUsed: prep.commandUsed };
+  await saveRedactionState(conversationId, prep.session);
+  return {
+    reply: prep.session.restore(text),
+    messageId: assistantMessageId,
+    commandUsed: prep.commandUsed,
+    citations,
+    generatedFiles,
+  };
 }
 
 /**
@@ -635,7 +1058,8 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
   const attachments = await loadMessageAttachments(userMessageId);
 
   const terms = await getRedactionTerms();
-  const session = createRedactionSession(terms);
+  const redactionState = await loadRedactionState(conversationId);
+  const session = createRedactionSession(terms, redactionState);
 
   const precheckText = await buildPrecheckText(safeMessage, attachments);
   const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
@@ -679,9 +1103,9 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
 
   const client = await getAnthropicClient();
   const started = Date.now();
-  const { text, usage } = await runToolLoopStreaming(
+  const { text, usage, citations, generatedFiles } = await runToolLoopStreaming(
     client,
-    [...history, { role: 'user', content: currentContent }],
+    [...withHistoryCacheBreakpoint(history), { role: 'user', content: currentContent }],
     session,
     onChunk,
     signal,
@@ -704,6 +1128,9 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
     usage,
     model: settings.model,
     latencyMs,
+    citations,
+    generatedFiles,
   });
-  return { reply: text, messageId: assistantMessageId, commandUsed };
+  await saveRedactionState(conversationId, session);
+  return { reply: text, messageId: assistantMessageId, commandUsed, citations, generatedFiles };
 }

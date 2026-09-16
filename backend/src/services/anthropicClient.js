@@ -22,8 +22,19 @@ export const MODEL_PRICING_PER_MTOK = {
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
 };
 
-export function estimateCostUsd(model, inputTokens, outputTokens) {
+// Anthropic prices a cache write at 1.25x the base input rate and a cache
+// hit at 0.1x — both are fixed multipliers of the model's own input price.
+const CACHE_WRITE_MULTIPLIER = 1.25;
+const CACHE_READ_MULTIPLIER = 0.1;
+
+export function estimateCostUsd(model, inputTokens, outputTokens, cacheCreationTokens = 0, cacheReadTokens = 0) {
   const pricing = MODEL_PRICING_PER_MTOK[model];
   if (!pricing) return null;
-  return (inputTokens * pricing.input + outputTokens * pricing.output) / 1_000_000;
+  return (
+    (inputTokens * pricing.input +
+      outputTokens * pricing.output +
+      cacheCreationTokens * pricing.input * CACHE_WRITE_MULTIPLIER +
+      cacheReadTokens * pricing.input * CACHE_READ_MULTIPLIER) /
+    1_000_000
+  );
 }

@@ -5,12 +5,22 @@ import { estimateCostUsd } from '../anthropicClient.js';
  * Records cost/latency for a single assistant message. commandUsed is the
  * slash command name if one triggered this response, otherwise null.
  */
-export async function recordUsage({ messageId, model, inputTokens, outputTokens, latencyMs, commandUsed }) {
-  const costUsd = estimateCostUsd(model, inputTokens, outputTokens) ?? 0;
+export async function recordUsage({
+  messageId,
+  model,
+  inputTokens,
+  outputTokens,
+  cacheCreationTokens = 0,
+  cacheReadTokens = 0,
+  latencyMs,
+  commandUsed,
+}) {
+  const costUsd = estimateCostUsd(model, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens) ?? 0;
   await query(
-    `INSERT INTO usage_metrics (message_id, model, input_tokens, output_tokens, cost_usd, latency_ms, command_used)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-    [messageId, model, inputTokens, outputTokens, costUsd, latencyMs, commandUsed ?? null],
+    `INSERT INTO usage_metrics
+       (message_id, model, input_tokens, output_tokens, cache_creation_tokens, cache_read_tokens, cost_usd, latency_ms, command_used)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+    [messageId, model, inputTokens, outputTokens, cacheCreationTokens, cacheReadTokens, costUsd, latencyMs, commandUsed ?? null],
   );
   return costUsd;
 }

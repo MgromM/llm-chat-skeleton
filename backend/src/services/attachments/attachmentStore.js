@@ -10,6 +10,9 @@ const KNOWLEDGE_DIR = process.env.KNOWLEDGE_DIR ?? path.join(process.cwd(), 'upl
 
 const IMAGE_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 const TEXT_MIME_TYPES = new Set(['text/plain', 'text/csv', 'text/markdown', 'application/json']);
+const DOCX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const PPTX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 
 export const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 export const MAX_FILES_PER_MESSAGE = 5;
@@ -24,6 +27,22 @@ export function isTextAttachment(mimeType) {
 
 export function isPdfAttachment(mimeType) {
   return mimeType === 'application/pdf';
+}
+
+export function isDocxAttachment(mimeType) {
+  return mimeType === DOCX_MIME_TYPE;
+}
+
+export function isXlsxAttachment(mimeType) {
+  return mimeType === XLSX_MIME_TYPE;
+}
+
+export function isPptxAttachment(mimeType) {
+  return mimeType === PPTX_MIME_TYPE;
+}
+
+export function isOfficeAttachment(mimeType) {
+  return isDocxAttachment(mimeType) || isXlsxAttachment(mimeType) || isPptxAttachment(mimeType);
 }
 
 let gcsClient;

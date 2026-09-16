@@ -37,6 +37,29 @@ test('shared session redacts across multiple redact() calls without token collis
   assert.equal(session.restore(safeUserText), userText);
 });
 
+// Regression test for the cross-turn context bug: without seeding a new
+// turn's session from the conversation's persisted state, turn 3's
+// `[KLIENT_1]` would silently collide with turn 1's unrelated `[KLIENT_1]`
+// once both are replayed together as history in the same `messages` array.
+test('seeding a new session from persisted state keeps tokens unique across turns', () => {
+  const turn1 = createRedactionSession([{ term: 'Klient A', category: 'KLIENT' }]);
+  const turn1Text = turn1.redact('Zadzwoń do Klient A');
+  assert.match(turn1Text, /\[KLIENT_1\]/);
+  const persisted = { map: turn1.map, counts: turn1.counts };
+
+  // A later turn mentions a completely different client — with no seeding
+  // this would also be numbered `[KLIENT_1]`, indistinguishable from turn 1's.
+  const turn3 = createRedactionSession([{ term: 'Klient B', category: 'KLIENT' }], persisted);
+  const turn3Text = turn3.redact('Teraz przygotuj ofertę dla Klient B');
+  assert.match(turn3Text, /\[KLIENT_2\]/);
+  assert.doesNotMatch(turn3Text, /\[KLIENT_1\]/);
+
+  // Replaying both turns together (as pipeline.js's history does) must not
+  // conflate the two clients under the same token.
+  assert.equal(turn3.map['[KLIENT_1]'], 'Klient A');
+  assert.equal(turn3.map['[KLIENT_2]'], 'Klient B');
+});
+
 test('PESEL/phone/card patterns are tokenized and reversible', () => {
   const session = createRedactionSession();
   const text = 'PESEL 12345678901, tel 501 234 567';
