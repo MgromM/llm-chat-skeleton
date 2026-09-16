@@ -11,7 +11,11 @@ const MAX_OCR_CHARS_PER_IMAGE = 5_000;
  * call site in pipeline.js.
  */
 async function ocrImage(buffer) {
-  const worker = await createWorker(OCR_LANGS);
+  // Without an errorHandler, tesseract.js rethrows recognize() failures
+  // (e.g. a corrupt image) synchronously inside its internal message
+  // handler on top of rejecting the promise, which crashes the process
+  // even though we already catch the rejection below.
+  const worker = await createWorker(OCR_LANGS, undefined, { errorHandler: () => {} });
   try {
     const { data } = await worker.recognize(buffer);
     return (data.text ?? '').trim().slice(0, MAX_OCR_CHARS_PER_IMAGE);
