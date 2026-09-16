@@ -53,35 +53,37 @@ function KnowledgeBaseSection() {
         </label>
       </div>
       {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-brand-orange text-brand-white">
-            <th className="p-2 text-left">Tytuł</th>
-            <th className="p-2 text-left">Rozmiar</th>
-            <th className="p-2 text-left">Fragmenty</th>
-            <th className="p-2 text-left">Wgrał</th>
-            <th className="p-2 text-left">Data</th>
-            <th className="p-2 text-left"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {(documents ?? []).map((doc, i) => (
-            <tr key={doc.id} className={i % 2 === 0 ? 'bg-brand-white' : 'bg-brand-surface'}>
-              <td className="p-2">{doc.title}</td>
-              <td className="p-2">{Math.round(doc.size_bytes / 1024)} KB</td>
-              <td className="p-2">{doc.chunk_count}</td>
-              <td className="p-2">{doc.uploaded_by_email}</td>
-              <td className="p-2">{new Date(doc.created_at).toLocaleDateString('pl-PL')}</td>
-              <td className="p-2">
-                <button onClick={() => handleDelete(doc.id)} className="text-brand-dark/60 hover:text-red-600" title="Usuń">
-                  <Trash2 size={16} />
-                </button>
-              </td>
+      <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+              <th className="p-3">Tytuł</th>
+              <th className="p-3">Rozmiar</th>
+              <th className="p-3">Fragmenty</th>
+              <th className="p-3">Wgrał</th>
+              <th className="p-3">Data</th>
+              <th className="p-3"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-      {(documents ?? []).length === 0 && <p className="mt-2 text-sm text-brand-dark/70">Brak dokumentów w bazie wiedzy.</p>}
+          </thead>
+          <tbody>
+            {(documents ?? []).map((doc) => (
+              <tr key={doc.id} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                <td className="p-3">{doc.title}</td>
+                <td className="p-3 text-brand-muted">{Math.round(doc.size_bytes / 1024)} KB</td>
+                <td className="p-3 text-brand-muted">{doc.chunk_count}</td>
+                <td className="p-3 text-brand-muted">{doc.uploaded_by_email}</td>
+                <td className="p-3 text-brand-muted">{new Date(doc.created_at).toLocaleDateString('pl-PL')}</td>
+                <td className="p-3 text-right">
+                  <button onClick={() => handleDelete(doc.id)} aria-label={`Usuń dokument ${doc.title}`} className="text-brand-dark/50 hover:text-red-600" title="Usuń">
+                    <Trash2 size={16} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(documents ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak dokumentów w bazie wiedzy.</p>}
+      </div>
     </section>
   );
 }
@@ -96,7 +98,8 @@ function AdminView() {
   return (
     <div>
       <BrandHeader />
-      <div className="grid gap-6 p-6">
+      <div className="mx-auto grid max-w-5xl gap-8 p-6 sm:p-8">
+        <h1 className="text-2xl font-bold text-brand-dark">Panel administracyjny</h1>
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
@@ -104,7 +107,7 @@ function AdminView() {
           </h2>
           {comparison ? (
             comparison.enterpriseSeats === 0 ? (
-              <p className="text-sm text-brand-dark/70">
+              <p className="text-sm text-brand-muted">
                 Ustaw <code>ENTERPRISE_SEAT_COST_USD</code> i <code>ENTERPRISE_SEATS</code> w konfiguracji backendu,
                 żeby zobaczyć porównanie.
               </p>
@@ -112,73 +115,86 @@ function AdminView() {
               <div className="flex flex-wrap gap-4">
                 <div
                   className={clsx(
-                    'min-w-[220px] flex-1 rounded-xl p-4',
-                    comparison.cheaperOption === 'our_tool' ? 'bg-brand-orange text-brand-white' : 'bg-brand-surface text-brand-dark',
+                    'min-w-[220px] flex-1 rounded-xl border p-4',
+                    comparison.cheaperOption === 'our_tool'
+                      ? 'border-brand-orange bg-brand-orange/5'
+                      : 'border-brand-border bg-brand-white',
                   )}
                 >
-                  <div className={clsx('text-sm', comparison.cheaperOption === 'our_tool' ? 'text-brand-white/80' : 'text-brand-muted')}>
-                    Nasze narzędzie (30 dni)
-                  </div>
-                  <div className="text-2xl font-bold">${comparison.ourToolCostUsd.toFixed(2)}</div>
+                  <div className="text-sm text-brand-muted">Nasze narzędzie (30 dni)</div>
+                  <div className="text-2xl font-bold text-brand-dark">${comparison.ourToolCostUsd.toFixed(2)}</div>
                 </div>
                 <div
                   className={clsx(
-                    'min-w-[220px] flex-1 rounded-xl p-4',
-                    comparison.cheaperOption === 'our_tool' ? 'bg-brand-surface text-brand-dark' : 'bg-brand-orange text-brand-white',
+                    'min-w-[220px] flex-1 rounded-xl border p-4',
+                    comparison.cheaperOption === 'our_tool'
+                      ? 'border-brand-border bg-brand-white'
+                      : 'border-brand-orange bg-brand-orange/5',
                   )}
                 >
-                  <div className={clsx('text-sm', comparison.cheaperOption === 'our_tool' ? 'text-brand-muted' : 'text-brand-white/80')}>
+                  <div className="text-sm text-brand-muted">
                     Enterprise ({comparison.enterpriseSeats} seatów × ${comparison.enterpriseSeatCostUsd})
                   </div>
-                  <div className="text-2xl font-bold">${comparison.enterpriseCostUsd.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-brand-dark">${comparison.enterpriseCostUsd.toFixed(2)}</div>
                 </div>
-                <div className="flex items-center gap-2 rounded-xl border border-brand-border px-4 py-2 font-bold text-brand-dark">
+                <div className="flex items-center gap-2 rounded-xl border border-brand-border bg-brand-white px-4 py-2 font-bold text-brand-dark">
                   <span className="h-2 w-2 rounded-full bg-brand-positive" />
                   Taniej: {comparison.cheaperOption === 'our_tool' ? 'nasze narzędzie' : 'enterprise'}
                 </div>
               </div>
             )
           ) : (
-            <p>Ładowanie…</p>
+            <p className="text-sm text-brand-muted">Ładowanie…</p>
           )}
         </section>
 
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark"><span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />Koszt łączny (30 dni): ${totalCost.toFixed(4)}</h2>
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-brand-orange text-brand-white">
-                <th className="p-2 text-left">Model</th>
-                <th className="p-2 text-left">Komenda</th>
-                <th className="p-2 text-left">Zapytania</th>
-                <th className="p-2 text-left">Koszt (USD)</th>
-                <th className="p-2 text-left">Śr. czas (ms)</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(costs ?? []).map((row, i) => (
-                <tr key={i} className={i % 2 === 0 ? 'bg-brand-white' : 'bg-brand-surface'}>
-                  <td className="p-2">{row.model}</td>
-                  <td className="p-2">{row.command_used ?? '—'}</td>
-                  <td className="p-2">{row.requests}</td>
-                  <td className="p-2">{Number(row.cost_usd).toFixed(4)}</td>
-                  <td className="p-2">{Math.round(Number(row.avg_latency_ms))}</td>
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+            Koszt łączny (30 dni): ${totalCost.toFixed(4)}
+          </h2>
+          <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+                  <th className="p-3">Model</th>
+                  <th className="p-3">Komenda</th>
+                  <th className="p-3">Zapytania</th>
+                  <th className="p-3">Koszt (USD)</th>
+                  <th className="p-3">Śr. czas (ms)</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {(costs ?? []).map((row, i) => (
+                  <tr key={i} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                    <td className="p-3">{row.model}</td>
+                    <td className="p-3 text-brand-muted">{row.command_used ?? '—'}</td>
+                    <td className="p-3 text-brand-muted">{row.requests}</td>
+                    <td className="p-3 text-brand-muted">{Number(row.cost_usd).toFixed(4)}</td>
+                    <td className="p-3 text-brand-muted">{Math.round(Number(row.avg_latency_ms))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark"><span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />Jakość odpowiedzi (LLM-judge)</h2>
-          <ul className="list-none space-y-1.5 pl-0">
-            {(quality ?? []).map((row, i) => (
-              <li key={i} className="flex items-baseline gap-2">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-orange" />
-                <span>{row.judge_model}: średnia {row.avg_score}/5 ({row.scored_messages} ocenionych odpowiedzi)</span>
-              </li>
-            ))}
-          </ul>
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+            Jakość odpowiedzi (LLM-judge)
+          </h2>
+          <div className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+            <ul className="list-none space-y-1.5 pl-0">
+              {(quality ?? []).map((row, i) => (
+                <li key={i} className="flex items-baseline gap-2 text-brand-dark">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-orange" />
+                  <span>{row.judge_model}: średnia {row.avg_score}/5 ({row.scored_messages} ocenionych odpowiedzi)</span>
+                </li>
+              ))}
+              {(quality ?? []).length === 0 && <p className="text-sm text-brand-muted">Brak danych.</p>}
+            </ul>
+          </div>
         </section>
 
         <KnowledgeBaseSection />
@@ -186,14 +202,14 @@ function AdminView() {
         <div className="flex gap-3">
           <a
             href="/api/export/xlsx"
-            className="flex items-center gap-1 rounded-md bg-brand-orange px-4 py-2 font-bold text-brand-white hover:brightness-95"
+            className="flex items-center gap-1.5 rounded-lg border border-brand-border bg-brand-white px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-brand-surface"
           >
             <Download size={16} />
             Eksport XLSX
           </a>
           <a
             href="/api/export/pptx"
-            className="flex items-center gap-1 rounded-md bg-brand-orange px-4 py-2 font-bold text-brand-white hover:brightness-95"
+            className="flex items-center gap-1.5 rounded-lg border border-brand-border bg-brand-white px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-brand-surface"
           >
             <Download size={16} />
             Eksport PPTX

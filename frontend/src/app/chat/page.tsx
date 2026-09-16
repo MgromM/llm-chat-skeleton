@@ -701,7 +701,7 @@ function ChatView() {
                       )
                     )}
                     {!isEditing && !sending && (
-                      <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <div className="flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                         {m.role === 'user' && (
                           <button
                             onClick={() => handleStartEdit(m)}

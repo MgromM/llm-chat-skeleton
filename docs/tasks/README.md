@@ -10,7 +10,8 @@ przetestować, dopóki produkcja nie działa).
 
 ## Status na 2026-09-15
 
-- [ ] 001 — Dokończyć deploy produkcyjny (push zrobiony, deploy w toku)
+- [x] 001 — Dokończyć deploy produkcyjny (backend + frontend na Railway, login działa) — zamknięte 2026-09-16
+
 - [ ] 002 — Ręczna weryfikacja QA wszystkich 10 nowych funkcji
 - [ ] 003 — Drobne poprawki zostawione przez agenta implementującego
 - [ ] 004 — Podatności bezpieczeństwa (Dependabot: 1 critical, 12 high, 8 moderate)
