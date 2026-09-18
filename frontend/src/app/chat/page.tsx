@@ -448,8 +448,14 @@ function ChatView() {
         return;
       }
       setConversations(list);
-      setConversationId(list[0].id);
-      setMessages(await api.listMessages(list[0].id));
+
+      // Deep-link from outside the chat view (e.g. the "Kod" tab linking to
+      // the conversation a generated file came from) — falls back to the
+      // most recent conversation if the id is missing or not the user's own.
+      const requestedId = Number(new URLSearchParams(window.location.search).get('conversation'));
+      const initial = list.find((c) => c.id === requestedId) ?? list[0];
+      setConversationId(initial.id);
+      setMessages(await api.listMessages(initial.id));
     })();
   }, []);
 
