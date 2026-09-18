@@ -77,6 +77,17 @@ export interface McpConnector {
   created_at: string;
 }
 
+export interface GeneratedFileEntry {
+  fileId: string;
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+  messageId: number;
+  createdAt: string;
+  conversationId: number;
+  conversationTitle: string | null;
+}
+
 export interface MemoryFile {
   id: number;
   path: string;
@@ -183,6 +194,7 @@ export const api = {
   deleteMemoryFile: (id: number) => apiFetch<{ ok: true }>(`/memory/${id}`, { method: 'DELETE' }),
   clearMemory: () => apiFetch<{ ok: true }>('/memory', { method: 'DELETE' }),
   listConversations: () => apiFetch<ConversationSettings[]>('/chat/conversations'),
+  listGeneratedFiles: () => apiFetch<GeneratedFileEntry[]>('/chat/generated-files'),
   createConversation: (title?: string) =>
     apiFetch<ConversationSettings>('/chat/conversations', {
       method: 'POST',

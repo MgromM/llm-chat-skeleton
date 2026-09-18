@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { LogOut, Settings } from 'lucide-react';
+import { LogOut, FileCode2, Settings } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 export function BrandHeader() {
@@ -21,6 +21,13 @@ export function BrandHeader() {
           <span className="hidden text-sm text-brand-white/90 sm:inline">
             {user.email} <span className="text-brand-white/60">· {user.role}</span>
           </span>
+          <Link
+            href="/code"
+            aria-label="Kod i wygenerowane pliki"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+          >
+            <FileCode2 size={15} />
+          </Link>
           <Link
             href="/settings"
             aria-label="Ustawienia konta"

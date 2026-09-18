@@ -519,6 +519,37 @@ chatRouter.get('/attachments/:id', requireAuthViaHeaderOrQuery, async (req, res,
 });
 
 /**
+ * Lists every file the model has generated via `code_execution` across all
+ * of the user's conversations, newest first — backs the "Kod" tab so a
+ * specialist can find a report they made a few conversations ago without
+ * hunting back through chat history for it.
+ */
+chatRouter.get('/generated-files', async (req, res, next) => {
+  try {
+    const { rows } = await query(
+      `SELECT
+         elem->>'fileId' AS "fileId",
+         elem->>'filename' AS filename,
+         elem->>'mimeType' AS "mimeType",
+         (elem->>'sizeBytes')::bigint AS "sizeBytes",
+         m.id AS "messageId",
+         m.created_at AS "createdAt",
+         c.id AS "conversationId",
+         c.title AS "conversationTitle"
+       FROM messages m
+       JOIN conversations c ON c.id = m.conversation_id
+       CROSS JOIN LATERAL jsonb_array_elements(m.generated_files) elem
+       WHERE c.user_id = $1
+       ORDER BY m.created_at DESC`,
+      [req.user.sub],
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * Streams a file the model generated via `code_execution` (e.g. a .csv/.xlsx
  * report) from Anthropic's Files API. Ownership is checked by looking for
  * the file_id inside some message's `generated_files` in a conversation the
