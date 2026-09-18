@@ -763,12 +763,24 @@ async function finishAssistantReply({
   return assistantMessageId;
 }
 
-/** Loads the per-conversation model override and system prompt, if set. */
+/**
+ * Loads the per-conversation model override and system prompt, if set, plus
+ * the owning user's default system prompt (role/context, set once in their
+ * settings and applied to every conversation). Effective system prompt is
+ * the user default followed by the conversation-specific one, so a
+ * specialist's personal context always applies and per-chat text adds to it.
+ */
 async function getConversationSettings(conversationId) {
-  const { rows } = await query('SELECT model, system_prompt FROM conversations WHERE id = $1', [conversationId]);
+  const { rows } = await query(
+    `SELECT c.model, c.system_prompt, u.default_system_prompt
+     FROM conversations c JOIN users u ON u.id = c.user_id
+     WHERE c.id = $1`,
+    [conversationId],
+  );
+  const system = [rows[0]?.default_system_prompt, rows[0]?.system_prompt].filter(Boolean).join('\n\n') || undefined;
   return {
     model: rows[0]?.model || CHAT_MODEL,
-    system: rows[0]?.system_prompt || undefined,
+    system,
   };
 }
 

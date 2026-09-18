@@ -17,9 +17,9 @@ export const authRouter = Router();
 
 authRouter.get('/me', requireAuth, async (req, res, next) => {
   try {
-    const { rows } = await query('SELECT id, email, role FROM users WHERE id = $1', [req.user.sub]);
+    const { rows } = await query('SELECT id, email, role, default_system_prompt FROM users WHERE id = $1', [req.user.sub]);
     if (!rows[0]) return res.status(404).json({ error: 'User not found' });
-    res.json(rows[0]);
+    res.json({ ...rows[0], defaultSystemPrompt: rows[0].default_system_prompt });
   } catch (err) {
     next(err);
   }
@@ -163,6 +163,23 @@ authRouter.patch('/me/settings', requireAuth, async (req, res, next) => {
 
     await query('UPDATE users SET leak_context_messages = $1 WHERE id = $2', [value, req.user.sub]);
     res.json({ leakContextMessages: value });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Lets a specialist set their own default system prompt (role/context),
+// automatically applied to every one of their conversations.
+authRouter.patch('/me/default-system-prompt', requireAuth, async (req, res, next) => {
+  try {
+    const { defaultSystemPrompt } = req.body;
+    if (defaultSystemPrompt === undefined) {
+      return res.status(400).json({ error: 'defaultSystemPrompt required' });
+    }
+    const value = defaultSystemPrompt === null ? null : String(defaultSystemPrompt).trim() || null;
+
+    await query('UPDATE users SET default_system_prompt = $1 WHERE id = $2', [value, req.user.sub]);
+    res.json({ defaultSystemPrompt: value });
   } catch (err) {
     next(err);
   }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Brain, Trash2 } from 'lucide-react';
+import { AlertTriangle, Brain, MessageSquareText, Trash2 } from 'lucide-react';
 import { api, ApiError, type MemoryFile } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
@@ -110,6 +110,78 @@ function MemorySection() {
   );
 }
 
+/**
+ * Lets a specialist set a personal default system prompt (role/context, how
+ * they want the assistant to respond) that's automatically applied to every
+ * one of their conversations, on top of whatever they add per-chat.
+ */
+function DefaultSystemPromptSection() {
+  const [value, setValue] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .me()
+      .then((me) => setValue(me.defaultSystemPrompt ?? ''))
+      .catch(() => setError('Nie udało się wczytać ustawienia.'))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.updateDefaultSystemPrompt(value.trim() || null);
+      setSavedAt(Date.now());
+    } catch {
+      setError('Nie udało się zapisać.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5">
+      <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark">
+        <MessageSquareText size={18} className="text-brand-orange" />
+        Domyślny kontekst dla asystenta
+      </div>
+      <p className="mb-4 text-sm text-brand-dark/60">
+        Opisz kim jesteś i jak asystent ma Ci odpowiadać (np. rola, branża, styl odpowiedzi). Ten kontekst będzie
+        automatycznie dołączany do każdej Twojej rozmowy — a w danej rozmowie możesz go dodatkowo uzupełnić przez
+        &quot;Dodaj prompt systemowy&quot;.
+      </p>
+      {!loaded ? (
+        <p className="text-sm text-brand-dark/50">Ładowanie…</p>
+      ) : (
+        <>
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            rows={5}
+            placeholder="Np. Jestem specjalistą ds. kampanii Meta Ads dla klientów e-commerce. Odpowiadaj konkretnie, z liczbami, po polsku."
+            className="mb-3 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-orange"
+          />
+          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {saving ? 'Zapisywanie…' : 'Zapisz'}
+            </button>
+            {savedAt && !saving && <span className="text-sm text-brand-dark/50">Zapisano.</span>}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function SettingsView() {
   const { user, logout } = useAuth();
   const router = useRouter();
@@ -138,6 +210,7 @@ function SettingsView() {
         <h1 className="mb-1 text-xl font-bold text-brand-dark">Ustawienia konta</h1>
         <p className="mb-8 text-sm text-brand-dark/60">Zalogowano jako {user?.email}</p>
 
+        <DefaultSystemPromptSection />
         <MemorySection />
 
         <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5">

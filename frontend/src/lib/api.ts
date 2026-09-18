@@ -3,6 +3,13 @@ export interface LoginResponse {
   user: { id: number; email: string; role: string };
 }
 
+export interface MeResponse {
+  id: number;
+  email: string;
+  role: string;
+  defaultSystemPrompt: string | null;
+}
+
 export interface Attachment {
   id: number;
   filename: string;
@@ -188,8 +195,13 @@ export const api = {
   login: (email: string, password: string) =>
     apiFetch<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   googleLoginUrl: () => apiFetch<{ url: string }>('/auth/google/login-url'),
-  me: () => apiFetch<LoginResponse['user']>('/auth/me'),
+  me: () => apiFetch<MeResponse>('/auth/me'),
   deleteAccount: () => apiFetch<{ ok: true }>('/auth/me', { method: 'DELETE' }),
+  updateDefaultSystemPrompt: (defaultSystemPrompt: string | null) =>
+    apiFetch<{ defaultSystemPrompt: string | null }>('/auth/me/default-system-prompt', {
+      method: 'PATCH',
+      body: JSON.stringify({ defaultSystemPrompt }),
+    }),
   listMemoryFiles: () => apiFetch<MemoryFile[]>('/memory'),
   deleteMemoryFile: (id: number) => apiFetch<{ ok: true }>(`/memory/${id}`, { method: 'DELETE' }),
   clearMemory: () => apiFetch<{ ok: true }>('/memory', { method: 'DELETE' }),
