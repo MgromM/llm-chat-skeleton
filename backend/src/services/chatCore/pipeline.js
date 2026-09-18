@@ -5,6 +5,7 @@ import { webSearchTool } from '../mcp/webSearchTool.js';
 import { subAgentTool, runSubAgentTool } from '../mcp/subAgentTool.js';
 import { codeExecutionTool, CODE_EXECUTION_BETA, FILES_API_BETA } from '../mcp/codeExecutionTool.js';
 import { getEnabledMcpServers, MCP_CLIENT_BETA } from '../mcp/mcpConnectors.js';
+import { memoryTool, runMemoryTool, MEMORY_SYSTEM_INSTRUCTION } from '../mcp/memoryTool.js';
 import { recordUsage } from '../metrics/usageTracker.js';
 import { judgeResponse } from '../judge/qualityJudge.js';
 import { parseCommand, dispatchCommand } from './slashDispatch.js';
@@ -46,14 +47,19 @@ function withCacheBreakpoint(tools) {
 }
 const TOOLS = withCacheBreakpoint(
   isBigQueryConfigured()
-    ? [bigQueryTool, knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool]
-    : [knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool],
+    ? [bigQueryTool, knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool, memoryTool]
+    : [knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool, memoryTool],
 );
 
-/** Wraps a plain-string system prompt as a cacheable content block. */
+/**
+ * Wraps a plain-string system prompt as a cacheable content block, always
+ * prefixed with the memory-tool instruction — without it the model has no
+ * reason to ever check /memories, and cross-conversation memory silently
+ * never gets used.
+ */
 function systemParam(system) {
-  if (!system) return undefined;
-  return [{ type: 'text', text: system, cache_control: { type: 'ephemeral' } }];
+  const text = system ? `${MEMORY_SYSTEM_INSTRUCTION}\n\n${system}` : MEMORY_SYSTEM_INSTRUCTION;
+  return [{ type: 'text', text, cache_control: { type: 'ephemeral' } }];
 }
 
 /**
@@ -74,10 +80,11 @@ function withHistoryCacheBreakpoint(messages) {
   return [...messages.slice(0, lastIndex), { ...last, content }];
 }
 
-async function runTool(toolUse) {
+async function runTool(toolUse, userId) {
   if (toolUse.name === 'query_bigquery') return runBigQueryTool(toolUse.input);
   if (toolUse.name === 'search_knowledge_base') return runKnowledgeSearchTool(toolUse.input);
   if (toolUse.name === 'spawn_subagent') return runSubAgentTool(toolUse.input);
+  if (toolUse.name === 'memory') return runMemoryTool(userId, toolUse.input);
   throw new Error(`Unknown tool: ${toolUse.name}`);
 }
 const MAX_HISTORY_MESSAGES = 20;
@@ -114,13 +121,13 @@ function stripThinkingBlocks(content) {
  * budgets, and PII as a pasted-in prompt, and without this they'd reach the
  * model (and, on the way back, the specialist) completely unredacted.
  */
-async function runAllToolUses(content, redaction) {
+async function runAllToolUses(content, redaction, userId) {
   const toolUses = content.filter((b) => b.type === 'tool_use');
   const results = await Promise.all(
     toolUses.map(async (toolUse) => {
       let toolResult;
       try {
-        toolResult = await runTool(toolUse);
+        toolResult = await runTool(toolUse, userId);
       } catch (err) {
         toolResult = { error: err.message };
       }
@@ -577,14 +584,14 @@ async function createChatMessage(client, params) {
   });
 }
 
-async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, system } = {}) {
+async function runToolLoop(client, messages, redaction, userId, { model = CHAT_MODEL, system } = {}) {
   messages = stripOrphanedToolUses(messages);
   let response = await createChatMessage(client, {
     model,
     max_tokens: 4096,
     tools: TOOLS,
     messages,
-    ...(system ? { system: systemParam(system) } : {}),
+    system: systemParam(system),
   });
 
   let toolRounds = 0;
@@ -592,7 +599,7 @@ async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, sy
     if (++toolRounds > MAX_TOOL_ROUNDS) {
       throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
     }
-    const toolResults = await runAllToolUses(response.content, redaction);
+    const toolResults = await runAllToolUses(response.content, redaction, userId);
 
     messages = stripOrphanedToolUses([
       ...messages,
@@ -605,7 +612,7 @@ async function runToolLoop(client, messages, redaction, { model = CHAT_MODEL, sy
       max_tokens: 4096,
       tools: TOOLS,
       messages,
-      ...(system ? { system: systemParam(system) } : {}),
+      system: systemParam(system),
     });
   }
 
@@ -672,7 +679,7 @@ async function streamChatMessage(client, params, onChunk, signal) {
  * calls don't produce user-facing text anyway); the round after the tool
  * result resumes streaming normally.
  */
-async function runToolLoopStreaming(client, messages, redaction, onChunk, signal, { model = CHAT_MODEL, system } = {}) {
+async function runToolLoopStreaming(client, messages, redaction, onChunk, signal, userId, { model = CHAT_MODEL, system } = {}) {
   let fullText = '';
   let usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   let toolRounds = 0;
@@ -688,7 +695,7 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
     try {
       message = await streamChatMessage(
         client,
-        { model, max_tokens: 4096, tools: TOOLS, messages, ...(system ? { system: systemParam(system) } : {}) },
+        { model, max_tokens: 4096, tools: TOOLS, messages, system: systemParam(system) },
         (delta) => {
           fullText += delta;
           onChunk(delta);
@@ -712,7 +719,7 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
     if (message.stop_reason !== 'tool_use') break;
     toolRounds += 1;
 
-    const toolResults = await runAllToolUses(message.content, redaction);
+    const toolResults = await runAllToolUses(message.content, redaction, userId);
 
     messages = stripOrphanedToolUses([
       ...messages,
@@ -842,7 +849,7 @@ export async function estimateTurnCost({ conversationId, draftText }) {
     model: settings.model,
     tools: countableTools,
     messages: [...withHistoryCacheBreakpoint(history), { role: 'user', content: trimmed }],
-    ...(settings.system ? { system: systemParam(settings.system) } : {}),
+    system: systemParam(settings.system),
   });
 
   return {
@@ -951,6 +958,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     client,
     [...withHistoryCacheBreakpoint(prep.history), { role: 'user', content: prep.currentContent }],
     prep.session,
+    userId,
     prep.settings,
   );
   const latencyMs = Date.now() - started;
@@ -1017,6 +1025,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     prep.session,
     (delta) => chunker.push(delta),
     signal,
+    userId,
     prep.settings,
   );
   chunker.flush();
@@ -1117,6 +1126,7 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
     session,
     onChunk,
     signal,
+    userId,
     settings,
   );
   const latencyMs = Date.now() - started;
