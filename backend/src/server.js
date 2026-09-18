@@ -10,6 +10,7 @@ import { chatRouter } from './routes/chat.routes.js';
 import { metricsRouter } from './routes/metrics.routes.js';
 import { exportRouter } from './routes/export.routes.js';
 import { knowledgeRouter } from './routes/knowledge.routes.js';
+import { memoryRouter } from './routes/memory.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './config/logger.js';
 
@@ -47,6 +48,7 @@ app.use('/chat', chatRouter);
 app.use('/metrics', metricsRouter);
 app.use('/export', exportRouter);
 app.use('/knowledge', knowledgeRouter);
+app.use('/memory', memoryRouter);
 
 app.use(errorHandler);
 
