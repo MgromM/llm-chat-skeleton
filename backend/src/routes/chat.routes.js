@@ -224,9 +224,10 @@ chatRouter.get('/conversations/search', async (req, res, next) => {
 
 async function fetchMessages(conversationId, userId) {
   const { rows } = await query(
-    `SELECT m.id, m.role, m.content, m.created_at, m.command_used, m.citations, m.generated_files
+    `SELECT m.id, m.role, m.content, m.created_at, m.command_used, m.citations, m.generated_files, a.id AS artifact_id
      FROM messages m
      JOIN conversations c ON c.id = m.conversation_id
+     LEFT JOIN artifacts a ON a.message_id = m.id
      WHERE m.conversation_id = $1 AND c.user_id = $2
      ORDER BY m.created_at ASC, m.id ASC`,
     [conversationId, userId],
@@ -259,6 +260,7 @@ async function fetchMessages(conversationId, userId) {
     commandUsed: r.command_used,
     citations: r.citations ?? null,
     generatedFiles: r.generated_files ?? null,
+    artifactId: r.artifact_id ?? null,
     attachments: attachmentsByMessage.get(r.id) ?? [],
   }));
 }

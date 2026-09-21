@@ -12,9 +12,11 @@ import {
   type EnterpriseComparison,
   type KnowledgeDocument,
   type McpConnector,
+  type AdminUser,
 } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
+import { useAuth } from '@/lib/AuthContext';
 
 function KnowledgeBaseSection() {
   const { data: documents, mutate } = useSWR<KnowledgeDocument[]>('/knowledge/documents', apiFetch);
@@ -240,6 +242,82 @@ function McpConnectorsSection() {
   );
 }
 
+/**
+ * Lets an admin promote/demote another already-provisioned account (accounts
+ * self-create as 'specialist' on first Google login — there's no password
+ * signup left to assign a role at). A user can't change their own role here,
+ * to avoid an admin accidentally locking themselves out.
+ */
+function UsersSection() {
+  const { user: currentUser } = useAuth();
+  const { data: users, mutate } = useSWR<AdminUser[]>('/auth/users', apiFetch);
+  const [error, setError] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<number | null>(null);
+
+  async function handleToggleRole(u: AdminUser) {
+    const nextRole = u.role === 'admin' ? 'specialist' : 'admin';
+    setSavingId(u.id);
+    setError(null);
+    try {
+      await api.setUserRole(u.id, nextRole);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się zmienić roli');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        Użytkownicy
+      </h2>
+      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+              <th className="p-3">E-mail</th>
+              <th className="p-3">Rola</th>
+              <th className="p-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(users ?? []).map((u) => (
+              <tr key={u.id} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                <td className="p-3">{u.email}</td>
+                <td className="p-3">
+                  <span
+                    className={clsx(
+                      'rounded-full px-3 py-1 text-xs font-semibold',
+                      u.role === 'admin' ? 'bg-brand-positive/15 text-brand-positive' : 'bg-brand-surface text-brand-muted',
+                    )}
+                  >
+                    {u.role}
+                  </span>
+                </td>
+                <td className="p-3 text-right">
+                  <button
+                    onClick={() => handleToggleRole(u)}
+                    disabled={savingId === u.id || u.id === currentUser?.id}
+                    title={u.id === currentUser?.id ? 'Nie można zmienić własnej roli' : undefined}
+                    className="rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {savingId === u.id ? 'Zapisywanie…' : u.role === 'admin' ? 'Odbierz admina' : 'Nadaj admina'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {(users ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak użytkowników.</p>}
+      </div>
+    </section>
+  );
+}
+
 function AdminView() {
   const { data: costs } = useSWR<CostRow[]>('/metrics/costs', apiFetch);
   const { data: quality } = useSWR<QualityRow[]>('/metrics/quality', apiFetch);
@@ -348,6 +426,8 @@ function AdminView() {
             </ul>
           </div>
         </section>
+
+        <UsersSection />
 
         <KnowledgeBaseSection />
 

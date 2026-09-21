@@ -20,6 +20,17 @@ const COMMANDS = {
   '/analiza-konkurencji': analizaKonkurencjiCommand,
 };
 
+// Slash commands whose reply is a full deliverable, materialized as a
+// persisted `artifacts` row (see pipeline.js's finishAssistantReply) instead
+// of being just chat chatter — single source of truth shared with the
+// frontend via GET /chat/conversations/:id/messages (`artifactTitle`).
+export const ARTIFACT_COMMANDS = {
+  '/brief-kreatywny': 'Brief kreatywny',
+  '/tekst-reklamowy': 'Teksty reklamowe',
+  '/pomysly-na-posty': 'Pomysły na posty',
+  '/analiza-konkurencji': 'Analiza konkurencji',
+};
+
 export function parseCommand(rawMessage) {
   const trimmed = rawMessage.trim();
   const [name, ...rest] = trimmed.split(/\s+/);

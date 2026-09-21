@@ -6,9 +6,11 @@ import { subAgentTool, runSubAgentTool } from '../mcp/subAgentTool.js';
 import { codeExecutionTool, CODE_EXECUTION_BETA, FILES_API_BETA } from '../mcp/codeExecutionTool.js';
 import { getEnabledMcpServers, MCP_CLIENT_BETA } from '../mcp/mcpConnectors.js';
 import { memoryTool, runMemoryTool, MEMORY_SYSTEM_INSTRUCTION } from '../mcp/memoryTool.js';
+import { bashTool, runBashTool, closeBashSession } from '../mcp/bashTool.js';
 import { recordUsage } from '../metrics/usageTracker.js';
 import { judgeResponse } from '../judge/qualityJudge.js';
-import { parseCommand, dispatchCommand } from './slashDispatch.js';
+import { parseCommand, dispatchCommand, ARTIFACT_COMMANDS } from './slashDispatch.js';
+import { extractArtifact } from './artifactExtract.js';
 import { createRedactionSession } from '../security/piiRedaction.js';
 import { getRedactionTerms } from '../security/redactionTerms.js';
 import { precheckMessage, PRECHECK_MODEL } from '../security/sensitiveDataPrecheck.js';
@@ -45,11 +47,8 @@ function withCacheBreakpoint(tools) {
     i === arr.length - 1 ? { ...tool, cache_control: { type: 'ephemeral' } } : tool,
   );
 }
-const TOOLS = withCacheBreakpoint(
-  isBigQueryConfigured()
-    ? [bigQueryTool, knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool, memoryTool]
-    : [knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool, memoryTool],
-);
+const BASE_TOOLS = [knowledgeSearchTool, webSearchTool, subAgentTool, codeExecutionTool, memoryTool, bashTool];
+const TOOLS = withCacheBreakpoint([...(isBigQueryConfigured() ? [bigQueryTool] : []), ...BASE_TOOLS]);
 
 /**
  * Wraps a plain-string system prompt as a cacheable content block, always
@@ -80,11 +79,12 @@ function withHistoryCacheBreakpoint(messages) {
   return [...messages.slice(0, lastIndex), { ...last, content }];
 }
 
-async function runTool(toolUse, userId) {
+async function runTool(toolUse, userId, bashSession) {
   if (toolUse.name === 'query_bigquery') return runBigQueryTool(toolUse.input);
   if (toolUse.name === 'search_knowledge_base') return runKnowledgeSearchTool(toolUse.input);
   if (toolUse.name === 'spawn_subagent') return runSubAgentTool(toolUse.input);
   if (toolUse.name === 'memory') return runMemoryTool(userId, toolUse.input);
+  if (toolUse.name === 'bash') return runBashTool(bashSession, toolUse.input);
   throw new Error(`Unknown tool: ${toolUse.name}`);
 }
 const MAX_HISTORY_MESSAGES = 20;
@@ -121,13 +121,13 @@ function stripThinkingBlocks(content) {
  * budgets, and PII as a pasted-in prompt, and without this they'd reach the
  * model (and, on the way back, the specialist) completely unredacted.
  */
-async function runAllToolUses(content, redaction, userId) {
+async function runAllToolUses(content, redaction, userId, bashSession) {
   const toolUses = content.filter((b) => b.type === 'tool_use');
   const results = await Promise.all(
     toolUses.map(async (toolUse) => {
       let toolResult;
       try {
-        toolResult = await runTool(toolUse, userId);
+        toolResult = await runTool(toolUse, userId, bashSession);
       } catch (err) {
         toolResult = { error: err.message };
       }
@@ -178,6 +178,20 @@ function buildBlockedReply(precheck) {
   const levelLabel = precheck.level === 'czerwona' ? 'CZERWONA' : 'ŻÓŁTA';
   const reason = precheck.rationale ? ` Powód: ${precheck.rationale}.` : '';
   return `Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych — sklasyfikowano ją jako ${levelLabel} (kategoria: ${precheck.category ?? 'nieokreślona'}).${reason} Zgodnie z polityką Agencji wiadomości z tej kategorii wymagają narzędzi z Listy Zatwierdzonej w wersji Enterprise/Pro i nie mogą być wysyłane tym kanałem. Jeśli to pomyłka, skontaktuj się z administratorem.`;
+}
+
+/**
+ * Guards every persistence entry point against writing on behalf of a
+ * conversation that doesn't belong to `userId` — callers upstream (routes)
+ * already scope by user, but `pipeline.js` itself had no check of its own,
+ * so a bypassed/misconfigured auth middleware could still trigger a write
+ * with an unverified userId. Throws (404, so as not to reveal whether the
+ * conversation exists for someone else) if there's no matching row.
+ */
+async function assertConversationOwner(conversationId, userId) {
+  if (!userId) throw Object.assign(new Error('Conversation not found'), { status: 404 });
+  const { rows } = await query('SELECT 1 FROM conversations WHERE id = $1 AND user_id = $2', [conversationId, userId]);
+  if (rows.length === 0) throw Object.assign(new Error('Conversation not found'), { status: 404 });
 }
 
 export async function saveMessage(conversationId, role, content, commandUsed = null, citations = null, generatedFiles = null) {
@@ -586,37 +600,42 @@ async function createChatMessage(client, params) {
 
 async function runToolLoop(client, messages, redaction, userId, { model = CHAT_MODEL, system } = {}) {
   messages = stripOrphanedToolUses(messages);
-  let response = await createChatMessage(client, {
-    model,
-    max_tokens: 4096,
-    tools: TOOLS,
-    messages,
-    system: systemParam(system),
-  });
-
-  let toolRounds = 0;
-  while (response.stop_reason === 'tool_use') {
-    if (++toolRounds > MAX_TOOL_ROUNDS) {
-      throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
-    }
-    const toolResults = await runAllToolUses(response.content, redaction, userId);
-
-    messages = stripOrphanedToolUses([
-      ...messages,
-      { role: 'assistant', content: stripThinkingBlocks(response.content) },
-      { role: 'user', content: toolResults },
-    ]);
-
-    response = await createChatMessage(client, {
+  const bashSession = { sandbox: null };
+  try {
+    let response = await createChatMessage(client, {
       model,
       max_tokens: 4096,
       tools: TOOLS,
       messages,
       system: systemParam(system),
     });
-  }
 
-  return response;
+    let toolRounds = 0;
+    while (response.stop_reason === 'tool_use') {
+      if (++toolRounds > MAX_TOOL_ROUNDS) {
+        throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
+      }
+      const toolResults = await runAllToolUses(response.content, redaction, userId, bashSession);
+
+      messages = stripOrphanedToolUses([
+        ...messages,
+        { role: 'assistant', content: stripThinkingBlocks(response.content) },
+        { role: 'user', content: toolResults },
+      ]);
+
+      response = await createChatMessage(client, {
+        model,
+        max_tokens: 4096,
+        tools: TOOLS,
+        messages,
+        system: systemParam(system),
+      });
+    }
+
+    return response;
+  } finally {
+    await closeBashSession(bashSession);
+  }
 }
 
 /**
@@ -685,47 +704,52 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
   let toolRounds = 0;
   let lastContent = [];
   messages = stripOrphanedToolUses(messages);
+  const bashSession = { sandbox: null };
 
-  for (;;) {
-    if (toolRounds > MAX_TOOL_ROUNDS) {
-      throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
+  try {
+    for (;;) {
+      if (toolRounds > MAX_TOOL_ROUNDS) {
+        throw new Error(`Tool-use loop exceeded ${MAX_TOOL_ROUNDS} rounds`);
+      }
+
+      let message;
+      try {
+        message = await streamChatMessage(
+          client,
+          { model, max_tokens: 4096, tools: TOOLS, messages, system: systemParam(system) },
+          (delta) => {
+            fullText += delta;
+            onChunk(delta);
+          },
+          signal,
+        );
+      } catch (err) {
+        if (signal?.aborted) break;
+        throw err;
+      }
+
+      usage = {
+        input_tokens: usage.input_tokens + message.usage.input_tokens,
+        output_tokens: usage.output_tokens + message.usage.output_tokens,
+        cache_creation_input_tokens:
+          usage.cache_creation_input_tokens + (message.usage.cache_creation_input_tokens ?? 0),
+        cache_read_input_tokens: usage.cache_read_input_tokens + (message.usage.cache_read_input_tokens ?? 0),
+      };
+
+      lastContent = message.content;
+      if (message.stop_reason !== 'tool_use') break;
+      toolRounds += 1;
+
+      const toolResults = await runAllToolUses(message.content, redaction, userId, bashSession);
+
+      messages = stripOrphanedToolUses([
+        ...messages,
+        { role: 'assistant', content: stripThinkingBlocks(message.content) },
+        { role: 'user', content: toolResults },
+      ]);
     }
-
-    let message;
-    try {
-      message = await streamChatMessage(
-        client,
-        { model, max_tokens: 4096, tools: TOOLS, messages, system: systemParam(system) },
-        (delta) => {
-          fullText += delta;
-          onChunk(delta);
-        },
-        signal,
-      );
-    } catch (err) {
-      if (signal?.aborted) break;
-      throw err;
-    }
-
-    usage = {
-      input_tokens: usage.input_tokens + message.usage.input_tokens,
-      output_tokens: usage.output_tokens + message.usage.output_tokens,
-      cache_creation_input_tokens:
-        usage.cache_creation_input_tokens + (message.usage.cache_creation_input_tokens ?? 0),
-      cache_read_input_tokens: usage.cache_read_input_tokens + (message.usage.cache_read_input_tokens ?? 0),
-    };
-
-    lastContent = message.content;
-    if (message.stop_reason !== 'tool_use') break;
-    toolRounds += 1;
-
-    const toolResults = await runAllToolUses(message.content, redaction, userId);
-
-    messages = stripOrphanedToolUses([
-      ...messages,
-      { role: 'assistant', content: stripThinkingBlocks(message.content) },
-      { role: 'user', content: toolResults },
-    ]);
+  } finally {
+    await closeBashSession(bashSession);
   }
 
   return {
@@ -760,7 +784,32 @@ async function finishAssistantReply({
   });
   // Fire-and-forget: never block the user-facing reply on the judge call.
   judgeResponse({ messageId: assistantMessageId, userQuestion: safeMessage, assistantAnswer: replyText });
-  return assistantMessageId;
+  const artifactId = await maybeCreateArtifact({ conversationId, messageId: assistantMessageId, commandUsed, replyText });
+  return { assistantMessageId, artifactId };
+}
+
+/**
+ * Materializes a deliverable slash command's reply as a persisted, versioned
+ * `artifacts` row (title from ARTIFACT_COMMANDS, type/preview auto-detected
+ * via extractArtifact) — the frontend's artifact panel then reads/edits it
+ * by id instead of re-deriving it from the message's raw content on render.
+ */
+async function maybeCreateArtifact({ conversationId, messageId, commandUsed, replyText }) {
+  const title = commandUsed && ARTIFACT_COMMANDS[commandUsed];
+  if (!title) return null;
+  const { type, previewContent } = extractArtifact(replyText);
+  const { rows } = await query(
+    `INSERT INTO artifacts (conversation_id, message_id, command_used, title, type)
+     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+    [conversationId, messageId, commandUsed, title, type],
+  );
+  const artifactId = rows[0].id;
+  await query(
+    `INSERT INTO artifact_versions (artifact_id, version, content, preview_content)
+     VALUES ($1, 1, $2, $3)`,
+    [artifactId, replyText, previewContent],
+  );
+  return artifactId;
 }
 
 /**
@@ -878,6 +927,7 @@ export async function estimateTurnCost({ conversationId, draftText }) {
  * budget — nothing left to do) or everything needed to call Claude.
  */
 async function prepareNewTurn({ conversationId, userId, userMessage, attachments, overrideBlock = false }) {
+  await assertConversationOwner(conversationId, userId);
   const terms = await getRedactionTerms();
   const redactionState = await loadRedactionState(conversationId);
   const session = createRedactionSession(terms, redactionState);
@@ -996,7 +1046,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     .join('');
   const citations = extractCitations(response.content);
   const generatedFiles = await extractGeneratedFiles(client, response.content);
-  const assistantMessageId = await finishAssistantReply({
+  const { assistantMessageId, artifactId } = await finishAssistantReply({
     conversationId,
     safeMessage: prep.safeMessage,
     commandUsed: prep.commandUsed,
@@ -1014,6 +1064,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     reply: prep.session.restore(replyText),
     messageId: assistantMessageId,
     commandUsed: prep.commandUsed,
+    artifactId,
     citations,
     generatedFiles,
   };
@@ -1049,7 +1100,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     model: prep.settings.model,
     purpose: prep.commandUsed ?? 'chat',
   });
-  const assistantMessageId = await finishAssistantReply({
+  const { assistantMessageId, artifactId } = await finishAssistantReply({
     conversationId,
     safeMessage: prep.safeMessage,
     commandUsed: prep.commandUsed,
@@ -1065,6 +1116,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     reply: prep.session.restore(text),
     messageId: assistantMessageId,
     commandUsed: prep.commandUsed,
+    artifactId,
     citations,
     generatedFiles,
   };
@@ -1078,6 +1130,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
  * only make sense for a brand-new turn.
  */
 export async function continueFromUserMessage({ conversationId, userId, userMessageId, onChunk, signal }) {
+  await assertConversationOwner(conversationId, userId);
   const { rows } = await query(
     'SELECT content FROM messages WHERE id = $1 AND conversation_id = $2 AND role = $3',
     [userMessageId, conversationId, 'user'],
@@ -1150,7 +1203,7 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
     model: settings.model,
     purpose: commandUsed ?? 'chat',
   });
-  const assistantMessageId = await finishAssistantReply({
+  const { assistantMessageId, artifactId } = await finishAssistantReply({
     conversationId,
     safeMessage,
     commandUsed,
@@ -1162,5 +1215,5 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
     generatedFiles,
   });
   await saveRedactionState(conversationId, session);
-  return { reply: text, messageId: assistantMessageId, commandUsed, citations, generatedFiles };
+  return { reply: text, messageId: assistantMessageId, commandUsed, artifactId, citations, generatedFiles };
 }

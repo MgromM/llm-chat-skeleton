@@ -1,14 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2 } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile } from '@/lib/api';
+import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile, type Artifact, type ArtifactVersionSummary } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
+import { ArtifactViewer } from '@/components/ArtifactViewer';
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
@@ -23,50 +24,178 @@ const ARTIFACT_COMMAND_TITLES: Record<string, string> = {
   '/analiza-konkurencji': 'Analiza konkurencji',
 };
 
-interface Artifact {
-  title: string;
-  content: string;
+function artifactFilename(title: string, type: string) {
+  const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return `${slug}.${type === 'html' ? 'html' : 'md'}`;
 }
 
-function artifactFilename(title: string) {
-  return `${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}.md`;
-}
+type ArtifactTab = 'preview' | 'source' | 'edit';
 
-function ArtifactPanel({ artifact, onClose }: { artifact: Artifact; onClose: () => void }) {
+function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: () => void }) {
+  const [artifact, setArtifact] = useState<Artifact | null>(null);
+  const [versions, setVersions] = useState<ArtifactVersionSummary[]>([]);
+  const [tab, setTab] = useState<ArtifactTab>('preview');
+  const [draft, setDraft] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getArtifact(artifactId).then((a) => {
+      if (cancelled) return;
+      setArtifact(a);
+      setDraft(a.content);
+      setTab(a.type === 'html' ? 'preview' : 'source');
+    });
+    api.listArtifactVersions(artifactId).then((v) => {
+      if (!cancelled) setVersions(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [artifactId]);
+
+  async function loadVersion(version: number) {
+    const a = await api.getArtifactVersion(artifactId, version);
+    setArtifact(a);
+    setDraft(a.content);
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const updated = await api.updateArtifact(artifactId, draft);
+      setArtifact(updated);
+      setVersions(await api.listArtifactVersions(artifactId));
+      setTab(updated.type === 'html' ? 'preview' : 'source');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleShare() {
+    if (!artifact) return;
+    const { shareToken } = await api.shareArtifact(artifact.id);
+    const url = `${window.location.origin}/a/${shareToken}`;
+    await navigator.clipboard.writeText(url).catch(() => {});
+    setArtifact({ ...artifact, shareToken });
+    setShareCopied(true);
+    setTimeout(() => setShareCopied(false), 2000);
+  }
+
   function handleDownload() {
-    const blob = new Blob([artifact.content], { type: 'text/markdown;charset=utf-8' });
+    if (!artifact) return;
+    const blob = new Blob([artifact.content], { type: 'text/plain;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = artifactFilename(artifact.title);
+    a.download = artifactFilename(artifact.title, artifact.type);
     a.click();
     URL.revokeObjectURL(url);
   }
 
   return (
-    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white shadow-soft sm:static sm:z-auto sm:w-[420px]">
+    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white shadow-soft sm:static sm:z-auto sm:w-[480px]">
       <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-border px-5 py-4">
         <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark">
           <FileOutput size={16} className="text-brand-orange" />
-          {artifact.title}
+          {artifact?.title ?? '…'}
         </div>
         <button onClick={onClose} aria-label="Zamknij artefakt" className="text-brand-dark/50 hover:text-brand-dark">
           <X size={18} />
         </button>
       </div>
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        <div className="prose prose-sm max-w-none text-brand-dark">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{artifact.content}</ReactMarkdown>
+
+      {artifact && (
+        <div className="flex items-center gap-1 border-b border-brand-border px-3 py-2">
+          {artifact.type === 'html' && (
+            <button
+              onClick={() => setTab('preview')}
+              className={clsx(
+                'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
+                tab === 'preview' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 hover:bg-brand-surface/60',
+              )}
+            >
+              <Eye size={13} /> Podgląd
+            </button>
+          )}
+          <button
+            onClick={() => setTab('source')}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
+              tab === 'source' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 hover:bg-brand-surface/60',
+            )}
+          >
+            <Code2 size={13} /> {artifact.type === 'html' ? 'Markdown' : 'Treść'}
+          </button>
+          <button
+            onClick={() => setTab('edit')}
+            className={clsx(
+              'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
+              tab === 'edit' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 hover:bg-brand-surface/60',
+            )}
+          >
+            <Pencil size={13} /> Edytuj
+          </button>
+          {versions.length > 1 && (
+            <select
+              aria-label="Wersja"
+              value={artifact.currentVersion}
+              onChange={(e) => loadVersion(Number(e.target.value))}
+              className="ml-auto rounded-md border border-brand-border bg-brand-white px-2 py-1 text-xs text-brand-dark"
+            >
+              {versions.map((v) => (
+                <option key={v.version} value={v.version}>
+                  Wersja {v.version}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
+      )}
+
+      <div className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
+        {!artifact ? (
+          <div className="text-sm text-brand-dark/50">Ładowanie…</div>
+        ) : tab === 'edit' ? (
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="min-h-[300px] flex-1 resize-none rounded-lg border border-brand-border bg-brand-surface/30 p-3 font-mono text-xs text-brand-dark focus:outline-none"
+          />
+        ) : (
+          <ArtifactViewer artifact={artifact} mode={tab === 'preview' ? 'preview' : 'source'} />
+        )}
       </div>
-      <div className="rounded-b-2xl border-t border-brand-border px-5 py-3">
-        <button
-          onClick={handleDownload}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95"
-        >
-          <Download size={16} />
-          Pobierz .md
-        </button>
+
+      <div className="flex gap-2 rounded-b-2xl border-t border-brand-border px-5 py-3">
+        {tab === 'edit' ? (
+          <button
+            onClick={handleSave}
+            disabled={saving || draft === artifact?.content}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95 disabled:opacity-40"
+          >
+            <Check size={16} />
+            {saving ? 'Zapisywanie…' : 'Zapisz nową wersję'}
+          </button>
+        ) : (
+          <>
+            <button
+              onClick={handleDownload}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-brand-surface/60"
+            >
+              <Download size={16} />
+              Pobierz
+            </button>
+            <button
+              onClick={handleShare}
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95"
+            >
+              <Share2 size={16} />
+              {shareCopied ? 'Link skopiowany!' : artifact?.shareToken ? 'Kopiuj link' : 'Udostępnij'}
+            </button>
+          </>
+        )}
       </div>
     </aside>
   );
@@ -421,7 +550,7 @@ function ChatView() {
   const [streamingText, setStreamingText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
-  const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null);
+  const [openArtifactId, setOpenArtifactId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [blockedNotice, setBlockedNotice] = useState<{
     level: 'żółta' | 'czerwona';
@@ -805,10 +934,10 @@ function ChatView() {
                           </button>
                         </div>
                       </div>
-                    ) : m.content && m.role === 'assistant' && m.commandUsed && ARTIFACT_COMMAND_TITLES[m.commandUsed] ? (
+                    ) : m.content && m.role === 'assistant' && m.commandUsed && m.artifactId && ARTIFACT_COMMAND_TITLES[m.commandUsed] ? (
                       <ArtifactCard
                         title={ARTIFACT_COMMAND_TITLES[m.commandUsed]}
-                        onOpen={() => setOpenArtifact({ title: ARTIFACT_COMMAND_TITLES[m.commandUsed!], content: m.content })}
+                        onOpen={() => setOpenArtifactId(m.artifactId!)}
                       />
                     ) : (
                       m.content && (
@@ -959,7 +1088,7 @@ function ChatView() {
             </div>
           </div>
         </div>
-        {openArtifact && <ArtifactPanel artifact={openArtifact} onClose={() => setOpenArtifact(null)} />}
+        {openArtifactId !== null && <ArtifactPanel artifactId={openArtifactId} onClose={() => setOpenArtifactId(null)} />}
         {blockedNotice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
             <div className="w-full max-w-md rounded-2xl bg-brand-white p-6 shadow-xl">

@@ -1,8 +1,3 @@
-export interface LoginResponse {
-  token: string;
-  user: { id: number; email: string; role: string };
-}
-
 export interface MeResponse {
   id: number;
   email: string;
@@ -48,6 +43,27 @@ export interface ChatMessage {
   commandUsed?: string | null;
   citations?: Citation[] | null;
   generatedFiles?: GeneratedFile[] | null;
+  artifactId?: number | null;
+}
+
+export type ArtifactType = 'markdown' | 'html';
+
+export interface Artifact {
+  id: number;
+  conversationId?: number;
+  title: string;
+  type: ArtifactType;
+  currentVersion: number;
+  shareToken?: string | null;
+  content: string;
+  previewContent: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ArtifactVersionSummary {
+  version: number;
+  createdAt: string;
 }
 
 export interface CostRow {
@@ -73,6 +89,12 @@ export interface KnowledgeDocument {
   created_at: string;
   uploaded_by_email: string;
   chunk_count: number;
+}
+
+export interface AdminUser {
+  id: number;
+  email: string;
+  role: string;
 }
 
 export interface McpConnector {
@@ -192,8 +214,6 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
 }
 
 export const api = {
-  login: (email: string, password: string) =>
-    apiFetch<LoginResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   googleLoginUrl: () => apiFetch<{ url: string }>('/auth/google/login-url'),
   me: () => apiFetch<MeResponse>('/auth/me'),
   deleteAccount: () => apiFetch<{ ok: true }>('/auth/me', { method: 'DELETE' }),
@@ -207,6 +227,18 @@ export const api = {
   clearMemory: () => apiFetch<{ ok: true }>('/memory', { method: 'DELETE' }),
   listConversations: () => apiFetch<ConversationSettings[]>('/chat/conversations'),
   listGeneratedFiles: () => apiFetch<GeneratedFileEntry[]>('/chat/generated-files'),
+  getArtifact: (artifactId: number) => apiFetch<Artifact>(`/artifacts/${artifactId}`),
+  listArtifactVersions: (artifactId: number) =>
+    apiFetch<ArtifactVersionSummary[]>(`/artifacts/${artifactId}/versions`),
+  getArtifactVersion: (artifactId: number, version: number) =>
+    apiFetch<Artifact>(`/artifacts/${artifactId}/versions/${version}`),
+  updateArtifact: (artifactId: number, content: string) =>
+    apiFetch<Artifact>(`/artifacts/${artifactId}`, { method: 'PUT', body: JSON.stringify({ content }) }),
+  shareArtifact: (artifactId: number) =>
+    apiFetch<{ shareToken: string }>(`/artifacts/${artifactId}/share`, { method: 'POST' }),
+  unshareArtifact: (artifactId: number) =>
+    apiFetch<{ ok: true }>(`/artifacts/${artifactId}/share`, { method: 'DELETE' }),
+  getPublicArtifact: (token: string) => apiFetch<Artifact>(`/public/artifacts/${token}`),
   createConversation: (title?: string) =>
     apiFetch<ConversationSettings>('/chat/conversations', {
       method: 'POST',
@@ -330,6 +362,9 @@ export const api = {
   setMcpConnectorEnabled: (id: number, enabled: boolean) =>
     apiFetch<{ ok: true }>(`/metrics/mcp-connectors/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
   deleteMcpConnector: (id: number) => apiFetch<{ ok: true }>(`/metrics/mcp-connectors/${id}`, { method: 'DELETE' }),
+  listUsers: () => apiFetch<AdminUser[]>('/auth/users'),
+  setUserRole: (id: number, role: string) =>
+    apiFetch<AdminUser>(`/auth/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
   costSummary: () => apiFetch<CostRow[]>('/metrics/costs'),
   qualitySummary: () => apiFetch<QualityRow[]>('/metrics/quality'),
   enterpriseComparison: () => apiFetch<EnterpriseComparison>('/metrics/enterprise-comparison'),

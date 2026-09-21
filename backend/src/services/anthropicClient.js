@@ -17,8 +17,8 @@ export async function getAnthropicClient() {
 // Pricing per million tokens (USD). Update when Anthropic changes pricing or
 // new models are added — used only for our own cost tracking, not billing.
 export const MODEL_PRICING_PER_MTOK = {
-  'claude-sonnet-5': { input: 3, output: 15 },
-  'claude-opus-5': { input: 15, output: 75 },
+  'claude-sonnet-5': { input: 2, output: 10 },
+  'claude-opus-5': { input: 5, output: 25 },
   'claude-haiku-4-5-20251001': { input: 1, output: 5 },
 };
 

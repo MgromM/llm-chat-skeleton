@@ -107,43 +107,29 @@ authRouter.get('/google/callback', async (req, res, next) => {
   }
 });
 
-authRouter.post('/login', async (req, res, next) => {
+// Only sign-in path in the app is Google OAuth (/google/login-url +
+// /google/callback below) — accounts self-provision on first Google login,
+// so there's no password login/registration to replace. Admin still needs a
+// way to see who's provisioned and promote one to 'admin'.
+authRouter.get('/users', requireAuth, requireRole('admin'), async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-
-    const { rows } = await query('SELECT * FROM users WHERE email = $1', [email]);
-    const user = rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const secret = await getSecret('JWT_SECRET');
-    const token = jwt.sign(
-      { sub: user.id, email: user.email, role: user.role },
-      secret,
-      { expiresIn: '12h' },
-    );
-    res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
+    const { rows } = await query('SELECT id, email, role FROM users ORDER BY email ASC');
+    res.json(rows);
   } catch (err) {
     next(err);
   }
 });
 
-// Admin-only: create a new specialist/manager account. No self-signup in the MVP.
-authRouter.post('/register', requireAuth, requireRole('admin'), async (req, res, next) => {
+authRouter.patch('/users/:id/role', requireAuth, requireRole('admin'), async (req, res, next) => {
   try {
-    const { email, password, role = 'specialist' } = req.body;
-    if (!email || !password) return res.status(400).json({ error: 'email and password required' });
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    const { rows } = await query(
-      'INSERT INTO users (email, password_hash, role) VALUES ($1, $2, $3) RETURNING id, email, role',
-      [email, passwordHash, role],
-    );
-    res.status(201).json(rows[0]);
+    const { role } = req.body;
+    if (!['specialist', 'admin'].includes(role)) {
+      return res.status(400).json({ error: "role must be 'specialist' or 'admin'" });
+    }
+    const { rows } = await query('UPDATE users SET role = $1 WHERE id = $2 RETURNING id, email, role', [role, req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'User not found' });
+    res.json(rows[0]);
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Email already registered' });
     next(err);
   }
 });
