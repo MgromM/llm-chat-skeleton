@@ -954,7 +954,24 @@ function ChatView() {
   }
 
   async function handleCopy(message: ChatMessage) {
-    await navigator.clipboard.writeText(message.content);
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      // Clipboard API can be denied (permissions, insecure context) — fall back to a legacy copy.
+      const textarea = document.createElement('textarea');
+      textarea.value = message.content;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+      } catch {
+        document.body.removeChild(textarea);
+        return;
+      }
+      document.body.removeChild(textarea);
+    }
     setCopiedMessageId(message.id);
     setTimeout(() => setCopiedMessageId((prev) => (prev === message.id ? null : prev)), 1500);
   }
