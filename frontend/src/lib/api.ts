@@ -20,6 +20,35 @@ export interface ConversationSettings {
   systemPrompt: string | null;
   branchedFromConversationId?: number | null;
   branchedFromMessageId?: number | null;
+  projectId?: number | null;
+  style?: string | null;
+  isTemporary?: boolean;
+}
+
+export interface PublicConversation {
+  title: string | null;
+  createdAt: string;
+  messages: { id: number; role: 'user' | 'assistant'; content: string; createdAt: string }[];
+}
+
+export interface StylePreset {
+  key: string;
+  label: string;
+}
+
+export interface UsageInfo {
+  periodStart: string;
+  orgBudget: { limitUsd: number; spentUsd: number } | null;
+  mine: { messages: number; costUsd: number };
+}
+
+export interface Project {
+  id: number;
+  name: string;
+  description: string | null;
+  systemPrompt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Citation {
@@ -304,7 +333,13 @@ export const api = {
   listMemoryFiles: () => apiFetch<MemoryFile[]>('/memory'),
   deleteMemoryFile: (id: number) => apiFetch<{ ok: true }>(`/memory/${id}`, { method: 'DELETE' }),
   clearMemory: () => apiFetch<{ ok: true }>('/memory', { method: 'DELETE' }),
-  listConversations: () => apiFetch<ConversationSettings[]>('/chat/conversations'),
+  // Item 17: temporary/incognito conversations are excluded from the
+  // default list; pass includeTemporary=true only when one is currently
+  // active in the UI, so it doesn't vanish from the sidebar mid-session.
+  listConversations: (includeTemporary?: boolean) =>
+    apiFetch<ConversationSettings[]>(
+      `/chat/conversations${includeTemporary ? '?includeTemporary=true' : ''}`,
+    ),
   listGeneratedFiles: () => apiFetch<GeneratedFileEntry[]>('/chat/generated-files'),
   getArtifact: (artifactId: number) => apiFetch<Artifact>(`/artifacts/${artifactId}`),
   listArtifactVersions: (artifactId: number) =>
@@ -318,10 +353,16 @@ export const api = {
   unshareArtifact: (artifactId: number) =>
     apiFetch<{ ok: true }>(`/artifacts/${artifactId}/share`, { method: 'DELETE' }),
   getPublicArtifact: (token: string) => apiFetch<Artifact>(`/public/artifacts/${token}`),
-  createConversation: (title?: string) =>
+  shareConversation: (conversationId: number) =>
+    apiFetch<{ shareToken: string }>(`/chat/conversations/${conversationId}/share`, { method: 'POST' }),
+  unshareConversation: (conversationId: number) =>
+    apiFetch<{ ok: true }>(`/chat/conversations/${conversationId}/share`, { method: 'DELETE' }),
+  getPublicConversation: (token: string) =>
+    apiFetch<PublicConversation>(`/public/conversations/${token}`),
+  createConversation: (title?: string, isTemporary?: boolean) =>
     apiFetch<ConversationSettings>('/chat/conversations', {
       method: 'POST',
-      body: JSON.stringify({ title }),
+      body: JSON.stringify({ title, isTemporary }),
     }),
   listMessages: (conversationId: number) =>
     apiFetch<ChatMessage[]>(`/chat/conversations/${conversationId}/messages`),
@@ -330,10 +371,31 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify({ title }),
     }),
-  updateConversationSettings: (conversationId: number, updates: { model?: string; systemPrompt?: string | null }) =>
+  updateConversationSettings: (
+    conversationId: number,
+    updates: { model?: string; systemPrompt?: string | null; projectId?: number | null; style?: string | null },
+  ) =>
     apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
+    }),
+  listProjects: () => apiFetch<Project[]>('/projects'),
+  createProject: (data: { name: string; description?: string | null; systemPrompt?: string | null }) =>
+    apiFetch<Project>('/projects', { method: 'POST', body: JSON.stringify(data) }),
+  updateProject: (
+    projectId: number,
+    updates: { name?: string; description?: string | null; systemPrompt?: string | null },
+  ) => apiFetch<Project>(`/projects/${projectId}`, { method: 'PATCH', body: JSON.stringify(updates) }),
+  deleteProject: (projectId: number) => apiFetch<{ ok: true }>(`/projects/${projectId}`, { method: 'DELETE' }),
+  setConversationProject: (conversationId: number, projectId: number | null) =>
+    apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ projectId }),
+    }),
+  setConversationStyle: (conversationId: number, style: string | null) =>
+    apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ style }),
     }),
   deleteConversation: (conversationId: number) =>
     apiFetch<{ ok: true }>(`/chat/conversations/${conversationId}`, { method: 'DELETE' }),
@@ -341,7 +403,9 @@ export const api = {
     apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}/messages/${messageId}/branch`, {
       method: 'POST',
     }),
+  getMyUsage: () => apiFetch<UsageInfo>('/chat/me/usage'),
   availableModels: () => apiFetch<{ models: string[] }>('/chat/conversations/models'),
+  availableStyles: () => apiFetch<{ styles: StylePreset[] }>('/chat/conversations/styles'),
   searchConversations: (q: string) =>
     apiFetch<(ConversationSettings & { matchedSnippet: string })[]>(`/chat/conversations/search?q=${encodeURIComponent(q)}`),
   exportConversation: async (conversationId: number): Promise<{ blob: Blob; filename: string }> => {

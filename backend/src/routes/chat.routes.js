@@ -11,6 +11,7 @@ import {
   classifyDraftMessage,
   estimateTurnCost,
   branchConversation,
+  STYLE_PRESETS,
 } from '../services/chatCore/pipeline.js';
 import { getAnthropicClient } from '../services/anthropicClient.js';
 import { FILES_API_BETA } from '../services/mcp/codeExecutionTool.js';
@@ -52,21 +53,30 @@ chatRouter.use((req, res, next) => {
 
 chatRouter.post('/conversations', async (req, res, next) => {
   try {
+    const isTemporary = req.body.isTemporary === true;
     const { rows } = await query(
-      'INSERT INTO conversations (user_id, title) VALUES ($1, $2) RETURNING id, title, created_at, model, system_prompt',
-      [req.user.sub, req.body.title ?? null],
+      'INSERT INTO conversations (user_id, title, is_temporary) VALUES ($1, $2, $3) RETURNING id, title, created_at, model, system_prompt, is_temporary',
+      [req.user.sub, req.body.title ?? null, isTemporary],
     );
-    res.status(201).json({ ...rows[0], systemPrompt: rows[0].system_prompt });
+    res.status(201).json({ ...rows[0], systemPrompt: rows[0].system_prompt, isTemporary: rows[0].is_temporary });
   } catch (err) {
     next(err);
   }
 });
 
+// Item 17 (temporary/incognito conversations): excluded from the default
+// list, same as Claude.ai's "temporary chat" not showing up in history.
+// `?includeTemporary=true` opts back in (used by the sidebar while one is
+// active, so the user doesn't lose access to it mid-session). Note this is
+// visibility-only -- the conversation is still fully persisted, still runs
+// through the leak-detection/classify pipeline, and is still subject to the
+// same retention job as any other conversation (see migration 030).
 chatRouter.get('/conversations', async (req, res, next) => {
   try {
+    const includeTemporary = req.query.includeTemporary === 'true';
     const { rows } = await query(
-      `SELECT id, title, created_at, model, system_prompt, branched_from_conversation_id, branched_from_message_id
-       FROM conversations WHERE user_id = $1 ORDER BY created_at DESC`,
+      `SELECT id, title, created_at, model, system_prompt, style, branched_from_conversation_id, branched_from_message_id, project_id, is_temporary
+       FROM conversations WHERE user_id = $1 ${includeTemporary ? '' : 'AND is_temporary = false'} ORDER BY created_at DESC`,
       [req.user.sub],
     );
     res.json(
@@ -75,8 +85,59 @@ chatRouter.get('/conversations', async (req, res, next) => {
         systemPrompt: r.system_prompt,
         branchedFromConversationId: r.branched_from_conversation_id,
         branchedFromMessageId: r.branched_from_message_id,
+        projectId: r.project_id,
+        isTemporary: r.is_temporary,
       })),
     );
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Item 19 (UI/UX audit): a usage indicator for regular users, not just the
+// admin metrics panel. There is no per-user quota in this system -- the
+// only real limit is the org-wide soft monthly cost cap (MONTHLY_BUDGET_USD,
+// see config/budget.js), checked before every LLM call and shared by every
+// user. So this returns that same global budget status (spent/limit for the
+// current calendar month, same query checkMonthlyBudget() uses) plus the
+// caller's own cost/message count contribution to it this month, scoped by
+// RLS to their own conversations/messages. No new table or migration --
+// usage_metrics already has everything needed.
+chatRouter.get('/me/usage', async (req, res, next) => {
+  try {
+    const limit = Number(process.env.MONTHLY_BUDGET_USD);
+    const hasLimit = Boolean(limit) && !Number.isNaN(limit);
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const [{ rows: totalRows }, { rows: mineRows }] = await Promise.all([
+      hasLimit
+        ? query('SELECT COALESCE(SUM(cost_usd), 0) AS total FROM usage_metrics WHERE created_at >= $1', [
+            startOfMonth.toISOString(),
+          ])
+        : Promise.resolve({ rows: [{ total: 0 }] }),
+      query(
+        `SELECT COUNT(*) AS messages, COALESCE(SUM(um.cost_usd), 0) AS cost_usd
+         FROM usage_metrics um
+         JOIN messages m ON m.id = um.message_id
+         JOIN conversations c ON c.id = m.conversation_id
+         WHERE c.user_id = $1 AND um.created_at >= $2`,
+        [req.user.sub, startOfMonth.toISOString()],
+      ),
+    ]);
+
+    res.json({
+      periodStart: startOfMonth.toISOString(),
+      orgBudget: hasLimit
+        ? { limitUsd: limit, spentUsd: Number(totalRows[0].total) }
+        : null,
+      mine: {
+        messages: Number(mineRows[0].messages),
+        costUsd: Number(mineRows[0].cost_usd),
+      },
+    });
   } catch (err) {
     next(err);
   }
@@ -133,12 +194,39 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
       updates.push(`system_prompt = $${paramIndex++}`);
       values.push(systemPrompt);
     }
+    if (req.body.projectId !== undefined) {
+      const projectId = req.body.projectId === null ? null : Number(req.body.projectId);
+      if (projectId !== null && !Number.isInteger(projectId)) {
+        return res.status(400).json({ error: 'projectId must be an integer or null' });
+      }
+      if (projectId !== null) {
+        const { rows: projectRows } = await query('SELECT id FROM projects WHERE id = $1 AND user_id = $2', [
+          projectId,
+          req.user.sub,
+        ]);
+        if (projectRows.length === 0) return res.status(404).json({ error: 'Project not found' });
+      }
+      updates.push(`project_id = $${paramIndex++}`);
+      values.push(projectId);
+    }
+    if (req.body.style !== undefined) {
+      const style = req.body.style === null ? null : String(req.body.style);
+      if (style !== null && !Object.prototype.hasOwnProperty.call(STYLE_PRESETS, style)) {
+        return res.status(400).json({ error: `style must be one of: ${Object.keys(STYLE_PRESETS).join(', ')}` });
+      }
+      updates.push(`style = $${paramIndex++}`);
+      values.push(style);
+    }
+    if (req.body.isTemporary !== undefined) {
+      updates.push(`is_temporary = $${paramIndex++}`);
+      values.push(req.body.isTemporary === true);
+    }
     if (updates.length === 0) return res.status(400).json({ error: 'nothing to update' });
 
     values.push(req.params.id, req.user.sub);
     const { rows } = await query(
       `UPDATE conversations SET ${updates.join(', ')} WHERE id = $${paramIndex++} AND user_id = $${paramIndex}
-       RETURNING id, title, created_at, model, system_prompt`,
+       RETURNING id, title, created_at, model, system_prompt, project_id, style, is_temporary`,
       values,
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
@@ -148,6 +236,9 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
       created_at: rows[0].created_at,
       model: rows[0].model,
       systemPrompt: rows[0].system_prompt,
+      projectId: rows[0].project_id,
+      style: rows[0].style,
+      isTemporary: rows[0].is_temporary,
     });
   } catch (err) {
     next(err);
@@ -156,6 +247,13 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
 
 chatRouter.get('/conversations/models', (req, res) => {
   res.json({ models: AVAILABLE_MODELS });
+});
+
+/** Fixed set of response-style presets (item 15) the user can pick per-conversation. */
+chatRouter.get('/conversations/styles', (req, res) => {
+  res.json({
+    styles: Object.entries(STYLE_PRESETS).map(([key, { label }]) => ({ key, label })),
+  });
 });
 
 /** Deletes a conversation and its messages/attachments (files on disk included). */

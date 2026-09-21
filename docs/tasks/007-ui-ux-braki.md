@@ -272,20 +272,393 @@ z sekcji na dole.
 
 ## D — porównanie z Claude.ai (audyt 2026-09-21)
 
-- [ ] 14. Projekty — grupowanie rozmów wokół wspólnej wiedzy/instrukcji/
+- [x] 14. Projekty — grupowanie rozmów wokół wspólnej wiedzy/instrukcji/
        plików (jak Projects w Claude.ai). Brak w kodzie w ogóle (ani
        backend, ani frontend).
-- [ ] 15. Style odpowiedzi (presety: zwięzły/formalny/kreatywny itd.) —
+
+      **Zrobione (2026-09-21):** Zaimplementowano minimalną, ale funkcjonalną
+      wersję Projektów (bez plików — tylko nazwa/opis/instrukcje, zgodnie ze
+      scope'em zadania). Backend: nowa migracja
+      [backend/src/db/migrations/028_projects.sql](../../backend/src/db/migrations/028_projects.sql)
+      — tabela `projects` (`id`, `user_id`, `name`, `description`,
+      `system_prompt`, `created_at`, `updated_at`) z RLS wg tego samego wzorca
+      co `conversations`/`messages` w 026/027 (`projects_isolation`), plus
+      nullable `conversations.project_id` (FK `ON DELETE SET NULL`). Nowy
+      router [backend/src/routes/projects.routes.js](../../backend/src/routes/projects.routes.js)
+      — pełny CRUD (`GET/POST /projects`, `GET/PATCH/DELETE /projects/:id`)
+      scoped do `req.user.sub` przez `attachUserDbContext`, wzorowany na
+      `chat.routes.js`; zamontowany w
+      [backend/src/server.js](../../backend/src/server.js) pod `/projects`.
+      `PATCH /chat/conversations/:id` w
+      [backend/src/routes/chat.routes.js](../../backend/src/routes/chat.routes.js)
+      przyjmuje teraz `projectId` (z walidacją, że projekt istnieje i należy
+      do usera), `GET /chat/conversations` zwraca `projectId`. W
+      [backend/src/services/chatCore/pipeline.js](../../backend/src/services/chatCore/pipeline.js)
+      `getConversationSettings` dokłada trzeci poziom do hierarchii system
+      promptów z punktu 8: globalny (Ustawienia użytkownika) -> projekt (jeśli
+      konwersacja ma `project_id`) -> prompt tej rozmowy, sklejane w tej
+      kolejności.
+
+      Frontend: w [frontend/src/lib/api.ts](../../frontend/src/lib/api.ts)
+      dodano typ `Project`, pole `projectId` w `ConversationSettings` oraz
+      `api.listProjects/createProject/updateProject/deleteProject/
+      setConversationProject`. W
+      [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx):
+      `ConversationSidebar` dostał sekcję „Projekty" (lista + przycisk „+"
+      z formularzem nazwa/opis do tworzenia nowego projektu + opcja
+      „Wszystkie" do wyczyszczenia filtra) i filtruje listę rozmów po
+      wybranym projekcie (`projectFilter` w `ChatView`); `ConversationSettingsBar`
+      dostał dropdown z ikoną `FolderKanban` do przypisania bieżącej rozmowy
+      do projektu (obok istniejącego badge'a „Globalny kontekst" z punktu 8),
+      wysyłający `api.setConversationProject`. Stylistyka spójna z resztą
+      pliku (te same klasy Tailwind, warianty `dark:`).
+
+      Zweryfikowane: `npx tsc --noEmit` bez błędów. Migrację uruchomiono
+      realnie na lokalnej dev bazie Postgres (`npm run migrate` w `backend/`,
+      `DATABASE_URL` wskazujący na `salesmore_llm_test` z `.env`) —
+      `028_projects.sql` przeszła bez błędów, w tym utworzenie roli/polityk
+      RLS. `node --check` bez błędów dla wszystkich zmienionych/nowych plików
+      backendu (`projects.routes.js`, `chat.routes.js`, `pipeline.js`,
+      `server.js`). Uruchomiony lokalnie backend poprawnie zwraca `401` na
+      `GET /projects` bez tokenu (trasa zamontowana i chroniona) oraz `200`
+      na `/health`. Pełna wizualna weryfikacja UI Projektów w zalogowanym
+      czacie (tworzenie projektu, filtrowanie rozmów, przypisywanie do
+      projektu, faktyczne dołączenie instrukcji projektu do odpowiedzi
+      modelu) niemożliwa w tym środowisku — ten sam blocker logowania
+      wyłącznie przez Google OAuth bez dev-loginu, opisany w punktach 1–13.
+- [x] 15. Style odpowiedzi (presety: zwięzły/formalny/kreatywny itd.) —
        brak.
-- [ ] 16. Tryb głosowy / dyktowanie (mikrofon w czacie) — brak.
-- [ ] 17. Tymczasowa/incognito rozmowa (bez zapisu do historii) — brak.
-- [ ] 18. Aplikacja mobilna / PWA — brak manifestu, strona nie jest
+
+      **Zrobione (2026-09-21):** Dodano stały zestaw presetów stylu
+      odpowiedzi (Zwięzły/Formalny/Kreatywny/Domyślny) jako kolejną warstwę
+      instrukcji w hierarchii system promptów z punktów 8/14 — nie
+      zastępującą jej. Backend: nowa migracja
+      [backend/src/db/migrations/029_conversation_style.sql](../../backend/src/db/migrations/029_conversation_style.sql)
+      dodaje nullable `conversations.style` (TEXT). Nowa stała
+      `STYLE_PRESETS` w
+      [backend/src/services/chatCore/pipeline.js](../../backend/src/services/chatCore/pipeline.js)
+      (klucz -> `{label, instruction}`, `null`/nieznany klucz = brak
+      dodatkowej instrukcji), wykorzystywana też w routerze — wzorem
+      `AVAILABLE_MODELS`/`GET /chat/conversations/models` z punktu 1 dodano
+      `GET /chat/conversations/styles` w
+      [backend/src/routes/chat.routes.js](../../backend/src/routes/chat.routes.js)
+      zwracający `[{key, label}]`. `PATCH /chat/conversations/:id` przyjmuje
+      teraz `style` (walidacja: musi być kluczem `STYLE_PRESETS` lub `null`),
+      `GET /chat/conversations` i `GET /chat/conversations/search` zwracają
+      `style`. W `getConversationSettings` (pipeline.js) hierarchia z punktu
+      14 rozszerzona o styl: globalny (Ustawienia) -> projekt -> **styl**
+      (modyfikator tonu) -> prompt tej rozmowy — styl wchodzi po
+      merytorycznych instrukcjach projektu, ale przed promptem samej
+      rozmowy, żeby ten mógł w razie potrzeby doprecyzować/nadpisać ton.
+
+      Frontend: w [frontend/src/lib/api.ts](../../frontend/src/lib/api.ts)
+      dodano typ `StylePreset`, pole `style` w `ConversationSettings`,
+      `api.availableStyles()` i `api.setConversationStyle(conversationId,
+      style)`, oraz `style` w sygnaturze `updateConversationSettings`. W
+      [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx)
+      `ConversationSettingsBar` dostał dropdown stylu (ikona `Sparkles` z
+      `lucide-react`, obok dropdownów modelu i projektu) — `handleChangeStyle`
+      wysyła `api.setConversationStyle`, lista presetów ładowana raz przy
+      starcie przez `api.availableStyles()`. Stylistyka spójna z resztą baru
+      (te same klasy Tailwind, warianty `dark:`).
+
+      Zweryfikowano: `npx tsc --noEmit` w `frontend/` bez błędów. `node
+      --check` bez błędów dla `chat.routes.js` i `pipeline.js`. Migrację
+      `029_conversation_style.sql` uruchomiono realnie na lokalnej dev bazie
+      Postgres (`npm run migrate` w `backend/`, `salesmore_llm_test`) —
+      przeszła bez błędów razem z całym łańcuchem migracji (001–029).
+      Uruchomiony lokalnie backend zwraca `401` na `GET
+      /chat/conversations/styles` i `GET /chat/conversations` bez tokenu
+      (trasy chronione) oraz `200` na `/health`. Pełna wizualna weryfikacja
+      dropdownu stylu w zalogowanym czacie (w tym faktyczny wpływ na ton
+      odpowiedzi modelu) niemożliwa w tym środowisku — ten sam blocker
+      logowania wyłącznie przez Google OAuth bez dev-loginu, opisany
+      w punktach 1–14.
+- [x] 16. Tryb głosowy / dyktowanie (mikrofon w czacie) — brak.
+
+      **Zrobione (2026-09-21):** Zaimplementowano dyktowanie głosowe (voice
+      input, nie pełny tryb konwersacji głosowej i bez text-to-speech) po
+      stronie frontendu, w oparciu o wbudowany w przeglądarkę Web Speech API
+      (`SpeechRecognition` / `webkitSpeechRecognition`) — bez backendu i bez
+      kluczy API. W `frontend/src/app/chat/page.tsx`: dodano przycisk mikrofonu
+      (`Mic`/`MicOff` z `lucide-react`) w pasku kompozycji wiadomości, obok
+      przycisku wysyłania. Kliknięcie startuje rozpoznawanie mowy w języku
+      polskim (`lang: 'pl-PL'`, spójnie z resztą UI po polsku), wyniki
+      pośrednie i finalne są dopisywane do stanu `draft` (`setDraft`).
+      Przycisk pulsuje na czerwono w trakcie nasłuchiwania i wraca do stanu
+      spoczynku po ponownym kliknięciu lub zakończeniu rozpoznawania
+      (`onend`). Feature-detection (`window.SpeechRecognition ||
+      window.webkitSpeechRecognition`) w `useEffect` chowa przycisk całkowicie
+      w przeglądarkach bez wsparcia — brak crasha. Odmowa dostępu do
+      mikrofonu (`event.error === 'not-allowed'`) i inne błędy rozpoznawania
+      są zgłaszane przez istniejący mechanizm `errorMessage`/`setErrorMessage`
+      (ten sam, którego używają inne błędy w tym pliku), a nie osobnym,
+      nowym komponentem. Dodano też minimalny ambient type declaration
+      `frontend/src/types/speech.d.ts` z typami `SpeechRecognition` i
+      pokrewnymi (nie ma ich w domyślnych libach TS) — bez użycia `any`.
+
+      **Ograniczenie wsparcia przeglądarek:** Web Speech API w tej formie
+      działa w Chrome i Edge (prefiks `webkit` w Chrome); Firefox i Safari
+      nie wspierają go w ten sam sposób (Safari ma częściowe, niestabilne
+      wsparcie, Firefox default brak) — dla tych przeglądarek przycisk
+      mikrofonu po prostu się nie pojawia (feature-detected), więc UI
+      degraduje się bez błędu, ale ci użytkownicy nie mają dyktowania.
+
+      **Weryfikacja:** `npx tsc --noEmit` w `frontend/` — czysto, zero
+      błędów. Pełna interaktywna weryfikacja end-to-end (kliknięcie
+      mikrofonu, realne uprawnienia mikrofonu, faktyczne rozpoznanie mowy)
+      niemożliwa w tym środowisku z dwóch niezależnych powodów: (1) ten sam
+      znany blocker logowania wyłącznie przez Google OAuth bez dev-loginu,
+      opisany w punktach 1–15, oraz (2) dodatkowo — niezależnie od loginu —
+      Web Speech API wymaga prawdziwego kontekstu przeglądarki z dostępem do
+      mikrofonu (permission prompt, realny sprzęt audio), którego to
+      środowisko (headless/CLI) nie zapewnia; nie da się tego obejść samym
+      ominięciem OAuth, jak przy poprzednich punktach.
+- [x] 17. Tymczasowa/incognito rozmowa (bez zapisu do historii) — brak.
+
+      **Zrobione (2026-09-21):** Decyzja co do zgodności/compliance: NIE
+      wybrano pełnej efemeryczności (opcja a — w ogóle bez zapisu do bazy).
+      Migracja 025 (`025_conversation_retention.sql`) i towarzyszący jej
+      `backend/src/services/retention/retentionCleanup.js` zakładają, że
+      KAŻDA rozmowa jest wpierw persystowana i dopiero potem podlega
+      politycy retencji (`DATA_RETENTION_DAYS`, domyślnie wyłączona
+      destrukcyjna operacja) — nie ma tu koncepcji "rozmowy, która nigdy nie
+      trafia do bazy". Migracja 026 (`026_rls_chat_isolation.sql`) wymusza
+      RLS na `conversations`/`messages` per user, co też zakłada, że wiersz
+      istnieje. Do tego cały przepływ wykrywania wycieku danych
+      (`classifyDraftMessage`/`streamChatTurn` w
+      `backend/src/services/chatCore/pipeline.js`, korzystający z
+      `sensitiveDataPrecheck.js`, `uncertainLeakAgent.js` i zapisujący do
+      `leak_alerts`/`ai_audit_log`) działa na poziomie `conversationId` i nie
+      ma żadnej ścieżki warunkowej, która by go pomijała — to jest
+      obowiązkowa ścieżka audytu dla produktu z alertami o wyciekach danych.
+      Wobec tego wybrano **opcję (b)**: rozmowa tymczasowa/incognito jest
+      nadal w pełni zapisywana i nadal w 100% przechodzi przez ten sam
+      pipeline klasyfikacji/precheck/audytu co każda inna rozmowa — jedyna
+      różnica to jej domyślna widoczność na liście rozmów. Nie dodano
+      osobnej, krótszej retencji per-konwersacja (migracja 025 nie ma
+      kolumny w stylu `retention_days`/`expires_at` do rozszerzenia — cała
+      polityka jest globalna, jeden `DATA_RETENTION_DAYS`), żeby nie
+      wprowadzać nowego, nietestowanego mechanizmu obok istniejącego —
+      rozmowa incognito podlega tej samej globalnej retencji co reszta.
+
+      Backend: nowa migracja
+      [backend/src/db/migrations/030_temporary_conversations.sql](../../backend/src/db/migrations/030_temporary_conversations.sql)
+      dodaje `conversations.is_temporary BOOLEAN NOT NULL DEFAULT false`. W
+      [backend/src/routes/chat.routes.js](../../backend/src/routes/chat.routes.js):
+      `POST /chat/conversations` przyjmuje `isTemporary`; `GET
+      /chat/conversations` domyślnie filtruje `WHERE is_temporary = false`,
+      z opt-in przez `?includeTemporary=true` (używane tylko żeby aktywna
+      rozmowa incognito nie zniknęła w trakcie sesji); `PATCH
+      /chat/conversations/:id` pozwala przełączyć `isTemporary`. Nic nie
+      zmieniono w `streamChatTurn`/`classifyDraftMessage`/pipeline.js —
+      klasyfikacja i zapis wiadomości działają identycznie niezależnie od
+      `is_temporary`, żeby nie osłabić ścieżki wykrywania wycieku danych.
+
+      Frontend: w [frontend/src/lib/api.ts](../../frontend/src/lib/api.ts)
+      dodano `isTemporary` do `ConversationSettings`, `api.createConversation`
+      przyjmuje drugi parametr `isTemporary`, `api.listConversations`
+      przyjmuje opcjonalny `includeTemporary`. W
+      [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx):
+      `ConversationSidebar` dostał drugi przycisk „Nowa incognito" (ikona
+      `EyeOff`) obok „Nowa rozmowa"; nowy handler
+      `handleNewTemporaryConversation` w `ChatView` tworzy rozmowę z
+      `isTemporary: true` i dokłada ją do lokalnego stanu `conversations`
+      (tak samo jak istniejący `handleNewConversation`) — dzięki temu jest
+      w pełni widoczna i używalna w bieżącej sesji, ale ponieważ domyślne
+      `GET /chat/conversations` jej nie zwraca, po odświeżeniu strony/nowej
+      sesji nie pojawi się już na liście (zgodnie z zachowaniem "temporary
+      chat" w Claude.ai). `ConversationSettingsBar` dostał odznakę
+      „Incognito" (ikona `EyeOff`) obok badge'a „Globalny kontekst" z punktu
+      8, widoczną gdy aktywna rozmowa ma `isTemporary: true`, z tooltipem
+      tłumaczącym, że mimo braku widoczności na liście rozmowa nadal
+      podlega tej samej klasyfikacji i retencji.
+
+      **Weryfikacja:** `npx tsc --noEmit` w `frontend/` — czysto, zero
+      błędów. `node --check` bez błędów dla
+      `backend/src/routes/chat.routes.js`. Migrację
+      `030_temporary_conversations.sql` uruchomiono realnie na lokalnej dev
+      bazie Postgres (`npm run migrate` w `backend/`, `DATABASE_URL`
+      wskazujący na `salesmore_llm_test`) — przeszła bez błędów razem z
+      całym łańcuchem migracji (001–030). Pełna wizualna weryfikacja w
+      zalogowanym czacie (kliknięcie „Nowa incognito", faktyczne wysłanie
+      wiadomości w rozmowie incognito, potwierdzenie że nie pojawia się po
+      odświeżeniu, potwierdzenie że alert o wycieku nadal by zadziałał)
+      niemożliwa w tym środowisku — ten sam znany blocker logowania
+      wyłącznie przez Google OAuth bez dev-loginu, opisany w punktach 1–16.
+- [x] 18. Aplikacja mobilna / PWA — brak manifestu, strona nie jest
        instalowalna na telefonie.
-- [ ] 19. Wskaźnik limitu użycia widoczny dla zwykłego użytkownika w UI
+
+      **Zrobione (2026-09-21):** Zaimplementowano minimalny, ale realnie
+      instalowalny PWA setup (nie pełną offline-first aplikację — świadomie
+      poza scope'em, patrz niżej). Nowy
+      [frontend/public/manifest.json](../../frontend/public/manifest.json)
+      z `name`/`short_name`/`description`, `start_url: "/chat"`,
+      `display: "standalone"`, `background_color: "#FFFFFF"`,
+      `theme_color: "#F8502C"` (brand orange z `tailwind.config.ts`) i
+      tablicą `icons` (192x192 i 512x512).
+
+      Ikony: w repo istniał tylko jeden asset graficzny —
+      `frontend/public/logo-salesmore.png` — szeroki poziomy wordmark
+      (1854x303, nie nadaje się bezpośrednio na kwadratową ikonę). Zamiast
+      wymyślać nową grafikę, wycięto z niego (ImageMagick, `magick -crop`)
+      samodzielny, już kwadratowy znak „&" (pomarańczowy, `#F8502C`) będący
+      częścią logo, spłaszczono na białym tle i wyskalowano do
+      [frontend/public/icon-192.png](../../frontend/public/icon-192.png),
+      [frontend/public/icon-512.png](../../frontend/public/icon-512.png)
+      oraz [frontend/public/apple-touch-icon.png](../../frontend/public/apple-touch-icon.png)
+      (180x180, dla iOS home screen).
+
+      W [frontend/src/app/layout.tsx](../../frontend/src/app/layout.tsx)
+      dodano `manifest: '/manifest.json'` i `icons.apple` do obiektu
+      `metadata` (Next.js 15 `Metadata` API), osobny eksport
+      `viewport: Viewport` z `themeColor: '#F8502C'` (Next 15 wymaga
+      `themeColor` w `viewport`, nie w `metadata`) oraz
+      `appleWebApp: { capable: true, statusBarStyle: 'default', title: ... }`
+      dla trybu pełnoekranowego na iOS po dodaniu do ekranu głównego.
+
+      Dodano też minimalny no-op service worker
+      [frontend/public/sw.js](../../frontend/public/sw.js) (tylko
+      `install`/`activate`/pusty handler `fetch` — bez żadnego cache'owania,
+      celowo, żeby nie ryzykować serwowania nieaktualnych odpowiedzi API w
+      czacie z danymi live) rejestrowany przez nowy klient-komponent
+      [frontend/src/components/ServiceWorkerRegistration.tsx](../../frontend/src/components/ServiceWorkerRegistration.tsx)
+      wpięty w `layout.tsx` — wyłącznie po to, by spełnić bardziej
+      restrykcyjne heurystyki instalowalności niektórych przeglądarek
+      (Chrome/Android akceptuje instalację już przy samym manifeście +
+      HTTPS + ikonach, ale service worker nie zaszkodzi i jest wymagany
+      przez niektóre starsze audyty PWA). Pełny offline-first service
+      worker z cache'owaniem świadomie pominięty — poza scope'em zadania i
+      ryzykowny dla aplikacji czatu z danymi live.
+
+      Zweryfikowane: `npx tsc --noEmit` w `frontend/` bez błędów.
+      `node -e "JSON.parse(...)"` potwierdza że `manifest.json` jest
+      poprawnym JSON-em. Pełna weryfikacja instalowalności („Dodaj do ekranu
+      głównego" / prompt instalacji w Chrome na Androidzie lub Safari na
+      iOS) niemożliwa w tym środowisku — to inny rodzaj blockera niż
+      dotychczasowy (logowanie tylko przez Google OAuth, punkty 1–17):
+      instalowalność PWA wymaga realnej sesji w przeglądarce mobilnej
+      (Chrome/Android lub Safari/iOS) na żywym, publicznie dostępnym HTTPS
+      URL-u, a nie tylko zalogowanego konta — czego to środowisko (headless,
+      bez mobilnej przeglądarki) nie zapewnia.
+- [x] 19. Wskaźnik limitu użycia widoczny dla zwykłego użytkownika w UI
        czatu (dziś tylko w panelu admina).
+
+      **Zrobione (2026-09-21):** Zbadano, jaki "limit" faktycznie istnieje w
+      systemie: brak per-userowej kwoty wiadomości/kosztu — jedyny realny
+      limit to wspólny, org-wide miękki budżet miesięczny
+      (`MONTHLY_BUDGET_USD`, [backend/src/config/budget.js](../../backend/src/config/budget.js)),
+      sprawdzany przed każdym wywołaniem LLM w
+      [backend/src/services/chatCore/pipeline.js](../../backend/src/services/chatCore/pipeline.js)
+      (`checkMonthlyBudget`) i wspólny dla wszystkich użytkowników — nie ma
+      koncepcji limitu per-klient (`clients` w
+      [backend/src/routes/clients.routes.js](../../backend/src/routes/clients.routes.js)
+      to klienci specjalistów/zgody AI, nie tenant z budżetem). Zgodnie z
+      instrukcją zadania (pokazać co realnie istnieje zamiast fikcyjnej
+      kwoty) wskaźnik pokazuje właśnie ten wspólny budżet + własny wkład
+      użytkownika w bieżącym miesiącu.
+
+      Backend: nowy endpoint `GET /chat/me/usage` w
+      [backend/src/routes/chat.routes.js](../../backend/src/routes/chat.routes.js)
+      (w istniejącym `chatRouter`, więc auth+RLS przez `attachUserDbContext`
+      już zamontowane wyżej w pliku) — zwraca `orgBudget` (limit/spent z
+      tego samego zapytania co `checkMonthlyBudget`, `null` gdy
+      `MONTHLY_BUDGET_USD` nieustawiony) oraz `mine` (liczba wiadomości i
+      suma `cost_usd` z `usage_metrics` dla rozmów należących do
+      `req.user.sub` w bieżącym miesiącu, przez join
+      `usage_metrics -> messages -> conversations`). Brak nowej migracji —
+      dane już istnieją w `usage_metrics` (tabela z punktu 13).
+
+      Frontend: w [frontend/src/lib/api.ts](../../frontend/src/lib/api.ts)
+      dodano typ `UsageInfo` i `api.getMyUsage()`. W
+      [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx)
+      nowy komponent `UsageBadge` (ikona `Gauge` z `lucide-react`) w
+      `ConversationSettingsBar`, obok badge'a „Globalny kontekst" z punktu
+      8 — pokazuje `Budżet: X%` (z tooltipem: kwoty $ spent/limit + własny
+      udział) gdy `MONTHLY_BUDGET_USD` skonfigurowany, albo `Ty: X wiad.`
+      gdy nie; podświetla się na czerwono po przekroczeniu 90% budżetu.
+      Renderuje się jako `null` gdy fetch się nie uda (np. brak auth) —
+      nieinwazyjny, spójny stylistycznie z resztą paska (te same klasy
+      Tailwind, warianty `dark:`).
+
+      Zweryfikowane: `npx tsc --noEmit` w `frontend/` bez błędów. `node
+      --check` bez błędów dla `chat.routes.js`. Lokalnie uruchomiony
+      backend (`PORT=8099 node src/server.js`, `.env` z lokalnym Postgres
+      `salesmore_llm_test`) zwraca `401` na `GET /chat/me/usage` bez tokenu
+      oraz `200` na `/health`. Pełna wizualna weryfikacja zalogowanego UI
+      (rzeczywisty odczyt budżetu/kosztu w pasku ustawień czatu) niemożliwa
+      w tym środowisku — ten sam blocker logowania wyłącznie przez Google
+      OAuth opisany w punktach 1–18.
 - [ ] 20. Przełącznik "extended thinking" widoczny dla użytkownika w UI
        czatu (dziś reasoning/thinking istnieje tylko wewnętrznie w
-       subagentach/pipeline backendu).
+       subagentach/pipeline backendu, backend aktywnie usuwa bloki myślenia
+       przed zapisem historii — brak przełącznika i brak widoku
+       rozumowania dla użytkownika).
+- [x] 21. Udostępnianie całej rozmowy publicznym linkiem (dziś tylko
+       pojedyncze artefakty mają udostępnianie, nie cała konwersacja).
+
+      **Zrobione (2026-09-21):** Nowa migracja
+      [031_conversation_sharing.sql](../../backend/src/db/migrations/031_conversation_sharing.sql)
+      (`conversations.share_token`), nowy router
+      [backend/src/routes/sharing.routes.js](../../backend/src/routes/sharing.routes.js)
+      (mirror wzorca z `artifacts.routes.js`): `POST/DELETE
+      /chat/conversations/:id/share` (właściciel), publiczny
+      `GET /public/conversations/:token` bez autoryzacji (działa z RLS-em
+      przez `runWithDbContext({isAdmin:true})`, token jest jedynym
+      autoryzatorem). Frontend: nowy
+      [ShareConversationButton](../../frontend/src/components/ShareConversationButton.tsx)
+      w pasku ustawień rozmowy (popover z linkiem, kopiuj, cofnij) i publiczna
+      strona podglądu
+      [/c/[token]](../../frontend/src/app/c/[token]/page.tsx) (read-only,
+      bez logowania). Ograniczenie: przycisk nie pamięta stanu „już
+      udostępniona" po przeładowaniu strony (endpointy listy/pobrania
+      konwersacji nie zwracają jeszcze `share_token`) — link mimo to działa
+      poprawnie, tylko UI zawsze startuje od „Udostępnij". `npx tsc --noEmit`
+      bez błędów, `node --check` na nowych plikach backendu bez błędów.
+- [x] 22. Panel pomocy ze skrótami klawiszowymi — skróty (Cmd+K,
+       Cmd+Shift+O itd.) działają, ale brak listy/modala z pomocą.
+
+      **Zrobione (2026-09-21):** Nowy
+      [ShortcutsModal](../../frontend/src/components/ShortcutsModal.tsx)
+      wypisujący wszystkie skróty (Cmd/Ctrl+K, Cmd/Ctrl+Shift+O, Shift+/,
+      Enter, Shift+Enter), otwierany przyciskiem z ikoną klawiatury w
+      [BrandHeader](../../frontend/src/components/BrandHeader.tsx) (widoczny
+      na każdej zalogowanej stronie) albo skrótem `Shift+/` z dowolnego
+      miejsca (poza polami tekstowymi). `npx tsc --noEmit` bez błędów.
+- [x] 23. Eksport wiadomości/rozmowy do PDF/obrazka — dziś jest tylko
+       eksport do Markdown.
+
+      **Zrobione (2026-09-21):** Eksport całej rozmowy do PDF przez
+      [frontend/src/lib/exportPdf.ts](../../frontend/src/lib/exportPdf.ts) —
+      zero nowych zależności: renderuje transkrypt w osobnej karcie i
+      wywołuje natywny dialog drukowania przeglądarki (uniwersalne „Zapisz
+      jako PDF"). Przycisk „Eksportuj" w pasku ustawień rozmowy zamieniony w
+      mini-menu: „Jako Markdown" (istniejące) / „Jako PDF" (nowe). Eksport do
+      obrazka (PNG) świadomie pominięty w tym przejściu — wymagałby nowej
+      zależności (np. html2canvas) albo rasteryzacji przez SVG
+      `foreignObject`, obie opcje ryzykowne jakościowo bez dalszego
+      dopracowania; PDF pokrywa realną potrzebę (dokument do wydruku/
+      zapisania). `npx tsc --noEmit` bez błędów.
+- [x] 24. i18n — UI jest tylko po polsku, brak wsparcia dla zespołu
+       międzynarodowego (np. angielski).
+
+      **Zrobione (2026-09-21):** Nowy
+      [LocaleContext](../../frontend/src/lib/LocaleContext.tsx) (PL/EN,
+      `localStorage`, wzorzec analogiczny do `ThemeContext`), podpięty w
+      [layout.tsx](../../frontend/src/app/layout.tsx). Przełącznik języka w
+      nowej sekcji „Język interfejsu” na stronie Ustawień. Przetłumaczono:
+      topbar (`BrandHeader`), stronę Ustawień (nagłówek, motyw, język, usuń
+      konto), panel skrótów klawiszowych, i nowe elementy czatu dodane w tej
+      sesji (Eksportuj/Udostępnij). **Zakres świadomie ograniczony:** reszta
+      statycznych napisów w `chat/page.tsx` (sidebar, przyciski akcji
+      wiadomości, puste stany, placeholdery) i cały `admin/page.tsx`
+      **pozostają po polsku** — te pliki są w tej chwili intensywnie
+      edytowane równolegle przez inną sesję (projekty, style, rozmowy
+      tymczasowe, głos, PWA), więc głębokie tłumaczenie całego UI czatu
+      zostało odłożone, żeby nie mnożyć konfliktów w jednym już bardzo
+      aktywnym pliku. Odpowiedzi asystenta nigdy nie są tłumaczone (zależą od
+      języka pytania/promptu, nie od ustawienia UI). `npx tsc --noEmit` bez
+      błędów.
 
 ## E — weryfikacja wizualna 2026-09-21 (nowe obserwacje)
 

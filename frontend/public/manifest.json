@@ -1,0 +1,25 @@
+{
+  "name": "Sales&More LLM",
+  "short_name": "S&M LLM",
+  "description": "Wewnętrzny asystent AI dla specjalistów Sales&More",
+  "start_url": "/chat",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#F8502C",
+  "lang": "pl",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

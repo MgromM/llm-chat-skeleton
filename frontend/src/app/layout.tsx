@@ -1,7 +1,9 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter, Anton } from 'next/font/google';
 import { AuthProvider } from '@/lib/AuthContext';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
+import { LocaleProvider } from '@/lib/LocaleContext';
 import './globals.css';
 
 // Free stand-ins for the licensed brand fonts (Lazare Grotesk / PP Formula),
@@ -12,7 +14,20 @@ const anton = Anton({ subsets: ['latin', 'latin-ext'], weight: '400', variable: 
 export const metadata: Metadata = {
   title: 'Sales&More LLM',
   description: 'Wewnętrzny asystent AI dla specjalistów Sales&More',
-  icons: { icon: '/logo-salesmore.png' },
+  manifest: '/manifest.json',
+  icons: {
+    icon: '/logo-salesmore.png',
+    apple: '/apple-touch-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Sales&More LLM',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#F8502C',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -20,8 +35,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pl" className={`${inter.variable} ${anton.variable}`}>
       <body className="bg-brand-white dark:bg-zinc-950">
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <LocaleProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </LocaleProvider>
         </ThemeProvider>
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

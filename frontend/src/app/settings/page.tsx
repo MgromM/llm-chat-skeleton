@@ -2,31 +2,65 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Brain, MessageSquareText, Trash2, SunMoon } from 'lucide-react';
+import { AlertTriangle, Brain, MessageSquareText, Trash2, SunMoon, Languages } from 'lucide-react';
 import { api, ApiError, type MemoryFile } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 import { useAuth } from '@/lib/AuthContext';
 import { useTheme } from '@/lib/ThemeContext';
+import { useLocale, type Locale } from '@/lib/LocaleContext';
 
 function ThemeSection() {
   const { theme, toggleTheme } = useTheme();
+  const { t } = useLocale();
 
   return (
     <div className="rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
         <SunMoon size={18} className="text-brand-orange" />
-        Motyw
+        {t('settings.theme.title')}
       </div>
-      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">
-        Wybierz, czy interfejs ma być jasny czy ciemny.
-      </p>
+      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">{t('settings.theme.desc')}</p>
       <button
         onClick={toggleTheme}
         className="flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
       >
-        {theme === 'dark' ? '☀️ Przełącz na jasny' : '🌙 Przełącz na ciemny'}
+        {theme === 'dark' ? `☀️ ${t('settings.theme.toLight')}` : `🌙 ${t('settings.theme.toDark')}`}
       </button>
+    </div>
+  );
+}
+
+const LOCALE_OPTIONS: { value: Locale; label: string }[] = [
+  { value: 'pl', label: 'Polski' },
+  { value: 'en', label: 'English' },
+];
+
+function LanguageSection() {
+  const { locale, setLocale, t } = useLocale();
+
+  return (
+    <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
+        <Languages size={18} className="text-brand-orange" />
+        {t('settings.language.title')}
+      </div>
+      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">{t('settings.language.desc')}</p>
+      <div className="flex gap-2">
+        {LOCALE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => setLocale(opt.value)}
+            className={
+              opt.value === locale
+                ? 'rounded-lg bg-brand-orange px-4 py-2 text-sm font-medium text-brand-white'
+                : 'rounded-lg border border-brand-border px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800'
+            }
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -207,6 +241,7 @@ function DefaultSystemPromptSection() {
 
 function SettingsView() {
   const { user, logout } = useAuth();
+  const { t } = useLocale();
   const router = useRouter();
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -230,17 +265,20 @@ function SettingsView() {
     <div className="flex h-screen flex-col bg-brand-white dark:bg-zinc-950">
       <BrandHeader />
       <div className="mx-auto w-full max-w-xl px-6 py-10">
-        <h1 className="mb-1 text-xl font-bold text-brand-dark dark:text-zinc-100">Ustawienia konta</h1>
-        <p className="mb-8 text-sm text-brand-dark/60 dark:text-zinc-400">Zalogowano jako {user?.email}</p>
+        <h1 className="mb-1 text-xl font-bold text-brand-dark dark:text-zinc-100">{t('settings.title')}</h1>
+        <p className="mb-8 text-sm text-brand-dark/60 dark:text-zinc-400">
+          {t('settings.loggedInAs')} {user?.email}
+        </p>
 
         <ThemeSection />
+        <LanguageSection />
         <DefaultSystemPromptSection />
         <MemorySection />
 
         <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/30">
           <div className="mb-2 flex items-center gap-2 font-semibold text-red-700 dark:text-red-400">
             <AlertTriangle size={18} />
-            Usuń konto i wszystkie dane
+            {t('settings.deleteAccount.title')}
           </div>
           <p className="mb-4 text-sm text-red-700/90 dark:text-red-400/90">
             Ta operacja trwale usunie Twoje konto, wszystkie rozmowy, wiadomości i załączniki. Tej operacji nie

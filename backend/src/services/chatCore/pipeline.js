@@ -815,18 +815,52 @@ async function maybeCreateArtifact({ conversationId, messageId, commandUsed, rep
 /**
  * Loads the per-conversation model override and system prompt, if set, plus
  * the owning user's default system prompt (role/context, set once in their
- * settings and applied to every conversation). Effective system prompt is
- * the user default followed by the conversation-specific one, so a
- * specialist's personal context always applies and per-chat text adds to it.
+ * settings and applied to every conversation) and, if the conversation
+ * belongs to a project (item 14, docs/tasks/007-ui-ux-braki.md), that
+ * project's own instructions. Effective system prompt is built in order
+ * global (user default) -> project -> conversation-specific, so a
+ * specialist's personal context always applies, project instructions add
+ * shared context for everything grouped under it, and per-chat text is the
+ * most specific layer on top.
  */
+// Item 15 (docs/tasks/007-ui-ux-braki.md, section D): fixed response-style
+// presets, like Claude.ai's "response styles". Each maps to a short tone
+// instruction appended to the system prompt; `null`/unknown key = no extra
+// instruction. Exposed to the frontend via GET /chat/conversations/styles
+// (chat.routes.js), mirroring the AVAILABLE_MODELS pattern.
+export const STYLE_PRESETS = {
+  concise: {
+    label: 'Zwięzły',
+    instruction: 'Odpowiadaj maksymalnie zwięźle i na temat, bez zbędnych dygresji i powtórzeń.',
+  },
+  formal: {
+    label: 'Formalny',
+    instruction: 'Odpowiadaj w formalnym, profesjonalnym tonie, unikaj potocznego języka i emoji.',
+  },
+  creative: {
+    label: 'Kreatywny',
+    instruction: 'Odpowiadaj w swobodny, kreatywny sposób — śmiało proponuj nietypowe ujęcia i przykłady.',
+  },
+};
+
 async function getConversationSettings(conversationId) {
   const { rows } = await query(
-    `SELECT c.model, c.system_prompt, u.default_system_prompt
-     FROM conversations c JOIN users u ON u.id = c.user_id
+    `SELECT c.model, c.system_prompt, c.style, u.default_system_prompt, p.system_prompt AS project_system_prompt
+     FROM conversations c
+     JOIN users u ON u.id = c.user_id
+     LEFT JOIN projects p ON p.id = c.project_id
      WHERE c.id = $1`,
     [conversationId],
   );
-  const system = [rows[0]?.default_system_prompt, rows[0]?.system_prompt].filter(Boolean).join('\n\n') || undefined;
+  const styleInstruction = STYLE_PRESETS[rows[0]?.style]?.instruction;
+  // Hierarchy (item 8/14 extended): global (user settings) -> project ->
+  // style (tone modifier) -> conversation-specific prompt. Style sits after
+  // the project's substantive instructions but before the conversation's
+  // own prompt, so a specific per-conversation instruction can still
+  // override or refine the tone if needed.
+  const system = [rows[0]?.default_system_prompt, rows[0]?.project_system_prompt, styleInstruction, rows[0]?.system_prompt]
+    .filter(Boolean)
+    .join('\n\n') || undefined;
   return {
     model: rows[0]?.model || CHAT_MODEL,
     system,

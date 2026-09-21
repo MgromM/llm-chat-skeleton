@@ -1,15 +1,18 @@
 'use client';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2, Loader2, Copy } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, EyeOff, Code2, Loader2, Copy, FolderKanban, Sparkles, Mic, MicOff, Gauge } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
-import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile, type Artifact, type ArtifactVersionSummary } from '@/lib/api';
+import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile, type Artifact, type ArtifactVersionSummary, type Project, type StylePreset, type UsageInfo } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 import { ArtifactViewer } from '@/components/ArtifactViewer';
+import { ShareConversationButton } from '@/components/ShareConversationButton';
+import { exportConversationAsPdf } from '@/lib/exportPdf';
+import { useLocale } from '@/lib/LocaleContext';
 
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
@@ -232,6 +235,9 @@ interface Conversation {
   model?: string | null;
   systemPrompt?: string | null;
   branchedFromConversationId?: number | null;
+  projectId?: number | null;
+  style?: string | null;
+  isTemporary?: boolean;
 }
 
 
@@ -250,26 +256,39 @@ function ConversationSidebar({
   activeId,
   onSelect,
   onNew,
+  onNewTemporary,
   onRename,
   onDelete,
   open,
   onClose,
   searchInputRef,
+  projects,
+  projectFilter,
+  onSelectProjectFilter,
+  onCreateProject,
 }: {
   conversations: Conversation[];
   activeId: number | null;
   onSelect: (id: number) => void;
   onNew: () => void;
+  onNewTemporary: () => void;
   onRename: (id: number, title: string) => void;
   onDelete: (id: number) => void;
   open: boolean;
   onClose: () => void;
   searchInputRef?: RefObject<HTMLInputElement>;
+  projects: Project[];
+  projectFilter: number | null;
+  onSelectProjectFilter: (projectId: number | null) => void;
+  onCreateProject: (name: string, description: string) => void;
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Conversation[] | null>(null);
+  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectDescription, setNewProjectDescription] = useState('');
 
   useEffect(() => {
     const q = searchQuery.trim();
@@ -283,7 +302,18 @@ function ConversationSidebar({
     return () => clearTimeout(handle);
   }, [searchQuery]);
 
-  const visibleConversations = searchResults ?? conversations;
+  const filteredConversations =
+    projectFilter === null ? conversations : conversations.filter((c) => c.projectId === projectFilter);
+  const visibleConversations = searchResults ?? filteredConversations;
+
+  function submitNewProject() {
+    const name = newProjectName.trim();
+    if (!name) return;
+    onCreateProject(name, newProjectDescription.trim());
+    setNewProjectName('');
+    setNewProjectDescription('');
+    setShowNewProjectForm(false);
+  }
 
   function startRename(c: Conversation) {
     setRenamingId(c.id);
@@ -322,6 +352,17 @@ function ConversationSidebar({
           <Plus size={16} />
           Nowa rozmowa
         </button>
+        <button
+          onClick={() => {
+            onNewTemporary();
+            onClose();
+          }}
+          title="Rozmowa tymczasowa/incognito — nie pojawia się na tej liście"
+          className="mt-1.5 flex w-full items-center gap-2 rounded-lg border border-brand-white/20 px-3 py-2 text-sm font-medium text-brand-white/80 hover:bg-brand-white/10"
+        >
+          <EyeOff size={16} />
+          Nowa incognito
+        </button>
       </div>
       <div className="px-3 pb-2">
         <input
@@ -331,6 +372,82 @@ function ConversationSidebar({
           placeholder="Szukaj w rozmowach… (Cmd+K)"
           className="w-full rounded-lg border border-brand-white/30 bg-brand-white/10 px-3 py-1.5 text-sm text-brand-white placeholder:text-brand-white/50 outline-none focus:border-brand-white/60"
         />
+      </div>
+      <div className="px-3 pb-2">
+        <div className="mb-1 flex items-center justify-between px-1">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-white/50">
+            <FolderKanban size={12} />
+            Projekty
+          </span>
+          <button
+            onClick={() => setShowNewProjectForm((v) => !v)}
+            aria-label="Nowy projekt"
+            className="rounded p-0.5 text-brand-white/60 hover:bg-brand-white/10 hover:text-brand-white"
+          >
+            <Plus size={13} />
+          </button>
+        </div>
+        {showNewProjectForm && (
+          <div className="mb-2 space-y-1.5 rounded-lg border border-brand-white/20 bg-brand-white/5 p-2">
+            <input
+              autoFocus
+              value={newProjectName}
+              onChange={(e) => setNewProjectName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && submitNewProject()}
+              placeholder="Nazwa projektu"
+              className="w-full rounded-md border border-brand-white/30 bg-brand-white/10 px-2 py-1 text-xs text-brand-white placeholder:text-brand-white/40 outline-none focus:border-brand-white/60"
+            />
+            <textarea
+              value={newProjectDescription}
+              onChange={(e) => setNewProjectDescription(e.target.value)}
+              placeholder="Opis / instrukcje projektu (opcjonalnie)"
+              rows={2}
+              className="w-full resize-none rounded-md border border-brand-white/30 bg-brand-white/10 px-2 py-1 text-xs text-brand-white placeholder:text-brand-white/40 outline-none focus:border-brand-white/60"
+            />
+            <div className="flex justify-end gap-1.5">
+              <button
+                onClick={() => setShowNewProjectForm(false)}
+                className="rounded px-2 py-1 text-xs text-brand-white/60 hover:bg-brand-white/10"
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={submitNewProject}
+                className="rounded bg-brand-orange px-2 py-1 text-xs font-semibold text-brand-white hover:brightness-95"
+              >
+                Utwórz
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="space-y-0.5">
+          <button
+            onClick={() => onSelectProjectFilter(null)}
+            className={clsx(
+              'w-full truncate rounded-md px-2 py-1 text-left text-xs',
+              projectFilter === null
+                ? 'bg-brand-white/10 font-medium text-brand-white'
+                : 'text-brand-white/60 hover:bg-brand-white/5',
+            )}
+          >
+            Wszystkie
+          </button>
+          {projects.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onSelectProjectFilter(p.id)}
+              title={p.description ?? undefined}
+              className={clsx(
+                'w-full truncate rounded-md px-2 py-1 text-left text-xs',
+                projectFilter === p.id
+                  ? 'bg-brand-white/10 font-medium text-brand-white'
+                  : 'text-brand-white/60 hover:bg-brand-white/5',
+              )}
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
         {visibleConversations.length === 0 && (
@@ -495,6 +612,55 @@ function modelLabel(model: string) {
   return MODEL_LABELS[model] || model;
 }
 
+// Item 19 (UI/UX audit): usage indicator for regular users. There's no
+// per-user quota in this system, only a shared org-wide monthly cost cap
+// (MONTHLY_BUDGET_USD) that the backend checks before every LLM call — see
+// GET /chat/me/usage. Shows that shared budget's progress plus the user's
+// own message/cost contribution to it this month. Renders nothing if the
+// endpoint fails or no budget is configured (MONTHLY_BUDGET_USD unset),
+// since there's then nothing meaningful to show.
+function UsageBadge() {
+  const [usage, setUsage] = useState<UsageInfo | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getMyUsage()
+      .then((data) => {
+        if (!cancelled) setUsage(data);
+      })
+      .catch(() => {
+        // No per-user quota / endpoint unavailable — badge just stays hidden.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!usage) return null;
+
+  const { orgBudget, mine } = usage;
+  const pct = orgBudget && orgBudget.limitUsd > 0 ? Math.min(100, (orgBudget.spentUsd / orgBudget.limitUsd) * 100) : null;
+  const title = orgBudget
+    ? `Wspólny budżet miesięczny pilotażu: $${orgBudget.spentUsd.toFixed(2)} / $${orgBudget.limitUsd.toFixed(2)} wykorzystane przez wszystkich użytkowników. Twój udział w tym miesiącu: ${mine.messages} wiadomości, $${mine.costUsd.toFixed(2)}.`
+    : `Brak skonfigurowanego limitu budżetu. Twoje zużycie w tym miesiącu: ${mine.messages} wiadomości, $${mine.costUsd.toFixed(2)}.`;
+
+  return (
+    <span
+      title={title}
+      className={clsx(
+        'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
+        pct !== null && pct >= 90
+          ? 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400'
+          : 'text-brand-dark/40 dark:text-zinc-500'
+      )}
+    >
+      <Gauge size={12} />
+      {orgBudget ? `Budżet: ${pct!.toFixed(0)}%` : `Ty: ${mine.messages} wiad.`}
+    </span>
+  );
+}
+
 function ConversationSettingsBar({
   systemPrompt,
   onChangeSystemPrompt,
@@ -504,6 +670,15 @@ function ConversationSettingsBar({
   selectedModel,
   onChangeModel,
   hasGlobalPrompt,
+  projects,
+  selectedProjectId,
+  onChangeProject,
+  availableStyles,
+  selectedStyle,
+  onChangeStyle,
+  isTemporary,
+  onExportPdf,
+  conversationId,
 }: {
   systemPrompt: string;
   onChangeSystemPrompt: (prompt: string) => void;
@@ -513,8 +688,19 @@ function ConversationSettingsBar({
   selectedModel: string;
   onChangeModel: (model: string) => void;
   hasGlobalPrompt: boolean;
+  projects: Project[];
+  selectedProjectId: number | null;
+  onChangeProject: (projectId: number | null) => void;
+  availableStyles: StylePreset[];
+  selectedStyle: string | null;
+  onChangeStyle: (style: string | null) => void;
+  isTemporary?: boolean;
+  onExportPdf: () => void;
+  conversationId: number | null;
 }) {
+  const { t } = useLocale();
   const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [draft, setDraft] = useState(systemPrompt);
 
   useEffect(() => setDraft(systemPrompt), [systemPrompt]);
@@ -529,6 +715,15 @@ function ConversationSettingsBar({
         >
           <Menu size={18} />
         </button>
+        {isTemporary && (
+          <span
+            title="Rozmowa tymczasowa/incognito — nie pojawia się na liście rozmów. Nadal podlega tej samej klasyfikacji danych wrażliwych i retencji co inne rozmowy."
+            className="flex items-center gap-1 rounded-md bg-brand-dark/10 px-2 py-0.5 text-xs font-medium text-brand-dark/70 dark:bg-zinc-100/10 dark:text-zinc-300"
+          >
+            <EyeOff size={12} />
+            Incognito
+          </span>
+        )}
         <div className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400">
           Model:
           <select
@@ -550,6 +745,38 @@ function ConversationSettingsBar({
         >
           {systemPrompt ? 'Edytuj prompt systemowy (tej rozmowy)' : 'Dodaj prompt systemowy (tej rozmowy)'}
         </button>
+        <div className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400">
+          <FolderKanban size={14} className="opacity-70" />
+          <select
+            value={selectedProjectId ?? ''}
+            onChange={(e) => onChangeProject(e.target.value ? Number(e.target.value) : null)}
+            title="Przypisz tę rozmowę do projektu — instrukcje projektu są dodawane do kontekstu."
+            className="rounded-md border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2 py-1 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
+          >
+            <option value="">Bez projektu</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400">
+          <Sparkles size={14} className="opacity-70" />
+          <select
+            value={selectedStyle ?? ''}
+            onChange={(e) => onChangeStyle(e.target.value || null)}
+            title="Styl odpowiedzi — dodatkowa instrukcja tonu dołączana do promptu systemowego."
+            className="rounded-md border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2 py-1 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
+          >
+            <option value="">Domyślny</option>
+            {availableStyles.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
         <a
           href="/settings"
           title="Globalny kontekst z Ustawień obowiązuje we wszystkich rozmowach, a prompt tej rozmowy jest do niego dodawany."
@@ -562,13 +789,39 @@ function ConversationSettingsBar({
         >
           {hasGlobalPrompt ? 'Globalny kontekst: aktywny' : 'Globalny kontekst: brak'}
         </a>
-        <button
-          onClick={onExport}
-          className="ml-auto flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
-        >
-          <Download size={14} />
-          Eksportuj
-        </button>
+        <UsageBadge />
+        <div className="relative ml-auto">
+          <button
+            onClick={() => setExportOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
+          >
+            <Download size={14} />
+            {t('chat.export')}
+          </button>
+          {exportOpen && (
+            <div className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-brand-border bg-brand-white p-1 shadow-soft dark:border-zinc-700 dark:bg-zinc-900">
+              <button
+                onClick={() => {
+                  setExportOpen(false);
+                  onExport();
+                }}
+                className="block w-full rounded-lg px-3 py-1.5 text-left text-sm text-brand-dark hover:bg-brand-surface/60 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              >
+                {t('chat.exportMarkdown')}
+              </button>
+              <button
+                onClick={() => {
+                  setExportOpen(false);
+                  onExportPdf();
+                }}
+                className="block w-full rounded-lg px-3 py-1.5 text-left text-sm text-brand-dark hover:bg-brand-surface/60 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              >
+                {t('chat.exportPdf')}
+              </button>
+            </div>
+          )}
+        </div>
+        <ShareConversationButton conversationId={conversationId} />
       </div>
       {showPromptEditor && (
         <div className="mx-auto mt-2 max-w-3xl">
@@ -629,12 +882,78 @@ function ChatView() {
   const [classifying, setClassifying] = useState(false);
   const [draftEstimate, setDraftEstimate] = useState<{ inputTokens: number; estimatedCostUsd: number } | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [availableStyles, setAvailableStyles] = useState<StylePreset[]>([]);
   const [hasGlobalPrompt, setHasGlobalPrompt] = useState(false);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectFilter, setProjectFilter] = useState<number | null>(null);
+  const [listening, setListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
+  useEffect(() => {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    setSpeechSupported(!!SpeechRecognitionCtor);
+  }, []);
+
+  const toggleDictation = () => {
+    const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognitionCtor) {
+      setErrorMessage('Dyktowanie głosowe nie jest wspierane w tej przeglądarce.');
+      return;
+    }
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = new SpeechRecognitionCtor();
+    recognition.lang = 'pl-PL';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    const baseDraft = draftRef.current;
+    let finalTranscript = '';
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i];
+        const transcript = result[0]?.transcript ?? '';
+        if (result.isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interim += transcript;
+        }
+      }
+      const separator = baseDraft && !baseDraft.endsWith(' ') ? ' ' : '';
+      setDraft(`${baseDraft}${baseDraft ? separator : ''}${finalTranscript}${interim}`);
+    };
+    recognition.onerror = (event) => {
+      if (event.error === 'not-allowed' || event.error === 'permission-denied') {
+        setErrorMessage('Brak dostępu do mikrofonu — sprawdź uprawnienia w przeglądarce.');
+      } else if (event.error !== 'no-speech' && event.error !== 'aborted') {
+        setErrorMessage('Nie udało się rozpoznać mowy. Spróbuj ponownie.');
+      }
+      setListening(false);
+    };
+    recognition.onend = () => {
+      setListening(false);
+    };
+    recognitionRef.current = recognition;
+    setListening(true);
+    recognition.start();
+  };
+
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+    };
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -656,7 +975,9 @@ function ChatView() {
       setMessages(await api.listMessages(initial.id));
     })();
     api.availableModels().then(({ models }) => setAvailableModels(models));
+    api.availableStyles().then(({ styles }) => setAvailableStyles(styles));
     api.me().then((me) => setHasGlobalPrompt(!!me.defaultSystemPrompt)).catch(() => {});
+    api.listProjects().then(setProjects).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -718,6 +1039,19 @@ function ChatView() {
     setMessages([]);
   }
 
+  // Item 17: temporary/incognito conversation — fully usable for chat within
+  // this session, but excluded from `GET /chat/conversations` by default
+  // (see chat.routes.js), so it's kept only in this local `conversations`
+  // state (added directly here, same as handleNewConversation does) rather
+  // than re-fetched from the server — a plain refetch would drop it from the
+  // sidebar the moment it's created.
+  async function handleNewTemporaryConversation() {
+    const conversation = await api.createConversation('Rozmowa tymczasowa', true);
+    setConversations((prev) => [{ ...conversation, created_at: new Date().toISOString(), isTemporary: true } as Conversation, ...prev]);
+    setConversationId(conversation.id);
+    setMessages([]);
+  }
+
   async function handleRenameConversation(id: number, title: string) {
     try {
       const updated = await api.renameConversation(id, title);
@@ -769,6 +1103,35 @@ function ChatView() {
     }
   }
 
+  async function handleChangeProject(projectId: number | null) {
+    if (conversationId === null) return;
+    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, projectId } : c)));
+    try {
+      await api.setConversationProject(conversationId, projectId);
+    } catch {
+      setErrorMessage('Nie udało się przypisać rozmowy do projektu.');
+    }
+  }
+
+  async function handleChangeStyle(style: string | null) {
+    if (conversationId === null) return;
+    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, style } : c)));
+    try {
+      await api.setConversationStyle(conversationId, style);
+    } catch {
+      setErrorMessage('Nie udało się zmienić stylu odpowiedzi.');
+    }
+  }
+
+  async function handleCreateProject(name: string, description: string) {
+    try {
+      const project = await api.createProject({ name, description: description || null });
+      setProjects((prev) => [project, ...prev]);
+    } catch {
+      setErrorMessage('Nie udało się utworzyć projektu.');
+    }
+  }
+
   async function handleExportConversation() {
     if (conversationId === null) return;
     try {
@@ -782,6 +1145,12 @@ function ChatView() {
     } catch {
       setErrorMessage('Nie udało się wyeksportować rozmowy.');
     }
+  }
+
+  function handleExportConversationPdf() {
+    if (conversationId === null) return;
+    const conv = conversations.find((c) => c.id === conversationId);
+    exportConversationAsPdf(conv?.title ?? 'Rozmowa', messages.map((m) => ({ role: m.role, content: m.content })));
   }
 
   function handleFilesPicked(fileList: FileList | null) {
@@ -1055,11 +1424,16 @@ function ChatView() {
           activeId={conversationId}
           onSelect={handleSelectConversation}
           onNew={handleNewConversation}
+          onNewTemporary={handleNewTemporaryConversation}
           onRename={handleRenameConversation}
           onDelete={handleDeleteConversation}
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           searchInputRef={searchInputRef}
+          projects={projects}
+          projectFilter={projectFilter}
+          onSelectProjectFilter={setProjectFilter}
+          onCreateProject={handleCreateProject}
         />
         <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
           <ConversationSettingsBar
@@ -1071,6 +1445,15 @@ function ChatView() {
             selectedModel={conversations.find((c) => c.id === conversationId)?.model || 'claude-sonnet-5'}
             onChangeModel={handleChangeModel}
             hasGlobalPrompt={hasGlobalPrompt}
+            projects={projects}
+            selectedProjectId={conversations.find((c) => c.id === conversationId)?.projectId ?? null}
+            onChangeProject={handleChangeProject}
+            availableStyles={availableStyles}
+            selectedStyle={conversations.find((c) => c.id === conversationId)?.style ?? null}
+            onChangeStyle={handleChangeStyle}
+            isTemporary={!!conversations.find((c) => c.id === conversationId)?.isTemporary}
+            onExportPdf={handleExportConversationPdf}
+            conversationId={conversationId}
           />
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-3xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
@@ -1299,6 +1682,20 @@ function ChatView() {
                   }}
                   placeholder="Napisz wiadomość lub /pomoc…"
                 />
+                {speechSupported && (
+                  <button
+                    onClick={toggleDictation}
+                    aria-label={listening ? 'Zatrzymaj dyktowanie' : 'Dyktuj wiadomość'}
+                    title={listening ? 'Zatrzymaj dyktowanie' : 'Dyktuj wiadomość'}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
+                      listening
+                        ? 'animate-pulse bg-red-500 text-white hover:brightness-95'
+                        : 'text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100'
+                    }`}
+                  >
+                    {listening ? <MicOff size={18} /> : <Mic size={18} />}
+                  </button>
+                )}
                 {sending ? (
                   <button
                     onClick={handleStop}

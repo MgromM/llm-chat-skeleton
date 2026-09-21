@@ -14,6 +14,8 @@ import { memoryRouter } from './routes/memory.routes.js';
 import { artifactsRouter } from './routes/artifacts.routes.js';
 import { clientsRouter } from './routes/clients.routes.js';
 import { incidentsRouter } from './routes/incidents.routes.js';
+import { projectsRouter } from './routes/projects.routes.js';
+import { sharingRouter } from './routes/sharing.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './config/logger.js';
 import { scheduleRetentionCleanup } from './services/retention/retentionCleanup.js';
@@ -55,7 +57,9 @@ app.use('/knowledge', knowledgeRouter);
 app.use('/memory', memoryRouter);
 app.use('/clients', clientsRouter);
 app.use('/incidents', incidentsRouter);
+app.use('/projects', projectsRouter);
 app.use(artifactsRouter);
+app.use(sharingRouter);
 
 app.use(errorHandler);
 
