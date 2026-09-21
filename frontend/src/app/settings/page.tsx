@@ -2,11 +2,34 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, Brain, MessageSquareText, Trash2 } from 'lucide-react';
+import { AlertTriangle, Brain, MessageSquareText, Trash2, SunMoon } from 'lucide-react';
 import { api, ApiError, type MemoryFile } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 import { useAuth } from '@/lib/AuthContext';
+import { useTheme } from '@/lib/ThemeContext';
+
+function ThemeSection() {
+  const { theme, toggleTheme } = useTheme();
+
+  return (
+    <div className="rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
+        <SunMoon size={18} className="text-brand-orange" />
+        Motyw
+      </div>
+      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">
+        Wybierz, czy interfejs ma być jasny czy ciemny.
+      </p>
+      <button
+        onClick={toggleTheme}
+        className="flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
+      >
+        {theme === 'dark' ? '☀️ Przełącz na jasny' : '🌙 Przełącz na ciemny'}
+      </button>
+    </div>
+  );
+}
 
 const CONFIRM_PHRASE = 'USUŃ KONTO';
 
@@ -210,6 +233,7 @@ function SettingsView() {
         <h1 className="mb-1 text-xl font-bold text-brand-dark dark:text-zinc-100">Ustawienia konta</h1>
         <p className="mb-8 text-sm text-brand-dark/60 dark:text-zinc-400">Zalogowano jako {user?.email}</p>
 
+        <ThemeSection />
         <DefaultSystemPromptSection />
         <MemorySection />
 
