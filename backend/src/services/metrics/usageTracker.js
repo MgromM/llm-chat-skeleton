@@ -42,6 +42,27 @@ export async function getCostSummary({ from, to }) {
   return rows;
 }
 
+// Cost per specialist, for spotting heavy users before a billing-model
+// decision (flat seat vs. per-usage) has to be made.
+export async function getCostByUser({ from, to }) {
+  const { rows } = await query(
+    `SELECT u.id AS user_id, u.email,
+            COUNT(*) AS requests,
+            SUM(um.input_tokens) AS input_tokens,
+            SUM(um.output_tokens) AS output_tokens,
+            SUM(um.cost_usd) AS cost_usd
+     FROM usage_metrics um
+     JOIN messages m ON m.id = um.message_id
+     JOIN conversations c ON c.id = m.conversation_id
+     JOIN users u ON u.id = c.user_id
+     WHERE um.created_at BETWEEN $1 AND $2
+     GROUP BY u.id, u.email
+     ORDER BY cost_usd DESC`,
+    [from, to],
+  );
+  return rows;
+}
+
 // Same grouping as getCostSummary, plus the average judge score for that
 // model/command bucket, so reports can show cost and quality side by side.
 export async function getCostAndQualitySummary({ from, to }) {

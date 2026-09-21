@@ -2,11 +2,14 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { LogOut, FileCode2, Settings } from 'lucide-react';
+import { useState } from 'react';
+import { LogOut, FileCode2, Settings, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import { IncidentReportModal } from './IncidentReportModal';
 
 export function BrandHeader() {
   const { user, logout } = useAuth();
+  const [reportOpen, setReportOpen] = useState(false);
 
   return (
     <header className="flex h-16 shrink-0 items-center justify-between rounded-2xl bg-brand-orange px-6 shadow-soft">
@@ -21,6 +24,13 @@ export function BrandHeader() {
           <span className="hidden text-sm text-brand-white/90 sm:inline">
             {user.email} <span className="text-brand-white/60">· {user.role}</span>
           </span>
+          <button
+            onClick={() => setReportOpen(true)}
+            aria-label="Zgłoś incydent"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+          >
+            <AlertTriangle size={15} />
+          </button>
           <Link
             href="/code"
             aria-label="Kod i wygenerowane pliki"
@@ -44,6 +54,7 @@ export function BrandHeader() {
           </button>
         </div>
       )}
+      {reportOpen && <IncidentReportModal onClose={() => setReportOpen(false)} />}
     </header>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import useSWR from 'swr';
 import { Download, Trash2, Upload, Plug, Plus } from 'lucide-react';
 import clsx from 'clsx';
@@ -13,6 +13,12 @@ import {
   type KnowledgeDocument,
   type McpConnector,
   type AdminUser,
+  type Client,
+  type ClientConsentHistoryEntry,
+  type ClientTeamAssignment,
+  type ClientAccessAuditRow,
+  type LeakAlert,
+  type CostByUserRow,
 } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
@@ -248,6 +254,328 @@ function McpConnectorsSection() {
  * signup left to assign a role at). A user can't change their own role here,
  * to avoid an admin accidentally locking themselves out.
  */
+const SEVERITY_LABELS: Record<string, string> = { low: 'niska', medium: 'średnia', high: 'wysoka', critical: 'krytyczna' };
+
+function LeakAlertsSection() {
+  const { data: alerts, mutate } = useSWR<LeakAlert[]>('/metrics/leak-alerts?reviewed=false', () => api.listLeakAlerts(true));
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
+
+  async function handleReview(id: number) {
+    setReviewingId(id);
+    try {
+      await api.reviewLeakAlert(id);
+      await mutate();
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        Sygnały do przeglądu (auto + zgłoszenia)
+      </h2>
+      <div className="space-y-2">
+        {(alerts ?? []).map((a) => (
+          <div key={a.id} className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-2 text-sm font-semibold text-brand-dark">
+                <span
+                  className={clsx(
+                    'rounded-full px-2.5 py-0.5 text-xs font-semibold',
+                    a.source === 'manual' ? 'bg-brand-orange/15 text-brand-orange' : 'bg-brand-surface text-brand-muted',
+                  )}
+                >
+                  {a.source === 'manual' ? 'zgłoszenie' : 'auto'}
+                </span>
+                {a.severity && <span className="text-xs text-brand-muted">waga: {SEVERITY_LABELS[a.severity] ?? a.severity}</span>}
+                <span className="text-xs text-brand-muted">{a.email}</span>
+              </span>
+              <button
+                onClick={() => handleReview(a.id)}
+                disabled={reviewingId === a.id}
+                className="rounded-md border border-brand-border px-3 py-1 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {reviewingId === a.id ? 'Zapisywanie…' : 'Oznacz jako przeglądnięte'}
+              </button>
+            </div>
+            <p className="text-sm text-brand-dark">{a.description ?? a.rationale}</p>
+            {a.has_screenshot && (
+              <a
+                href={api.incidentScreenshotUrl(a.id)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-block text-xs font-semibold text-brand-orange hover:underline"
+              >
+                Zobacz zrzut ekranu
+              </a>
+            )}
+            <p className="mt-1 text-xs text-brand-muted">{new Date(a.created_at).toLocaleString('pl-PL')}</p>
+          </div>
+        ))}
+        {(alerts ?? []).length === 0 && <p className="text-sm text-brand-muted">Brak nieprzeglądniętych sygnałów.</p>}
+      </div>
+    </section>
+  );
+}
+
+function ClientConsentHistory({ clientId }: { clientId: number }) {
+  const { data: history } = useSWR<ClientConsentHistoryEntry[]>(`/clients/${clientId}/consent-history`, apiFetch);
+
+  if (!history || history.length === 0) {
+    return <p className="p-3 text-xs text-brand-muted">Brak historii zmian.</p>;
+  }
+
+  return (
+    <ul className="list-none space-y-1 p-3 pt-0 text-xs text-brand-muted">
+      {history.map((h) => (
+        <li key={h.id}>
+          {new Date(h.changed_at).toLocaleString('pl-PL')} — {h.changed_by ?? 'nieznany'}:{' '}
+          {h.old_value === null ? '—' : h.old_value ? 'zgoda' : 'brak zgody'} → {h.new_value ? 'zgoda' : 'brak zgody'}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function ClientTeam({ clientId }: { clientId: number }) {
+  const { data: team, mutate } = useSWR<ClientTeamAssignment[]>(`/clients/${clientId}/team`, () => api.clientTeam(clientId));
+  const { data: users } = useSWR<AdminUser[]>('/auth/users', apiFetch);
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const assignedIds = new Set((team ?? []).map((t) => t.user_id));
+  const availableUsers = (users ?? []).filter((u) => !assignedIds.has(u.id));
+
+  async function handleAssign(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedUserId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.assignClientTeamMember(clientId, Number(selectedUserId));
+      setSelectedUserId('');
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się przypisać');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUnassign(userId: number) {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.unassignClientTeamMember(clientId, userId);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się odpisać');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="p-3 pt-0 text-xs text-brand-muted">
+      {error && <p className="mb-1 text-red-600">{error}</p>}
+      <ul className="list-none space-y-1 pl-0">
+        {(team ?? []).map((t) => (
+          <li key={t.id} className="flex items-center justify-between gap-2">
+            <span>
+              {t.email} — przypisany {new Date(t.assigned_at).toLocaleString('pl-PL')}
+              {t.assigned_by ? ` przez ${t.assigned_by}` : ''}
+            </span>
+            <button
+              onClick={() => handleUnassign(t.user_id)}
+              disabled={saving}
+              className="shrink-0 rounded-md border border-brand-border px-2 py-0.5 font-semibold text-brand-dark hover:bg-brand-surface disabled:opacity-40"
+            >
+              Odpisz
+            </button>
+          </li>
+        ))}
+        {(team ?? []).length === 0 && <li>Brak przypisanych specjalistów.</li>}
+      </ul>
+      <form onSubmit={handleAssign} className="mt-2 flex gap-2">
+        <select
+          value={selectedUserId}
+          onChange={(e) => setSelectedUserId(e.target.value)}
+          className="flex-1 rounded-md border border-brand-border px-2 py-1 text-brand-dark"
+        >
+          <option value="">Wybierz specjalistę…</option>
+          {availableUsers.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.email}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          disabled={saving || !selectedUserId}
+          className="rounded-md bg-brand-orange px-3 py-1 font-bold text-brand-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Przypisz
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function ClientAccessAuditSection() {
+  const { data: audit } = useSWR<ClientAccessAuditRow[]>('/clients/access-audit', () => api.clientAccessAudit());
+
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        Audyt dostępu — rozmowy bez przypisania do zespołu
+      </h2>
+      <div className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+        <ul className="list-none space-y-1.5 pl-0">
+          {(audit ?? []).map((row, i) => (
+            <li key={i} className="flex items-baseline gap-2 text-sm text-brand-dark">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
+              <span>
+                <strong>{row.user_email}</strong> rozmawiał z danymi klienta <strong>{row.client_name}</strong>, do
+                którego nie jest przypisany
+              </span>
+            </li>
+          ))}
+          {(audit ?? []).length === 0 && <p className="text-sm text-brand-muted">Brak sygnałów — dostęp zgodny z przypisaniami.</p>}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function ClientsSection() {
+  const { data: clients, mutate } = useSWR<Client[]>('/clients', apiFetch);
+  const [newName, setNewName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [savingId, setSavingId] = useState<number | null>(null);
+  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newName.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      await api.createClient(newName.trim());
+      setNewName('');
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się dodać zleceniodawcy');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleToggleConsent(c: Client) {
+    setSavingId(c.id);
+    setError(null);
+    try {
+      await api.setClientConsent(c.id, !c.ai_consent);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się zmienić zgody');
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        Zgody zleceniodawców na przetwarzanie AI
+      </h2>
+      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      <form onSubmit={handleCreate} className="mb-3 flex gap-2">
+        <input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Nazwa zleceniodawcy"
+          className="flex-1 rounded-md border border-brand-border px-3 py-1.5 text-sm text-brand-dark"
+        />
+        <button
+          type="submit"
+          disabled={creating || !newName.trim()}
+          className="flex items-center gap-1 rounded-md bg-brand-orange px-4 py-1.5 text-sm font-bold text-brand-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <Plus size={14} />
+          {creating ? 'Dodawanie…' : 'Dodaj'}
+        </button>
+      </form>
+      <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+        <table className="w-full border-collapse text-sm">
+          <thead>
+            <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+              <th className="p-3">Zleceniodawca</th>
+              <th className="p-3">Zgoda na AI</th>
+              <th className="p-3">Ostatnia zmiana</th>
+              <th className="p-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {(clients ?? []).map((c) => (
+              <Fragment key={c.id}>
+                <tr className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                  <td className="p-3">{c.name}</td>
+                  <td className="p-3">
+                    <span
+                      className={clsx(
+                        'rounded-full px-3 py-1 text-xs font-semibold',
+                        c.ai_consent ? 'bg-brand-positive/15 text-brand-positive' : 'bg-red-100 text-red-700',
+                      )}
+                    >
+                      {c.ai_consent ? 'zgoda' : 'brak zgody'}
+                    </span>
+                  </td>
+                  <td className="p-3 text-xs text-brand-muted">
+                    {c.ai_consent_updated_at
+                      ? `${new Date(c.ai_consent_updated_at).toLocaleString('pl-PL')} (${c.ai_consent_updated_by ?? '—'})`
+                      : '—'}
+                  </td>
+                  <td className="p-3 text-right">
+                    <button
+                      onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                      className="mr-2 rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface"
+                    >
+                      {expandedId === c.id ? 'Skryj historię' : 'Historia'}
+                    </button>
+                    <button
+                      onClick={() => handleToggleConsent(c)}
+                      disabled={savingId === c.id}
+                      className="rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {savingId === c.id ? 'Zapisywanie…' : c.ai_consent ? 'Odbierz zgodę' : 'Nadaj zgodę'}
+                    </button>
+                  </td>
+                </tr>
+                {expandedId === c.id && (
+                  <tr className="border-b border-brand-border/60">
+                    <td colSpan={4} className="bg-brand-surface/40">
+                      <ClientConsentHistory clientId={c.id} />
+                      <p className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-brand-muted">Zespół</p>
+                      <ClientTeam clientId={c.id} />
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+        {(clients ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak zleceniodawców.</p>}
+      </div>
+    </section>
+  );
+}
+
 function UsersSection() {
   const { user: currentUser } = useAuth();
   const { data: users, mutate } = useSWR<AdminUser[]>('/auth/users', apiFetch);
@@ -320,6 +648,7 @@ function UsersSection() {
 
 function AdminView() {
   const { data: costs } = useSWR<CostRow[]>('/metrics/costs', apiFetch);
+  const { data: costsByUser } = useSWR<CostByUserRow[]>('/metrics/costs-by-user', apiFetch);
   const { data: quality } = useSWR<QualityRow[]>('/metrics/quality', apiFetch);
   const { data: comparison } = useSWR<EnterpriseComparison>('/metrics/enterprise-comparison', apiFetch);
 
@@ -412,6 +741,36 @@ function AdminView() {
         <section>
           <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+            Koszt per użytkownik (30 dni)
+          </h2>
+          <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+                  <th className="p-3">Użytkownik</th>
+                  <th className="p-3">Zapytania</th>
+                  <th className="p-3">Tokeny (in/out)</th>
+                  <th className="p-3">Koszt (USD)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(costsByUser ?? []).map((row) => (
+                  <tr key={row.user_id} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                    <td className="p-3">{row.email}</td>
+                    <td className="p-3 text-brand-muted">{row.requests}</td>
+                    <td className="p-3 text-brand-muted">{row.input_tokens} / {row.output_tokens}</td>
+                    <td className="p-3 text-brand-muted">{Number(row.cost_usd).toFixed(4)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {(costsByUser ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak danych.</p>}
+          </div>
+        </section>
+
+        <section>
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
             Jakość odpowiedzi (LLM-judge)
           </h2>
           <div className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
@@ -426,6 +785,12 @@ function AdminView() {
             </ul>
           </div>
         </section>
+
+        <LeakAlertsSection />
+
+        <ClientsSection />
+
+        <ClientAccessAuditSection />
 
         <UsersSection />
 

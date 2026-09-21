@@ -74,10 +74,36 @@ export interface CostRow {
   avg_latency_ms: string;
 }
 
+export interface CostByUserRow {
+  user_id: number;
+  email: string;
+  requests: string;
+  input_tokens: string;
+  output_tokens: string;
+  cost_usd: string;
+}
+
 export interface QualityRow {
   judge_model: string;
   avg_score: string;
   scored_messages: string;
+}
+
+export interface LeakAlert {
+  id: number;
+  conversation_id: number | null;
+  user_id: number;
+  email: string;
+  category: string | null;
+  confidence: string | null;
+  rationale: string | null;
+  judge_model: string | null;
+  reviewed: boolean;
+  created_at: string;
+  source: 'auto' | 'manual';
+  severity: 'low' | 'medium' | 'high' | 'critical' | null;
+  description: string | null;
+  has_screenshot: boolean;
 }
 
 export interface KnowledgeDocument {
@@ -95,6 +121,37 @@ export interface AdminUser {
   id: number;
   email: string;
   role: string;
+}
+
+export interface Client {
+  id: number;
+  name: string;
+  ai_consent: boolean;
+  ai_consent_updated_at: string | null;
+  ai_consent_updated_by: string | null;
+}
+
+export interface ClientConsentHistoryEntry {
+  id: number;
+  old_value: boolean | null;
+  new_value: boolean;
+  changed_at: string;
+  changed_by: string | null;
+}
+
+export interface ClientTeamAssignment {
+  id: number;
+  user_id: number;
+  email: string;
+  assigned_at: string;
+  assigned_by: string | null;
+}
+
+export interface ClientAccessAuditRow {
+  client_id: number;
+  client_name: string;
+  user_id: number;
+  user_email: string;
 }
 
 export interface McpConnector {
@@ -365,7 +422,40 @@ export const api = {
   listUsers: () => apiFetch<AdminUser[]>('/auth/users'),
   setUserRole: (id: number, role: string) =>
     apiFetch<AdminUser>(`/auth/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  listClients: () => apiFetch<Client[]>('/clients'),
+  createClient: (name: string) => apiFetch<Client>('/clients', { method: 'POST', body: JSON.stringify({ name }) }),
+  setClientConsent: (id: number, aiConsent: boolean) =>
+    apiFetch<Client>(`/clients/${id}/consent`, { method: 'PATCH', body: JSON.stringify({ aiConsent }) }),
+  clientConsentHistory: (id: number) =>
+    apiFetch<ClientConsentHistoryEntry[]>(`/clients/${id}/consent-history`),
+  clientTeam: (id: number) => apiFetch<ClientTeamAssignment[]>(`/clients/${id}/team`),
+  assignClientTeamMember: (id: number, userId: number) =>
+    apiFetch<ClientTeamAssignment>(`/clients/${id}/team`, { method: 'POST', body: JSON.stringify({ userId }) }),
+  unassignClientTeamMember: (id: number, userId: number) =>
+    apiFetch<{ ok: true }>(`/clients/${id}/team/${userId}`, { method: 'DELETE' }),
+  clientAccessAudit: () => apiFetch<ClientAccessAuditRow[]>('/clients/access-audit'),
+  listLeakAlerts: (onlyUnreviewed = true) =>
+    apiFetch<LeakAlert[]>(`/metrics/leak-alerts${onlyUnreviewed ? '?reviewed=false' : ''}`),
+  reviewLeakAlert: (id: number) => apiFetch<{ ok: true }>(`/metrics/leak-alerts/${id}/review`, { method: 'POST' }),
+  reportIncident: async (payload: { description: string; severity: string; screenshot?: File | null }) => {
+    const form = new FormData();
+    form.append('description', payload.description);
+    form.append('severity', payload.severity);
+    if (payload.screenshot) form.append('screenshot', payload.screenshot);
+    const res = await fetch('/api/incidents', { method: 'POST', headers: authHeaders(), body: form });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(body.error ?? `Request failed: ${res.status}`);
+    }
+    return res.json() as Promise<{ id: number; created_at: string }>;
+  },
+  incidentScreenshotUrl: (id: number) => {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    return `/api/incidents/${id}/screenshot${token ? `?token=${encodeURIComponent(token)}` : ''}`;
+  },
   costSummary: () => apiFetch<CostRow[]>('/metrics/costs'),
+  costByUser: () => apiFetch<CostByUserRow[]>('/metrics/costs-by-user'),
   qualitySummary: () => apiFetch<QualityRow[]>('/metrics/quality'),
   enterpriseComparison: () => apiFetch<EnterpriseComparison>('/metrics/enterprise-comparison'),
 };

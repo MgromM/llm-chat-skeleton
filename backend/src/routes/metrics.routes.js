@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
-import { getCostSummary } from '../services/metrics/usageTracker.js';
+import { getCostSummary, getCostByUser } from '../services/metrics/usageTracker.js';
 import { query } from '../config/db.js';
 import { checkBigQueryConnection } from '../services/mcp/bigqueryServer.js';
 import { listRedactionTerms, addRedactionTerm, deactivateRedactionTerm } from '../services/security/redactionTerms.js';
@@ -24,7 +24,8 @@ metricsRouter.get('/leak-alerts', async (req, res, next) => {
     const onlyUnreviewed = req.query.reviewed === 'false';
     const { rows } = await query(
       `SELECT la.id, la.conversation_id, la.user_id, u.email, la.category, la.confidence,
-              la.rationale, la.context, la.judge_model, la.reviewed, la.created_at
+              la.rationale, la.context, la.judge_model, la.reviewed, la.created_at,
+              la.source, la.severity, la.description, la.screenshot_path IS NOT NULL AS has_screenshot
        FROM leak_alerts la
        JOIN users u ON u.id = la.user_id
        ${onlyUnreviewed ? 'WHERE la.reviewed = false' : ''}
@@ -132,6 +133,14 @@ function parseRange(req) {
 metricsRouter.get('/costs', async (req, res, next) => {
   try {
     res.json(await getCostSummary(parseRange(req)));
+  } catch (err) {
+    next(err);
+  }
+});
+
+metricsRouter.get('/costs-by-user', async (req, res, next) => {
+  try {
+    res.json(await getCostByUser(parseRange(req)));
   } catch (err) {
     next(err);
   }
