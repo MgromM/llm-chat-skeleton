@@ -16,6 +16,7 @@ import { clientsRouter } from './routes/clients.routes.js';
 import { incidentsRouter } from './routes/incidents.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './config/logger.js';
+import { scheduleRetentionCleanup } from './services/retention/retentionCleanup.js';
 
 const app = express();
 
@@ -60,3 +61,5 @@ app.use(errorHandler);
 
 const port = process.env.PORT ?? 8080;
 app.listen(port, () => logger.info(`salesmore-llm backend listening on :${port}`));
+
+scheduleRetentionCleanup();

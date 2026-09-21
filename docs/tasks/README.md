@@ -16,6 +16,7 @@ przetestować, dopóki produkcja nie działa).
 - [ ] 003 — Drobne poprawki zostawione przez agenta implementującego
 - [ ] 004 — Podatności bezpieczeństwa (Dependabot: 1 critical, 12 high, 8 moderate)
 - [ ] 005 — Polityka retencji danych / RODO (dokument, nie kod)
+- [ ] 006 — Domknięcie compliance panelu + demo na prezentację dla prezesa (2 dni)
 
 ## Kontekst ogólny (nie trzeba tego powtarzać w nowym czacie)
 

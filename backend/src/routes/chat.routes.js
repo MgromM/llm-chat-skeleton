@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth, requireAuthViaHeaderOrQuery } from '../middleware/auth.js';
+import { attachUserDbContext } from '../middleware/dbContext.js';
 import { query } from '../config/db.js';
 import {
   handleChatTurn,
@@ -43,7 +44,10 @@ export const chatRouter = Router();
 // `?token=` query param, since `<img>`/`<a>` tags can't set headers).
 chatRouter.use((req, res, next) => {
   if (req.path.startsWith('/attachments/') || req.path.startsWith('/generated-files/')) return next();
-  return requireAuth(req, res, next);
+  return requireAuth(req, res, (err) => {
+    if (err) return next(err);
+    attachUserDbContext(req, res, next);
+  });
 });
 
 chatRouter.post('/conversations', async (req, res, next) => {
@@ -496,7 +500,7 @@ chatRouter.post('/conversations/:id/messages/:messageId/regenerate', async (req,
   }
 });
 
-chatRouter.get('/attachments/:id', requireAuthViaHeaderOrQuery, async (req, res, next) => {
+chatRouter.get('/attachments/:id', requireAuthViaHeaderOrQuery, attachUserDbContext, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT a.filename, a.mime_type, a.storage_path
@@ -558,7 +562,7 @@ chatRouter.get('/generated-files', async (req, res, next) => {
  * requesting user owns — the id alone isn't a capability token, since
  * Anthropic file ids aren't scoped per-user.
  */
-chatRouter.get('/generated-files/:fileId', requireAuthViaHeaderOrQuery, async (req, res, next) => {
+chatRouter.get('/generated-files/:fileId', requireAuthViaHeaderOrQuery, attachUserDbContext, async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT elem->>'filename' AS filename, elem->>'mimeType' AS mime_type

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'node:crypto';
 import { requireAuth } from '../middleware/auth.js';
+import { attachUserDbContext } from '../middleware/dbContext.js';
 import { query } from '../config/db.js';
 import { extractArtifact } from '../services/chatCore/artifactExtract.js';
 
@@ -11,7 +12,10 @@ export const artifactsRouter = Router();
 // (not the requester's JWT), since the viewer may not even have an account.
 artifactsRouter.use((req, res, next) => {
   if (req.path.startsWith('/public/')) return next();
-  return requireAuth(req, res, next);
+  return requireAuth(req, res, (err) => {
+    if (err) return next(err);
+    attachUserDbContext(req, res, next);
+  });
 });
 
 function serializeArtifact(row) {

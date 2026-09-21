@@ -139,6 +139,16 @@ export interface ClientConsentHistoryEntry {
   changed_by: string | null;
 }
 
+export interface RetentionStatus {
+  expiredConversationCount: number;
+}
+
+export interface RetentionRunResult {
+  deletedCount: number;
+  wouldDeleteCount: number;
+  dryRun: boolean;
+}
+
 export interface ClientTeamAssignment {
   id: number;
   user_id: number;
@@ -434,6 +444,9 @@ export const api = {
   unassignClientTeamMember: (id: number, userId: number) =>
     apiFetch<{ ok: true }>(`/clients/${id}/team/${userId}`, { method: 'DELETE' }),
   clientAccessAudit: () => apiFetch<ClientAccessAuditRow[]>('/clients/access-audit'),
+  retentionStatus: () => apiFetch<RetentionStatus>('/metrics/retention'),
+  runRetentionCleanup: (dryRun: boolean) =>
+    apiFetch<RetentionRunResult>('/metrics/retention/run', { method: 'POST', body: JSON.stringify({ dryRun }) }),
   listLeakAlerts: (onlyUnreviewed = true) =>
     apiFetch<LeakAlert[]>(`/metrics/leak-alerts${onlyUnreviewed ? '?reviewed=false' : ''}`),
   reviewLeakAlert: (id: number) => apiFetch<{ ok: true }>(`/metrics/leak-alerts/${id}/review`, { method: 'POST' }),

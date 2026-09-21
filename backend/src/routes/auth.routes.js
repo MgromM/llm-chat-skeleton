@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { query } from '../config/db.js';
 import { getSecret } from '../config/secrets.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { attachUserDbContext } from '../middleware/dbContext.js';
 import { deleteAttachmentFile } from '../services/attachments/attachmentStore.js';
 import {
   GoogleOAuthError,
@@ -31,7 +32,7 @@ authRouter.get('/me', requireAuth, async (req, res, next) => {
 // attachment files on disk/GCS aren't covered by that, so they're removed
 // explicitly first. Knowledge base documents the user uploaded are kept
 // (shared company resource) with their uploaded_by reference nulled out.
-authRouter.delete('/me', requireAuth, async (req, res, next) => {
+authRouter.delete('/me', requireAuth, attachUserDbContext, async (req, res, next) => {
   try {
     const { rows: attachments } = await query(
       `SELECT a.storage_path FROM message_attachments a

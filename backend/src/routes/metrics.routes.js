@@ -1,19 +1,43 @@
 import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { attachAdminDbContext } from '../middleware/dbContext.js';
 import { getCostSummary, getCostByUser } from '../services/metrics/usageTracker.js';
 import { query } from '../config/db.js';
 import { checkBigQueryConnection } from '../services/mcp/bigqueryServer.js';
 import { listRedactionTerms, addRedactionTerm, deactivateRedactionTerm } from '../services/security/redactionTerms.js';
 import { listMcpConnectors, addMcpConnector, setMcpConnectorEnabled, deleteMcpConnector } from '../services/mcp/mcpConnectors.js';
+import { findExpiredConversationIds, runRetentionCleanup } from '../services/retention/retentionCleanup.js';
 
 export const metricsRouter = Router();
-metricsRouter.use(requireAuth, requireRole('manager', 'admin'));
+metricsRouter.use(requireAuth, requireRole('manager', 'admin'), attachAdminDbContext);
 
 // Diagnostic for admins to confirm the BigQuery service account/dataset is
 // wired up correctly, without needing to go through the chat/LLM path.
 metricsRouter.get('/bigquery-status', async (req, res, next) => {
   try {
     res.json(await checkBigQueryConnection());
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Point 8 (compliance plan): no auto-expiry existed for conversations.
+// `count` previews how many conversations are past the retention window
+// (DATA_RETENTION_DAYS); `run` deletes them (only if DATA_RETENTION_ENABLED
+// allows it, otherwise it's a dry run) -- for on-demand cleanup or checking
+// the scheduled job's next batch before it fires.
+metricsRouter.get('/retention', async (req, res, next) => {
+  try {
+    const ids = await findExpiredConversationIds();
+    res.json({ expiredConversationCount: ids.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+metricsRouter.post('/retention/run', async (req, res, next) => {
+  try {
+    res.json(await runRetentionCleanup({ dryRun: req.body?.dryRun !== false }));
   } catch (err) {
     next(err);
   }

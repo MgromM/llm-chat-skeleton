@@ -17,6 +17,7 @@ import {
   type ClientConsentHistoryEntry,
   type ClientTeamAssignment,
   type ClientAccessAuditRow,
+  type RetentionStatus,
   type LeakAlert,
   type CostByUserRow,
 } from '@/lib/api';
@@ -424,6 +425,66 @@ function ClientTeam({ clientId }: { clientId: number }) {
   );
 }
 
+function RetentionSection() {
+  const { data: status, mutate } = useSWR<RetentionStatus>('/metrics/retention', () => api.retentionStatus());
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleRun(dryRun: boolean) {
+    if (!dryRun && !window.confirm('Trwale usunąć wygasłe konwersacje? Tej operacji nie można odwrócić.')) {
+      return;
+    }
+    setRunning(true);
+    setError(null);
+    try {
+      const result = await api.runRetentionCleanup(dryRun);
+      setLastResult(
+        result.dryRun
+          ? `Do usunięcia: ${result.wouldDeleteCount} konwersacji (retencja wyłączona lub podgląd).`
+          : `Usunięto ${result.deletedCount} konwersacji.`,
+      );
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się uruchomić czyszczenia');
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        Retencja danych
+      </h2>
+      <div className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+        <p className="text-sm text-brand-dark">
+          Konwersacje bez aktywności dłużej niż okres retencji: <strong>{status?.expiredConversationCount ?? '—'}</strong>
+        </p>
+        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+        {lastResult && <p className="mt-2 text-sm text-brand-muted">{lastResult}</p>}
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => handleRun(true)}
+            disabled={running}
+            className="rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Odśwież podgląd
+          </button>
+          <button
+            onClick={() => handleRun(false)}
+            disabled={running}
+            className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {running ? 'Usuwanie…' : 'Usuń teraz'}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ClientAccessAuditSection() {
   const { data: audit } = useSWR<ClientAccessAuditRow[]>('/clients/access-audit', () => api.clientAccessAudit());
 
@@ -791,6 +852,8 @@ function AdminView() {
         <ClientsSection />
 
         <ClientAccessAuditSection />
+
+        <RetentionSection />
 
         <UsersSection />
 

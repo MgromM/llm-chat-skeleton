@@ -1,11 +1,19 @@
 import { Router } from 'express';
 import { query } from '../config/db.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
+import { attachAdminDbContext } from '../middleware/dbContext.js';
 import { checkClientCompliance } from '../services/compliance/complianceAgent.js';
 
 export const clientsRouter = Router();
 
-clientsRouter.get('/', requireAuth, requireRole('admin'), async (req, res, next) => {
+// Every route here is admin/manager-gated and some (access-audit) need to
+// see conversations across all users, not just the caller's own -- see
+// point 6's RLS policies (conversations_isolation/messages_isolation).
+// requireAuth must run first so unauthenticated requests never reach the
+// admin DB context (matches the pattern in metrics.routes.js).
+clientsRouter.use(requireAuth, attachAdminDbContext);
+
+clientsRouter.get('/', requireRole('admin'), async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT c.id, c.name, c.ai_consent, c.ai_consent_updated_at, u.email AS ai_consent_updated_by
@@ -19,7 +27,7 @@ clientsRouter.get('/', requireAuth, requireRole('admin'), async (req, res, next)
   }
 });
 
-clientsRouter.post('/', requireAuth, requireRole('admin'), async (req, res, next) => {
+clientsRouter.post('/', requireRole('admin'), async (req, res, next) => {
   try {
     const { name } = req.body;
     if (!name || typeof name !== 'string' || !name.trim()) {
@@ -35,7 +43,7 @@ clientsRouter.post('/', requireAuth, requireRole('admin'), async (req, res, next
   }
 });
 
-clientsRouter.get('/:id/consent-history', requireAuth, requireRole('admin'), async (req, res, next) => {
+clientsRouter.get('/:id/consent-history', requireRole('admin'), async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT h.id, h.old_value, h.new_value, h.changed_at, u.email AS changed_by
@@ -51,7 +59,7 @@ clientsRouter.get('/:id/consent-history', requireAuth, requireRole('admin'), asy
   }
 });
 
-clientsRouter.patch('/:id/consent', requireAuth, requireRole('admin'), async (req, res, next) => {
+clientsRouter.patch('/:id/consent', requireRole('admin'), async (req, res, next) => {
   try {
     const { aiConsent } = req.body;
     if (typeof aiConsent !== 'boolean') {
@@ -82,7 +90,7 @@ clientsRouter.patch('/:id/consent', requireAuth, requireRole('admin'), async (re
 });
 
 // Point 9 (compliance plan): which specialists are assigned to which client.
-clientsRouter.get('/:id/team', requireAuth, requireRole('admin', 'manager'), async (req, res, next) => {
+clientsRouter.get('/:id/team', requireRole('admin', 'manager'), async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT a.id, a.user_id, u.email, a.assigned_at, assigner.email AS assigned_by
@@ -99,7 +107,7 @@ clientsRouter.get('/:id/team', requireAuth, requireRole('admin', 'manager'), asy
   }
 });
 
-clientsRouter.post('/:id/team', requireAuth, requireRole('admin', 'manager'), async (req, res, next) => {
+clientsRouter.post('/:id/team', requireRole('admin', 'manager'), async (req, res, next) => {
   try {
     const { userId } = req.body;
     if (!Number.isInteger(userId)) {
@@ -121,7 +129,7 @@ clientsRouter.post('/:id/team', requireAuth, requireRole('admin', 'manager'), as
   }
 });
 
-clientsRouter.delete('/:id/team/:userId', requireAuth, requireRole('admin', 'manager'), async (req, res, next) => {
+clientsRouter.delete('/:id/team/:userId', requireRole('admin', 'manager'), async (req, res, next) => {
   try {
     const { rowCount } = await query(
       'DELETE FROM client_team_assignments WHERE client_id = $1 AND user_id = $2',
@@ -136,7 +144,7 @@ clientsRouter.delete('/:id/team/:userId', requireAuth, requireRole('admin', 'man
 
 // Point 9: audit signal — specialists who touched a client's conversations
 // without being assigned to that client.
-clientsRouter.get('/access-audit', requireAuth, requireRole('admin', 'manager'), async (req, res, next) => {
+clientsRouter.get('/access-audit', requireRole('admin', 'manager'), async (req, res, next) => {
   try {
     const { rows } = await query(
       `SELECT DISTINCT c.client_id, cl.name AS client_name, c.user_id, u.email AS user_email
@@ -159,7 +167,7 @@ clientsRouter.get('/access-audit', requireAuth, requireRole('admin', 'manager'),
 // Point 7 (compliance plan): rule+Haiku compliance agent, exposed standalone
 // for now so it can be tested from the compliance panel before it's wired
 // into the pre-send guard (point 3, not yet decided).
-clientsRouter.post('/:id/compliance-check', requireAuth, requireRole('admin', 'manager'), async (req, res, next) => {
+clientsRouter.post('/:id/compliance-check', requireRole('admin', 'manager'), async (req, res, next) => {
   try {
     const { text } = req.body;
     if (!text || typeof text !== 'string') {
