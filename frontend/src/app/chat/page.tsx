@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2, Loader2, Copy } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
@@ -102,7 +102,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
   }
 
   return (
-    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white dark:bg-zinc-900 shadow-soft sm:static sm:z-auto sm:w-[480px]">
+    <aside className="fixed inset-0 z-50 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white dark:bg-zinc-900 shadow-soft sm:static sm:z-auto sm:w-[480px]">
       <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-border dark:border-zinc-700 px-5 py-4">
         <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark dark:text-zinc-100">
           <FileOutput size={16} className="text-brand-orange" />
@@ -254,6 +254,7 @@ function ConversationSidebar({
   onDelete,
   open,
   onClose,
+  searchInputRef,
 }: {
   conversations: Conversation[];
   activeId: number | null;
@@ -263,6 +264,7 @@ function ConversationSidebar({
   onDelete: (id: number) => void;
   open: boolean;
   onClose: () => void;
+  searchInputRef?: RefObject<HTMLInputElement>;
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -314,6 +316,7 @@ function ConversationSidebar({
             onNew();
             onClose();
           }}
+          title="Nowa rozmowa (Cmd+Shift+O)"
           className="flex w-full items-center gap-2 rounded-lg bg-brand-orange px-3 py-2 text-sm font-medium text-brand-white hover:brightness-95"
         >
           <Plus size={16} />
@@ -322,9 +325,10 @@ function ConversationSidebar({
       </div>
       <div className="px-3 pb-2">
         <input
+          ref={searchInputRef}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Szukaj w rozmowach…"
+          placeholder="Szukaj w rozmowach… (Cmd+K)"
           className="w-full rounded-lg border border-brand-white/30 bg-brand-white/10 px-3 py-1.5 text-sm text-brand-white placeholder:text-brand-white/50 outline-none focus:border-brand-white/60"
         />
       </div>
@@ -630,6 +634,7 @@ function ChatView() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -657,6 +662,25 @@ function ChatView() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, sending, streamingText]);
+
+  // Keyboard shortcuts: Cmd/Ctrl+K focuses conversation search, Cmd/Ctrl+Shift+O
+  // starts a new conversation — both open the sidebar on mobile first.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      if (e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSidebarOpen(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
+      } else if (e.shiftKey && e.key.toLowerCase() === 'o') {
+        e.preventDefault();
+        handleNewConversation();
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -935,6 +959,17 @@ function ChatView() {
     setTimeout(() => setCopiedMessageId((prev) => (prev === message.id ? null : prev)), 1500);
   }
 
+  /** Exports a single message as a standalone Markdown file (client-side, no backend round-trip). */
+  function handleExportMessage(message: ChatMessage) {
+    const blob = new Blob([message.content], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `wiadomosc-${message.id}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   /** Branches the conversation from a given message into a new, independent conversation. */
   async function handleBranch(messageId: number) {
     if (conversationId === null) return;
@@ -1007,6 +1042,7 @@ function ChatView() {
           onDelete={handleDeleteConversation}
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
+          searchInputRef={searchInputRef}
         />
         <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
           <ConversationSettingsBar
@@ -1135,6 +1171,16 @@ function ChatView() {
                             {copiedMessageId === m.id ? 'Skopiowano' : 'Kopiuj'}
                           </button>
                         )}
+                        {m.role === 'assistant' && m.content && !m.commandUsed && (
+                          <button
+                            onClick={() => handleExportMessage(m)}
+                            aria-label="Eksportuj wiadomość"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                          >
+                            <Download size={12} />
+                            Eksportuj
+                          </button>
+                        )}
                         {m.role === 'assistant' && isLast && !m.commandUsed && (
                           <button
                             onClick={() => handleRegenerate(m.id)}
@@ -1161,7 +1207,13 @@ function ChatView() {
               {sending && (
                 <div className="prose prose-sm dark:prose-invert max-w-full leading-relaxed text-brand-dark dark:text-zinc-100">
                   {streamingText ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{streamingText}</ReactMarkdown>
+                    <span className="relative">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{streamingText}</ReactMarkdown>
+                      <span
+                        aria-hidden="true"
+                        className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-brand-dark/70 dark:bg-zinc-100/70"
+                      />
+                    </span>
                   ) : (
                     <div className="flex items-center gap-2 text-brand-dark/50 dark:text-zinc-400">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-orange" />
