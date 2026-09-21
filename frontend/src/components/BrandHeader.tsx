@@ -6,13 +6,16 @@ import { useEffect, useState } from 'react';
 import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocale } from '@/lib/LocaleContext';
-import { IncidentReportModal } from './IncidentReportModal';
 import { ShortcutsModal } from './ShortcutsModal';
+
+// External incident-reporting tool (AI Policy Gate) — replaced the in-app
+// modal so incidents land in the org's shared triage queue instead of this
+// app's own (unmonitored) database table.
+const INCIDENT_REPORT_URL = 'https://ai-policy-gate.vercel.app/incidents/new';
 
 export function BrandHeader() {
   const { user, logout } = useAuth();
   const { t } = useLocale();
-  const [reportOpen, setReportOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
@@ -49,13 +52,16 @@ export function BrandHeader() {
           >
             <Keyboard size={15} />
           </button>
-          <button
-            onClick={() => setReportOpen(true)}
+          <a
+            href={INCIDENT_REPORT_URL}
+            target="_blank"
+            rel="noopener noreferrer"
             aria-label={t('header.incident')}
+            title={t('header.incident')}
             className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
           >
             <AlertTriangle size={15} />
-          </button>
+          </a>
           <Link
             href="/code"
             aria-label={t('header.code')}
@@ -79,7 +85,6 @@ export function BrandHeader() {
           </button>
         </div>
       )}
-      {reportOpen && <IncidentReportModal onClose={() => setReportOpen(false)} />}
       {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
     </header>
   );
