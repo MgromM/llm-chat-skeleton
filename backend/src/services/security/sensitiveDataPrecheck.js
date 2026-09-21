@@ -4,6 +4,11 @@ import { logger } from '../../config/logger.js';
 
 export const PRECHECK_MODEL = process.env.PRECHECK_MODEL ?? 'claude-haiku-4-5-20251001';
 const PRECHECK_ENABLED = process.env.PRECHECK_ENABLED !== 'false';
+// Below this confidence, a żółta/czerwona verdict is flagged for manager
+// review instead of hard-blocked — an uncertain call from the classifier
+// shouldn't stop legitimate traffic. High-confidence verdicts still block
+// immediately, per the original "better a false block than a real leak" policy.
+const PRECHECK_CONFIDENCE_THRESHOLD = Number(process.env.PRECHECK_CONFIDENCE_THRESHOLD ?? 0.6);
 
 // Mirrors Agencji's 3-poziomowa klasyfikacja danych (zielona/żółta/czerwona).
 // Kluczowa zasada: klasyfikujemy KONKRETNE DANE zawarte w wiadomości, nie jej
@@ -31,18 +36,45 @@ Odpowiedz WYŁĄCZNIE w formacie JSON: {"level": "<ZIELONA|ZOLTA|CZERWONA>", "ca
 
 const LEVEL_LABELS = { ZIELONA: 'zielona', ZOLTA: 'żółta', CZERWONA: 'czerwona' };
 
+async function checkClientConsent(conversationId) {
+  const { rows } = await query(
+    `SELECT c.ai_consent
+     FROM conversations conv
+     JOIN clients c ON c.id = conv.client_id
+     WHERE conv.id = $1`,
+    [conversationId],
+  );
+  if (rows.length === 0) return true;
+  return rows[0].ai_consent === true;
+}
+
 /**
  * Classification pre-check run BEFORE every message reaches the Anthropic
  * API. Classifies into the company's zielona/żółta/czerwona data policy —
- * żółta and czerwona are hard-blocked immediately (per policy, no
- * confidence threshold: better a false block than a real leak). Fails
- * open: if the check itself errors out, the message is allowed through
+ * żółta and czerwona are hard-blocked immediately when the classifier is
+ * confident (per policy, better a false block than a real leak); below
+ * PRECHECK_CONFIDENCE_THRESHOLD they're flagged for manager review instead,
+ * so an uncertain call doesn't stop legitimate traffic. A conversation whose
+ * client has not given AI consent (`clients.ai_consent`) is blocked outright,
+ * before the Haiku call — a plain DB check, no model round-trip needed.
+ * Fails open: if the check itself errors out, the message is allowed through
  * (treated as zielona) and the failure is logged loudly, so a precheck
  * outage never takes down the whole chat.
  */
 export async function precheckMessage({ conversationId, userMessage }) {
   if (!PRECHECK_ENABLED) {
     return { blocked: false, level: 'zielona' };
+  }
+
+  try {
+    const hasConsent = await checkClientConsent(conversationId);
+    if (!hasConsent) {
+      logger.warn('Message hard-blocked by pre-check: client has not given AI consent', { conversationId });
+      await persistPrecheckResult({ conversationId, blocked: true, category: 'NO_CONSENT', confidence: 1, rationale: 'Klient nie wyraził zgody na przetwarzanie danych przy użyciu AI.', level: 'czerwona', needsReview: false });
+      return { blocked: true, level: 'czerwona', category: 'NO_CONSENT', rationale: 'Klient nie wyraził zgody na przetwarzanie danych przy użyciu AI.' };
+    }
+  } catch (err) {
+    logger.error('Client AI-consent check failed, continuing to content pre-check', { conversationId, error: err.message });
   }
 
   let verdict;
@@ -65,26 +97,52 @@ export async function precheckMessage({ conversationId, userMessage }) {
 
   const rawLevel = String(verdict.level ?? 'ZIELONA').toUpperCase();
   const level = LEVEL_LABELS[rawLevel] ?? 'zielona';
-  const blocked = level === 'żółta' || level === 'czerwona';
+  const isRisky = level === 'żółta' || level === 'czerwona';
+  const confidence = verdict.confidence;
+  // Below threshold (or confidence missing/unparseable), don't hard-block —
+  // flag for manager review instead, since an uncertain call shouldn't stop
+  // legitimate traffic.
+  const isConfident = typeof confidence === 'number' && confidence >= PRECHECK_CONFIDENCE_THRESHOLD;
+  const blocked = isRisky && isConfident;
+  const needsReview = isRisky && !isConfident;
 
-  try {
-    await query(
-      `INSERT INTO precheck_results (conversation_id, blocked, category, confidence, rationale, judge_model, level)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [conversationId, blocked, verdict.category ?? null, verdict.confidence ?? null, verdict.rationale ?? null, PRECHECK_MODEL, level],
-    );
-  } catch (err) {
-    logger.error('Failed to persist pre-check result', { conversationId, error: err.message });
-  }
+  await persistPrecheckResult({
+    conversationId,
+    blocked,
+    category: verdict.category ?? null,
+    confidence: confidence ?? null,
+    rationale: verdict.rationale ?? null,
+    level,
+    needsReview,
+  });
 
   if (blocked) {
     logger.warn('Message hard-blocked by sensitive data pre-check', {
       conversationId,
       level,
       category: verdict.category,
-      confidence: verdict.confidence,
+      confidence,
+    });
+  } else if (needsReview) {
+    logger.warn('Message flagged for review by sensitive data pre-check (low confidence)', {
+      conversationId,
+      level,
+      category: verdict.category,
+      confidence,
     });
   }
 
-  return { blocked, level, category: verdict.category, rationale: verdict.rationale };
+  return { blocked, needsReview, level, category: verdict.category, rationale: verdict.rationale };
+}
+
+async function persistPrecheckResult({ conversationId, blocked, category, confidence, rationale, level, needsReview }) {
+  try {
+    await query(
+      `INSERT INTO precheck_results (conversation_id, blocked, category, confidence, rationale, judge_model, level, needs_review)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [conversationId, blocked, category, confidence, rationale, PRECHECK_MODEL, level, needsReview],
+    );
+  } catch (err) {
+    logger.error('Failed to persist pre-check result', { conversationId, error: err.message });
+  }
 }

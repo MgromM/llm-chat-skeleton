@@ -9,7 +9,7 @@
     "start": "node src/server.js",
     "migrate": "node src/db/migrate.js",
     "seed:admin": "node src/db/seedAdmin.js",
-    "test": "node --test src/**/*.test.js"
+    "test": "node --experimental-test-module-mocks --test src/**/*.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.126.0",
