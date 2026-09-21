@@ -90,18 +90,37 @@ ręcznie na lokalnej bazie:
 
 ## Dzień 2 — dane i materiał na prezentację
 
-- [ ] 12. Wyciągnij realne liczby z `/metrics/costs` i `/metrics/quality`
-      (koszt/request, śr. jakość 1-5, koszt/user/miesiąc).
+- [x] 12. Wyciągnij realne liczby z `/metrics/costs` i `/metrics/quality`
+      (koszt/request, śr. jakość 1-5, koszt/user/miesiąc). **Wyniki:**
+      [006-liczby.md](006-liczby.md) — $0.0379/request, jakość 3.67/5,
+      ~$1.36/user/miesiąc (próbka mała: 18 requestów z 5 dni ruchu
+      testowego).
 - [ ] 13. Policz porównanie: własne narzędzie vs. `ENTERPRISE_SEATS ×
-      ENTERPRISE_SEAT_COST_USD`.
-- [ ] 14. Zbuduj prezentację (branding Sales&More, skill
+      ENTERPRISE_SEAT_COST_USD`. **Zablokowane:** `ENTERPRISE_SEATS` i
+      `ENTERPRISE_SEAT_COST_USD` nie są ustawione na produkcji — endpoint
+      `/metrics/enterprise-comparison` już istnieje i policzy to
+      automatycznie, ale potrzebuje realnej ceny miejsca enterprise i liczby
+      miejsc od Michała. Do uzupełnienia ręcznie.
+- [x] 14. Zbuduj prezentację (branding Sales&More, skill
       `salesmore-prezentacja`): problem → co działa → bezpieczeństwo/
       compliance (RLS, pre-check PII, zgody klientów, retencja, audit
       trail) → liczby → rekomendacja + następne kroki (GCP deploy,
       BigQuery e2e — oba czekają na projekt GCP, patrz `docs/plan-mvp.md`).
+      **Gotowe:** [006-prezentacja-zarzad.pptx](006-prezentacja-zarzad.pptx)
+      (8 slajdów). Slajd porównania z Enterprise (punkt 13) jest
+      placeholderem z opisaną metodyką — uzupełnij liczbami po odpowiedzi z
+      pytania o pricing.
 - [ ] 15. Przygotuj żywe demo (2-3 min: czat, slash-komenda, panel admina).
-- [ ] 16. Próba generalna na produkcyjnym URL Railway.
-- [ ] 17. Plan B: screencast/screenshoty na wypadek awarii live.
+      **Scenariusz gotowy:** [006-demo-script.md](006-demo-script.md).
+      Zostaje nieodhaczone — pełne "przygotowanie" wymaga jednej próby na
+      żywo, a logowanie na produkcję to Google OAuth, które robi tylko
+      Michał ręcznie (jak w punkcie 10/11).
+- [ ] 16. Próba generalna na produkcyjnym URL Railway. **Wymaga logowania
+      Michała przez Google** — nie da się zrobić bez ręcznego dostępu, patrz
+      punkt 10/11.
+- [ ] 17. Plan B: screencast/screenshoty na wypadek awarii live. **Wymaga
+      logowania Michała przez Google** (żeby nagrać/zrzucić prawdziwy
+      ekran) — do zrobienia razem z próbą generalną (punkt 16).
 
 ## Kryterium "zrobione"
 Wszystkie 17 punktów odhaczone, produkt działa stabilnie na produkcyjnym

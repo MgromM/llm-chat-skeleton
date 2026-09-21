@@ -55,7 +55,7 @@ function KnowledgeBaseSection() {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-brand-dark"><span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />Baza wiedzy</h2>
+        <h2 className="flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100"><span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />Baza wiedzy</h2>
         <label className="flex cursor-pointer items-center gap-1 rounded-md bg-brand-orange px-4 py-2 font-bold text-brand-white hover:brightness-95">
           <Upload size={16} />
           {uploading ? 'Wgrywanie…' : 'Wgraj dokument'}
@@ -69,11 +69,11 @@ function KnowledgeBaseSection() {
           />
         </label>
       </div>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+            <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
               <th className="p-3">Tytuł</th>
               <th className="p-3">Rozmiar</th>
               <th className="p-3">Fragmenty</th>
@@ -84,14 +84,14 @@ function KnowledgeBaseSection() {
           </thead>
           <tbody>
             {(documents ?? []).map((doc) => (
-              <tr key={doc.id} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+              <tr key={doc.id} className="border-b border-brand-border/60 dark:border-zinc-700/60 text-brand-dark dark:text-zinc-100 last:border-0 hover:bg-brand-surface/50 dark:bg-zinc-800/50">
                 <td className="p-3">{doc.title}</td>
-                <td className="p-3 text-brand-muted">{Math.round(doc.size_bytes / 1024)} KB</td>
-                <td className="p-3 text-brand-muted">{doc.chunk_count}</td>
-                <td className="p-3 text-brand-muted">{doc.uploaded_by_email}</td>
-                <td className="p-3 text-brand-muted">{new Date(doc.created_at).toLocaleDateString('pl-PL')}</td>
+                <td className="p-3 text-brand-muted dark:text-zinc-400">{Math.round(doc.size_bytes / 1024)} KB</td>
+                <td className="p-3 text-brand-muted dark:text-zinc-400">{doc.chunk_count}</td>
+                <td className="p-3 text-brand-muted dark:text-zinc-400">{doc.uploaded_by_email}</td>
+                <td className="p-3 text-brand-muted dark:text-zinc-400">{new Date(doc.created_at).toLocaleDateString('pl-PL')}</td>
                 <td className="p-3 text-right">
-                  <button onClick={() => handleDelete(doc.id)} aria-label={`Usuń dokument ${doc.title}`} className="text-brand-dark/50 hover:text-red-600" title="Usuń">
+                  <button onClick={() => handleDelete(doc.id)} aria-label={`Usuń dokument ${doc.title}`} className="text-brand-dark/50 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400" title="Usuń">
                     <Trash2 size={16} />
                   </button>
                 </td>
@@ -99,7 +99,7 @@ function KnowledgeBaseSection() {
             ))}
           </tbody>
         </table>
-        {(documents ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak dokumentów w bazie wiedzy.</p>}
+        {(documents ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak dokumentów w bazie wiedzy.</p>}
       </div>
     </section>
   );
@@ -150,7 +150,7 @@ function McpConnectorsSection() {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-brand-dark">
+        <h2 className="flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
           <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
           Konektory MCP
         </h2>
@@ -163,32 +163,32 @@ function McpConnectorsSection() {
         </button>
       </div>
       {showForm && (
-        <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+        <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
           <div className="flex-1 min-w-[160px]">
-            <label className="mb-1 block text-xs font-semibold text-brand-muted">Nazwa</label>
+            <label className="mb-1 block text-xs font-semibold text-brand-muted dark:text-zinc-400">Nazwa</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="np. google-drive"
-              className="w-full rounded-md border border-brand-border px-3 py-1.5 text-sm outline-none focus:border-brand-orange"
+              className="w-full rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
             />
           </div>
           <div className="flex-[2] min-w-[240px]">
-            <label className="mb-1 block text-xs font-semibold text-brand-muted">URL (https)</label>
+            <label className="mb-1 block text-xs font-semibold text-brand-muted dark:text-zinc-400">URL (https)</label>
             <input
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="https://…/mcp"
-              className="w-full rounded-md border border-brand-border px-3 py-1.5 text-sm outline-none focus:border-brand-orange"
+              className="w-full rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
             />
           </div>
           <div className="flex-1 min-w-[160px]">
-            <label className="mb-1 block text-xs font-semibold text-brand-muted">Token (opcjonalnie)</label>
+            <label className="mb-1 block text-xs font-semibold text-brand-muted dark:text-zinc-400">Token (opcjonalnie)</label>
             <input
               type="password"
               value={authToken}
               onChange={(e) => setAuthToken(e.target.value)}
-              className="w-full rounded-md border border-brand-border px-3 py-1.5 text-sm outline-none focus:border-brand-orange"
+              className="w-full rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
             />
           </div>
           <button
@@ -200,11 +200,11 @@ function McpConnectorsSection() {
           </button>
         </div>
       )}
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+            <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
               <th className="p-3">Nazwa</th>
               <th className="p-3">URL</th>
               <th className="p-3">Token</th>
@@ -214,28 +214,28 @@ function McpConnectorsSection() {
           </thead>
           <tbody>
             {(connectors ?? []).map((c) => (
-              <tr key={c.id} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+              <tr key={c.id} className="border-b border-brand-border/60 dark:border-zinc-700/60 text-brand-dark dark:text-zinc-100 last:border-0 hover:bg-brand-surface/50 dark:bg-zinc-800/50">
                 <td className="p-3 font-medium">
                   <span className="flex items-center gap-1.5">
                     <Plug size={14} className="text-brand-orange" />
                     {c.name}
                   </span>
                 </td>
-                <td className="max-w-[280px] truncate p-3 text-brand-muted">{c.url}</td>
-                <td className="p-3 text-brand-muted">{c.has_token ? 'ustawiony' : '—'}</td>
+                <td className="max-w-[280px] truncate p-3 text-brand-muted dark:text-zinc-400">{c.url}</td>
+                <td className="p-3 text-brand-muted dark:text-zinc-400">{c.has_token ? 'ustawiony' : '—'}</td>
                 <td className="p-3">
                   <button
                     onClick={() => handleToggle(c.id, !c.enabled)}
                     className={clsx(
                       'rounded-full px-3 py-1 text-xs font-semibold',
-                      c.enabled ? 'bg-brand-positive/15 text-brand-positive' : 'bg-brand-surface text-brand-muted',
+                      c.enabled ? 'bg-brand-positive/15 text-brand-positive' : 'bg-brand-surface dark:bg-zinc-800 text-brand-muted dark:text-zinc-400',
                     )}
                   >
                     {c.enabled ? 'włączony' : 'wyłączony'}
                   </button>
                 </td>
                 <td className="p-3 text-right">
-                  <button onClick={() => handleDelete(c.id)} aria-label={`Usuń konektor ${c.name}`} className="text-brand-dark/50 hover:text-red-600" title="Usuń">
+                  <button onClick={() => handleDelete(c.id)} aria-label={`Usuń konektor ${c.name}`} className="text-brand-dark/50 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400" title="Usuń">
                     <Trash2 size={16} />
                   </button>
                 </td>
@@ -243,7 +243,7 @@ function McpConnectorsSection() {
             ))}
           </tbody>
         </table>
-        {(connectors ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak skonfigurowanych konektorów MCP.</p>}
+        {(connectors ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak skonfigurowanych konektorów MCP.</p>}
       </div>
     </section>
   );
@@ -273,35 +273,35 @@ function LeakAlertsSection() {
 
   return (
     <section>
-      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
         Sygnały do przeglądu (auto + zgłoszenia)
       </h2>
       <div className="space-y-2">
         {(alerts ?? []).map((a) => (
-          <div key={a.id} className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+          <div key={a.id} className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
             <div className="mb-1 flex items-center justify-between">
-              <span className="flex items-center gap-2 text-sm font-semibold text-brand-dark">
+              <span className="flex items-center gap-2 text-sm font-semibold text-brand-dark dark:text-zinc-100">
                 <span
                   className={clsx(
                     'rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                    a.source === 'manual' ? 'bg-brand-orange/15 text-brand-orange' : 'bg-brand-surface text-brand-muted',
+                    a.source === 'manual' ? 'bg-brand-orange/15 text-brand-orange' : 'bg-brand-surface dark:bg-zinc-800 text-brand-muted dark:text-zinc-400',
                   )}
                 >
                   {a.source === 'manual' ? 'zgłoszenie' : 'auto'}
                 </span>
-                {a.severity && <span className="text-xs text-brand-muted">waga: {SEVERITY_LABELS[a.severity] ?? a.severity}</span>}
-                <span className="text-xs text-brand-muted">{a.email}</span>
+                {a.severity && <span className="text-xs text-brand-muted dark:text-zinc-400">waga: {SEVERITY_LABELS[a.severity] ?? a.severity}</span>}
+                <span className="text-xs text-brand-muted dark:text-zinc-400">{a.email}</span>
               </span>
               <button
                 onClick={() => handleReview(a.id)}
                 disabled={reviewingId === a.id}
-                className="rounded-md border border-brand-border px-3 py-1 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+                className="rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1 text-xs font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {reviewingId === a.id ? 'Zapisywanie…' : 'Oznacz jako przeglądnięte'}
               </button>
             </div>
-            <p className="text-sm text-brand-dark">{a.description ?? a.rationale}</p>
+            <p className="text-sm text-brand-dark dark:text-zinc-100">{a.description ?? a.rationale}</p>
             {a.has_screenshot && (
               <a
                 href={api.incidentScreenshotUrl(a.id)}
@@ -312,10 +312,10 @@ function LeakAlertsSection() {
                 Zobacz zrzut ekranu
               </a>
             )}
-            <p className="mt-1 text-xs text-brand-muted">{new Date(a.created_at).toLocaleString('pl-PL')}</p>
+            <p className="mt-1 text-xs text-brand-muted dark:text-zinc-400">{new Date(a.created_at).toLocaleString('pl-PL')}</p>
           </div>
         ))}
-        {(alerts ?? []).length === 0 && <p className="text-sm text-brand-muted">Brak nieprzeglądniętych sygnałów.</p>}
+        {(alerts ?? []).length === 0 && <p className="text-sm text-brand-muted dark:text-zinc-400">Brak nieprzeglądniętych sygnałów.</p>}
       </div>
     </section>
   );
@@ -325,11 +325,11 @@ function ClientConsentHistory({ clientId }: { clientId: number }) {
   const { data: history } = useSWR<ClientConsentHistoryEntry[]>(`/clients/${clientId}/consent-history`, apiFetch);
 
   if (!history || history.length === 0) {
-    return <p className="p-3 text-xs text-brand-muted">Brak historii zmian.</p>;
+    return <p className="p-3 text-xs text-brand-muted dark:text-zinc-400">Brak historii zmian.</p>;
   }
 
   return (
-    <ul className="list-none space-y-1 p-3 pt-0 text-xs text-brand-muted">
+    <ul className="list-none space-y-1 p-3 pt-0 text-xs text-brand-muted dark:text-zinc-400">
       {history.map((h) => (
         <li key={h.id}>
           {new Date(h.changed_at).toLocaleString('pl-PL')} — {h.changed_by ?? 'nieznany'}:{' '}
@@ -380,8 +380,8 @@ function ClientTeam({ clientId }: { clientId: number }) {
   }
 
   return (
-    <div className="p-3 pt-0 text-xs text-brand-muted">
-      {error && <p className="mb-1 text-red-600">{error}</p>}
+    <div className="p-3 pt-0 text-xs text-brand-muted dark:text-zinc-400">
+      {error && <p className="mb-1 text-red-600 dark:text-red-400">{error}</p>}
       <ul className="list-none space-y-1 pl-0">
         {(team ?? []).map((t) => (
           <li key={t.id} className="flex items-center justify-between gap-2">
@@ -392,7 +392,7 @@ function ClientTeam({ clientId }: { clientId: number }) {
             <button
               onClick={() => handleUnassign(t.user_id)}
               disabled={saving}
-              className="shrink-0 rounded-md border border-brand-border px-2 py-0.5 font-semibold text-brand-dark hover:bg-brand-surface disabled:opacity-40"
+              className="shrink-0 rounded-md border border-brand-border dark:border-zinc-700 px-2 py-0.5 font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 disabled:opacity-40"
             >
               Odpisz
             </button>
@@ -404,7 +404,7 @@ function ClientTeam({ clientId }: { clientId: number }) {
         <select
           value={selectedUserId}
           onChange={(e) => setSelectedUserId(e.target.value)}
-          className="flex-1 rounded-md border border-brand-border px-2 py-1 text-brand-dark"
+          className="flex-1 rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-2 py-1 text-brand-dark dark:text-zinc-100"
         >
           <option value="">Wybierz specjalistę…</option>
           {availableUsers.map((u) => (
@@ -454,28 +454,28 @@ function RetentionSection() {
 
   return (
     <section>
-      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
         Retencja danych
       </h2>
-      <div className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
-        <p className="text-sm text-brand-dark">
+      <div className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
+        <p className="text-sm text-brand-dark dark:text-zinc-100">
           Konwersacje bez aktywności dłużej niż okres retencji: <strong>{status?.expiredConversationCount ?? '—'}</strong>
         </p>
-        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
-        {lastResult && <p className="mt-2 text-sm text-brand-muted">{lastResult}</p>}
+        {error && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {lastResult && <p className="mt-2 text-sm text-brand-muted dark:text-zinc-400">{lastResult}</p>}
         <div className="mt-3 flex gap-2">
           <button
             onClick={() => handleRun(true)}
             disabled={running}
-            className="rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Odśwież podgląd
           </button>
           <button
             onClick={() => handleRun(false)}
             disabled={running}
-            className="rounded-md border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md border border-red-300 dark:border-red-800 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-40"
           >
             {running ? 'Usuwanie…' : 'Usuń teraz'}
           </button>
@@ -490,14 +490,14 @@ function ClientAccessAuditSection() {
 
   return (
     <section>
-      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
         Audyt dostępu — rozmowy bez przypisania do zespołu
       </h2>
-      <div className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+      <div className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
         <ul className="list-none space-y-1.5 pl-0">
           {(audit ?? []).map((row, i) => (
-            <li key={i} className="flex items-baseline gap-2 text-sm text-brand-dark">
+            <li key={i} className="flex items-baseline gap-2 text-sm text-brand-dark dark:text-zinc-100">
               <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
               <span>
                 <strong>{row.user_email}</strong> rozmawiał z danymi klienta <strong>{row.client_name}</strong>, do
@@ -505,7 +505,7 @@ function ClientAccessAuditSection() {
               </span>
             </li>
           ))}
-          {(audit ?? []).length === 0 && <p className="text-sm text-brand-muted">Brak sygnałów — dostęp zgodny z przypisaniami.</p>}
+          {(audit ?? []).length === 0 && <p className="text-sm text-brand-muted dark:text-zinc-400">Brak sygnałów — dostęp zgodny z przypisaniami.</p>}
         </ul>
       </div>
     </section>
@@ -551,17 +551,17 @@ function ClientsSection() {
 
   return (
     <section>
-      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
         Zgody zleceniodawców na przetwarzanie AI
       </h2>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <form onSubmit={handleCreate} className="mb-3 flex gap-2">
         <input
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="Nazwa zleceniodawcy"
-          className="flex-1 rounded-md border border-brand-border px-3 py-1.5 text-sm text-brand-dark"
+          className="flex-1 rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-brand-dark dark:text-zinc-100"
         />
         <button
           type="submit"
@@ -572,10 +572,10 @@ function ClientsSection() {
           {creating ? 'Dodawanie…' : 'Dodaj'}
         </button>
       </form>
-      <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+            <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
               <th className="p-3">Zleceniodawca</th>
               <th className="p-3">Zgoda na AI</th>
               <th className="p-3">Ostatnia zmiana</th>
@@ -585,19 +585,19 @@ function ClientsSection() {
           <tbody>
             {(clients ?? []).map((c) => (
               <Fragment key={c.id}>
-                <tr className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                <tr className="border-b border-brand-border/60 dark:border-zinc-700/60 text-brand-dark dark:text-zinc-100 last:border-0 hover:bg-brand-surface/50 dark:bg-zinc-800/50">
                   <td className="p-3">{c.name}</td>
                   <td className="p-3">
                     <span
                       className={clsx(
                         'rounded-full px-3 py-1 text-xs font-semibold',
-                        c.ai_consent ? 'bg-brand-positive/15 text-brand-positive' : 'bg-red-100 text-red-700',
+                        c.ai_consent ? 'bg-brand-positive/15 text-brand-positive' : 'bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-400',
                       )}
                     >
                       {c.ai_consent ? 'zgoda' : 'brak zgody'}
                     </span>
                   </td>
-                  <td className="p-3 text-xs text-brand-muted">
+                  <td className="p-3 text-xs text-brand-muted dark:text-zinc-400">
                     {c.ai_consent_updated_at
                       ? `${new Date(c.ai_consent_updated_at).toLocaleString('pl-PL')} (${c.ai_consent_updated_by ?? '—'})`
                       : '—'}
@@ -605,24 +605,24 @@ function ClientsSection() {
                   <td className="p-3 text-right">
                     <button
                       onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                      className="mr-2 rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface"
+                      className="mr-2 rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:bg-zinc-800"
                     >
                       {expandedId === c.id ? 'Skryj historię' : 'Historia'}
                     </button>
                     <button
                       onClick={() => handleToggleConsent(c)}
                       disabled={savingId === c.id}
-                      className="rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+                      className="rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {savingId === c.id ? 'Zapisywanie…' : c.ai_consent ? 'Odbierz zgodę' : 'Nadaj zgodę'}
                     </button>
                   </td>
                 </tr>
                 {expandedId === c.id && (
-                  <tr className="border-b border-brand-border/60">
-                    <td colSpan={4} className="bg-brand-surface/40">
+                  <tr className="border-b border-brand-border/60 dark:border-zinc-700/60">
+                    <td colSpan={4} className="bg-brand-surface/40 dark:bg-zinc-800/40">
                       <ClientConsentHistory clientId={c.id} />
-                      <p className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-brand-muted">Zespół</p>
+                      <p className="px-3 pt-2 text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">Zespół</p>
                       <ClientTeam clientId={c.id} />
                     </td>
                   </tr>
@@ -631,7 +631,7 @@ function ClientsSection() {
             ))}
           </tbody>
         </table>
-        {(clients ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak zleceniodawców.</p>}
+        {(clients ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak zleceniodawców.</p>}
       </div>
     </section>
   );
@@ -659,15 +659,15 @@ function UsersSection() {
 
   return (
     <section>
-      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
         <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
         Użytkownicy
       </h2>
-      {error && <p className="mb-2 text-sm text-red-600">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+            <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
               <th className="p-3">E-mail</th>
               <th className="p-3">Rola</th>
               <th className="p-3"></th>
@@ -675,13 +675,13 @@ function UsersSection() {
           </thead>
           <tbody>
             {(users ?? []).map((u) => (
-              <tr key={u.id} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+              <tr key={u.id} className="border-b border-brand-border/60 dark:border-zinc-700/60 text-brand-dark dark:text-zinc-100 last:border-0 hover:bg-brand-surface/50 dark:bg-zinc-800/50">
                 <td className="p-3">{u.email}</td>
                 <td className="p-3">
                   <span
                     className={clsx(
                       'rounded-full px-3 py-1 text-xs font-semibold',
-                      u.role === 'admin' ? 'bg-brand-positive/15 text-brand-positive' : 'bg-brand-surface text-brand-muted',
+                      u.role === 'admin' ? 'bg-brand-positive/15 text-brand-positive' : 'bg-brand-surface dark:bg-zinc-800 text-brand-muted dark:text-zinc-400',
                     )}
                   >
                     {u.role}
@@ -692,7 +692,7 @@ function UsersSection() {
                     onClick={() => handleToggleRole(u)}
                     disabled={savingId === u.id || u.id === currentUser?.id}
                     title={u.id === currentUser?.id ? 'Nie można zmienić własnej roli' : undefined}
-                    className="rounded-md border border-brand-border px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-brand-surface disabled:cursor-not-allowed disabled:opacity-40"
+                    className="rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {savingId === u.id ? 'Zapisywanie…' : u.role === 'admin' ? 'Odbierz admina' : 'Nadaj admina'}
                   </button>
@@ -701,7 +701,7 @@ function UsersSection() {
             ))}
           </tbody>
         </table>
-        {(users ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak użytkowników.</p>}
+        {(users ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak użytkowników.</p>}
       </div>
     </section>
   );
@@ -716,18 +716,18 @@ function AdminView() {
   const totalCost = (costs ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0);
 
   return (
-    <div>
+    <div className="min-h-screen bg-brand-white dark:bg-zinc-950">
       <BrandHeader />
       <div className="mx-auto grid max-w-5xl gap-8 p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-brand-dark">Panel administracyjny</h1>
+        <h1 className="text-2xl font-bold text-brand-dark dark:text-zinc-100">Panel administracyjny</h1>
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
             Nasze narzędzie vs. plan enterprise
           </h2>
           {comparison ? (
             comparison.enterpriseSeats === 0 ? (
-              <p className="text-sm text-brand-muted">
+              <p className="text-sm text-brand-muted dark:text-zinc-400">
                 Ustaw <code>ENTERPRISE_SEAT_COST_USD</code> i <code>ENTERPRISE_SEATS</code> w konfiguracji backendu,
                 żeby zobaczyć porównanie.
               </p>
@@ -738,45 +738,45 @@ function AdminView() {
                     'min-w-[220px] flex-1 rounded-xl border p-4',
                     comparison.cheaperOption === 'our_tool'
                       ? 'border-brand-orange bg-brand-orange/5'
-                      : 'border-brand-border bg-brand-white',
+                      : 'border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900',
                   )}
                 >
-                  <div className="text-sm text-brand-muted">Nasze narzędzie (30 dni)</div>
-                  <div className="text-2xl font-bold text-brand-dark">${comparison.ourToolCostUsd.toFixed(2)}</div>
+                  <div className="text-sm text-brand-muted dark:text-zinc-400">Nasze narzędzie (30 dni)</div>
+                  <div className="text-2xl font-bold text-brand-dark dark:text-zinc-100">${comparison.ourToolCostUsd.toFixed(2)}</div>
                 </div>
                 <div
                   className={clsx(
                     'min-w-[220px] flex-1 rounded-xl border p-4',
                     comparison.cheaperOption === 'our_tool'
-                      ? 'border-brand-border bg-brand-white'
+                      ? 'border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900'
                       : 'border-brand-orange bg-brand-orange/5',
                   )}
                 >
-                  <div className="text-sm text-brand-muted">
+                  <div className="text-sm text-brand-muted dark:text-zinc-400">
                     Enterprise ({comparison.enterpriseSeats} seatów × ${comparison.enterpriseSeatCostUsd})
                   </div>
-                  <div className="text-2xl font-bold text-brand-dark">${comparison.enterpriseCostUsd.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-brand-dark dark:text-zinc-100">${comparison.enterpriseCostUsd.toFixed(2)}</div>
                 </div>
-                <div className="flex items-center gap-2 rounded-xl border border-brand-border bg-brand-white px-4 py-2 font-bold text-brand-dark">
+                <div className="flex items-center gap-2 rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2 font-bold text-brand-dark dark:text-zinc-100">
                   <span className="h-2 w-2 rounded-full bg-brand-positive" />
                   Taniej: {comparison.cheaperOption === 'our_tool' ? 'nasze narzędzie' : 'enterprise'}
                 </div>
               </div>
             )
           ) : (
-            <p className="text-sm text-brand-muted">Ładowanie…</p>
+            <p className="text-sm text-brand-muted dark:text-zinc-400">Ładowanie…</p>
           )}
         </section>
 
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
             Koszt łączny (30 dni): ${totalCost.toFixed(4)}
           </h2>
-          <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+          <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+                <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
                   <th className="p-3">Model</th>
                   <th className="p-3">Komenda</th>
                   <th className="p-3">Zapytania</th>
@@ -786,12 +786,12 @@ function AdminView() {
               </thead>
               <tbody>
                 {(costs ?? []).map((row, i) => (
-                  <tr key={i} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                  <tr key={i} className="border-b border-brand-border/60 dark:border-zinc-700/60 text-brand-dark dark:text-zinc-100 last:border-0 hover:bg-brand-surface/50 dark:bg-zinc-800/50">
                     <td className="p-3">{row.model}</td>
-                    <td className="p-3 text-brand-muted">{row.command_used ?? '—'}</td>
-                    <td className="p-3 text-brand-muted">{row.requests}</td>
-                    <td className="p-3 text-brand-muted">{Number(row.cost_usd).toFixed(4)}</td>
-                    <td className="p-3 text-brand-muted">{Math.round(Number(row.avg_latency_ms))}</td>
+                    <td className="p-3 text-brand-muted dark:text-zinc-400">{row.command_used ?? '—'}</td>
+                    <td className="p-3 text-brand-muted dark:text-zinc-400">{row.requests}</td>
+                    <td className="p-3 text-brand-muted dark:text-zinc-400">{Number(row.cost_usd).toFixed(4)}</td>
+                    <td className="p-3 text-brand-muted dark:text-zinc-400">{Math.round(Number(row.avg_latency_ms))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -800,14 +800,14 @@ function AdminView() {
         </section>
 
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
             Koszt per użytkownik (30 dni)
           </h2>
-          <div className="overflow-hidden rounded-xl border border-brand-border bg-brand-white shadow-soft">
+          <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b border-brand-border bg-brand-surface text-left text-xs font-semibold uppercase tracking-wide text-brand-muted">
+                <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
                   <th className="p-3">Użytkownik</th>
                   <th className="p-3">Zapytania</th>
                   <th className="p-3">Tokeny (in/out)</th>
@@ -816,33 +816,33 @@ function AdminView() {
               </thead>
               <tbody>
                 {(costsByUser ?? []).map((row) => (
-                  <tr key={row.user_id} className="border-b border-brand-border/60 text-brand-dark last:border-0 hover:bg-brand-surface/50">
+                  <tr key={row.user_id} className="border-b border-brand-border/60 dark:border-zinc-700/60 text-brand-dark dark:text-zinc-100 last:border-0 hover:bg-brand-surface/50 dark:bg-zinc-800/50">
                     <td className="p-3">{row.email}</td>
-                    <td className="p-3 text-brand-muted">{row.requests}</td>
-                    <td className="p-3 text-brand-muted">{row.input_tokens} / {row.output_tokens}</td>
-                    <td className="p-3 text-brand-muted">{Number(row.cost_usd).toFixed(4)}</td>
+                    <td className="p-3 text-brand-muted dark:text-zinc-400">{row.requests}</td>
+                    <td className="p-3 text-brand-muted dark:text-zinc-400">{row.input_tokens} / {row.output_tokens}</td>
+                    <td className="p-3 text-brand-muted dark:text-zinc-400">{Number(row.cost_usd).toFixed(4)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {(costsByUser ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted">Brak danych.</p>}
+            {(costsByUser ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak danych.</p>}
           </div>
         </section>
 
         <section>
-          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark">
+          <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
             Jakość odpowiedzi (LLM-judge)
           </h2>
-          <div className="rounded-xl border border-brand-border bg-brand-white p-4 shadow-soft">
+          <div className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
             <ul className="list-none space-y-1.5 pl-0">
               {(quality ?? []).map((row, i) => (
-                <li key={i} className="flex items-baseline gap-2 text-brand-dark">
+                <li key={i} className="flex items-baseline gap-2 text-brand-dark dark:text-zinc-100">
                   <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-orange" />
                   <span>{row.judge_model}: średnia {row.avg_score}/5 ({row.scored_messages} ocenionych odpowiedzi)</span>
                 </li>
               ))}
-              {(quality ?? []).length === 0 && <p className="text-sm text-brand-muted">Brak danych.</p>}
+              {(quality ?? []).length === 0 && <p className="text-sm text-brand-muted dark:text-zinc-400">Brak danych.</p>}
             </ul>
           </div>
         </section>
@@ -864,14 +864,14 @@ function AdminView() {
         <div className="flex gap-3">
           <a
             href="/api/export/xlsx"
-            className="flex items-center gap-1.5 rounded-lg border border-brand-border bg-brand-white px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-brand-surface"
+            className="flex items-center gap-1.5 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:bg-zinc-800"
           >
             <Download size={16} />
             Eksport XLSX
           </a>
           <a
             href="/api/export/pptx"
-            className="flex items-center gap-1.5 rounded-lg border border-brand-border bg-brand-white px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-brand-surface"
+            className="flex items-center gap-1.5 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:bg-zinc-800"
           >
             <Download size={16} />
             Eksport PPTX

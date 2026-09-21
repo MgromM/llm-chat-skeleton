@@ -249,6 +249,7 @@ async function consumeSseResponse(res: Response, handlers: StreamHandlers) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
+  let receivedTerminalEvent = false;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -260,9 +261,20 @@ async function consumeSseResponse(res: Response, handlers: StreamHandlers) {
       if (!line.startsWith('data:')) continue;
       const payload = JSON.parse(line.slice(5).trim());
       if (payload.type === 'delta') handlers.onDelta?.(payload.text);
-      else if (payload.type === 'done') handlers.onDone?.(payload);
-      else if (payload.type === 'error') handlers.onError?.(payload.error);
+      else if (payload.type === 'done') {
+        receivedTerminalEvent = true;
+        handlers.onDone?.(payload);
+      } else if (payload.type === 'error') {
+        receivedTerminalEvent = true;
+        handlers.onError?.(payload.error);
+      }
     }
+  }
+  // The connection closed (network drop, proxy timeout, server crash) before
+  // a `done`/`error` event arrived — the reply is incomplete with no signal
+  // other than the silently-ended stream, so surface it as its own error.
+  if (!receivedTerminalEvent) {
+    throw new ApiError('stream_interrupted');
   }
 }
 

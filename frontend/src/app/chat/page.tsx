@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2 } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2, Loader2, Copy } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,6 +17,13 @@ const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 // Slash commands whose replies are full deliverables, not chat chatter —
 // these get a compact card in the flow that opens the real thing in the
 // artifact side panel, instead of dumping the whole text into the timeline.
+const EXAMPLE_PROMPTS: string[] = [
+  'Napisz brief kreatywny dla nowej kampanii produktowej',
+  'Przeanalizuj konkurencję w naszej branży',
+  'Zaproponuj 5 pomysłów na posty w social mediach',
+  'Napisz teksty reklamowe do kampanii Google Ads',
+];
+
 const ARTIFACT_COMMAND_TITLES: Record<string, string> = {
   '/brief-kreatywny': 'Brief kreatywny',
   '/tekst-reklamowy': 'Teksty reklamowe',
@@ -95,25 +102,25 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
   }
 
   return (
-    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white shadow-soft sm:static sm:z-auto sm:w-[480px]">
-      <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-border px-5 py-4">
-        <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark">
+    <aside className="fixed inset-0 z-40 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white dark:bg-zinc-900 shadow-soft sm:static sm:z-auto sm:w-[480px]">
+      <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-border dark:border-zinc-700 px-5 py-4">
+        <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark dark:text-zinc-100">
           <FileOutput size={16} className="text-brand-orange" />
           {artifact?.title ?? '…'}
         </div>
-        <button onClick={onClose} aria-label="Zamknij artefakt" className="text-brand-dark/50 hover:text-brand-dark">
+        <button onClick={onClose} aria-label="Zamknij artefakt" className="text-brand-dark/50 dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100">
           <X size={18} />
         </button>
       </div>
 
       {artifact && (
-        <div className="flex items-center gap-1 border-b border-brand-border px-3 py-2">
+        <div className="flex items-center gap-1 border-b border-brand-border dark:border-zinc-700 px-3 py-2">
           {artifact.type === 'html' && (
             <button
               onClick={() => setTab('preview')}
               className={clsx(
                 'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-                tab === 'preview' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 hover:bg-brand-surface/60',
+                tab === 'preview' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
               )}
             >
               <Eye size={13} /> Podgląd
@@ -123,7 +130,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
             onClick={() => setTab('source')}
             className={clsx(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-              tab === 'source' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 hover:bg-brand-surface/60',
+              tab === 'source' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
             )}
           >
             <Code2 size={13} /> {artifact.type === 'html' ? 'Markdown' : 'Treść'}
@@ -132,7 +139,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
             onClick={() => setTab('edit')}
             className={clsx(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-              tab === 'edit' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 hover:bg-brand-surface/60',
+              tab === 'edit' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
             )}
           >
             <Pencil size={13} /> Edytuj
@@ -142,7 +149,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
               aria-label="Wersja"
               value={artifact.currentVersion}
               onChange={(e) => loadVersion(Number(e.target.value))}
-              className="ml-auto rounded-md border border-brand-border bg-brand-white px-2 py-1 text-xs text-brand-dark"
+              className="ml-auto rounded-md border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2 py-1 text-xs text-brand-dark dark:text-zinc-100"
             >
               {versions.map((v) => (
                 <option key={v.version} value={v.version}>
@@ -156,19 +163,19 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
 
       <div className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
         {!artifact ? (
-          <div className="text-sm text-brand-dark/50">Ładowanie…</div>
+          <div className="text-sm text-brand-dark/50 dark:text-zinc-400">Ładowanie…</div>
         ) : tab === 'edit' ? (
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            className="min-h-[300px] flex-1 resize-none rounded-lg border border-brand-border bg-brand-surface/30 p-3 font-mono text-xs text-brand-dark focus:outline-none"
+            className="min-h-[300px] flex-1 resize-none rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-surface/30 dark:bg-zinc-800/60 p-3 font-mono text-xs text-brand-dark dark:text-zinc-100 focus:outline-none"
           />
         ) : (
           <ArtifactViewer artifact={artifact} mode={tab === 'preview' ? 'preview' : 'source'} />
         )}
       </div>
 
-      <div className="flex gap-2 rounded-b-2xl border-t border-brand-border px-5 py-3">
+      <div className="flex gap-2 rounded-b-2xl border-t border-brand-border dark:border-zinc-700 px-5 py-3">
         {tab === 'edit' ? (
           <button
             onClick={handleSave}
@@ -182,7 +189,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
           <>
             <button
               onClick={handleDownload}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-brand-surface/60"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-brand-border dark:border-zinc-700 px-4 py-2 text-sm font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
             >
               <Download size={16} />
               Pobierz
@@ -205,14 +212,14 @@ function ArtifactCard({ title, onOpen }: { title: string; onOpen: () => void }) 
   return (
     <button
       onClick={onOpen}
-      className="flex w-full max-w-[75%] items-center gap-3 rounded-xl border border-brand-border bg-brand-white px-4 py-3 text-left shadow-sm hover:border-brand-orange/50 hover:bg-brand-surface/30"
+      className="flex w-full max-w-[75%] items-center gap-3 rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-3 text-left shadow-sm hover:border-brand-orange/50 hover:bg-brand-surface/30 dark:hover:bg-zinc-800/60"
     >
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10 text-brand-orange">
         <FileOutput size={18} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-brand-dark">{title}</div>
-        <div className="text-xs text-brand-dark/50">Otwórz artefakt</div>
+        <div className="truncate text-sm font-semibold text-brand-dark dark:text-zinc-100">{title}</div>
+        <div className="text-xs text-brand-dark/50 dark:text-zinc-400">Otwórz artefakt</div>
       </div>
     </button>
   );
@@ -394,7 +401,7 @@ function AttachmentChip({ attachment }: { attachment: Attachment }) {
   const url = api.attachmentUrl(attachment.id);
   if (attachment.mimeType.startsWith('image/')) {
     return (
-      <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-brand-border">
+      <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-brand-border dark:border-zinc-700">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt={attachment.filename} className="max-h-48 w-auto object-cover" />
       </a>
@@ -405,11 +412,11 @@ function AttachmentChip({ attachment }: { attachment: Attachment }) {
       href={url}
       target="_blank"
       rel="noreferrer"
-      className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-white px-3 py-2 text-sm text-brand-dark hover:bg-brand-surface/50"
+      className="flex items-center gap-2 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-3 py-2 text-sm text-brand-dark dark:text-zinc-100 hover:bg-brand-surface/50 dark:hover:bg-zinc-800/60"
     >
       <FileText size={16} className="shrink-0 opacity-60" />
       <span className="truncate">{attachment.filename}</span>
-      <span className="shrink-0 text-xs text-brand-dark/40">{formatSize(attachment.sizeBytes)}</span>
+      <span className="shrink-0 text-xs text-brand-dark/40 dark:text-zinc-500">{formatSize(attachment.sizeBytes)}</span>
     </a>
   );
 }
@@ -425,7 +432,7 @@ function CitationList({ citations }: { citations: Citation[] }) {
           target="_blank"
           rel="noreferrer"
           title={c.url}
-          className="flex max-w-[220px] items-center gap-1 rounded-full border border-brand-border bg-brand-white px-2.5 py-1 text-xs text-brand-dark/70 hover:bg-brand-surface/50 hover:text-brand-dark"
+          className="flex max-w-[220px] items-center gap-1 rounded-full border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2.5 py-1 text-xs text-brand-dark/70 dark:text-zinc-300 hover:bg-brand-surface/50 dark:hover:bg-zinc-800/60 hover:text-brand-dark dark:hover:text-zinc-100"
         >
           <Link2 size={11} className="shrink-0 opacity-60" />
           <span className="truncate">{c.title}</span>
@@ -445,11 +452,11 @@ function GeneratedFileList({ files }: { files: GeneratedFile[] }) {
           href={api.generatedFileUrl(f.fileId)}
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-white px-3 py-2 text-sm text-brand-dark hover:bg-brand-surface/50"
+          className="flex items-center gap-2 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-3 py-2 text-sm text-brand-dark dark:text-zinc-100 hover:bg-brand-surface/50 dark:hover:bg-zinc-800/60"
         >
           <Download size={16} className="shrink-0 text-brand-orange" />
           <span className="truncate">{f.filename}</span>
-          <span className="shrink-0 text-xs text-brand-dark/40">{formatSize(f.sizeBytes)}</span>
+          <span className="shrink-0 text-xs text-brand-dark/40 dark:text-zinc-500">{formatSize(f.sizeBytes)}</span>
         </a>
       ))}
     </div>
@@ -457,6 +464,9 @@ function GeneratedFileList({ files }: { files: GeneratedFile[] }) {
 }
 
 function friendlyErrorMessage(raw: string): string {
+  if (raw === 'stream_interrupted') {
+    return 'Połączenie zostało przerwane w trakcie generowania odpowiedzi. Ponawiam próbę…';
+  }
   if (/429/.test(raw)) return 'Zbyt wiele żądań w krótkim czasie. Odczekaj chwilę i spróbuj ponownie.';
   if (/^Request failed: 5\d\d/.test(raw) || /500/.test(raw)) {
     return 'Wystąpił błąd serwera. Spróbuj ponownie za chwilę.';
@@ -464,16 +474,41 @@ function friendlyErrorMessage(raw: string): string {
   return raw || 'Coś poszło nie tak. Spróbuj ponownie.';
 }
 
+/** 429/5xx/dropped-stream are transient — worth an auto-retry with backoff; other errors (4xx, network) are not. */
+function isRetryableError(raw: string): boolean {
+  return raw === 'stream_interrupted' || /429/.test(raw) || /^Request failed: 5\d\d/.test(raw) || /500/.test(raw);
+}
+
+const RETRY_BACKOFF_MS = [1000, 3000, 8000];
+
+const MODEL_LABELS: Record<string, string> = {
+  'claude-sonnet-5': 'Claude Sonnet 5',
+  'claude-opus-5': 'Claude Opus 5',
+  'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
+};
+
+function modelLabel(model: string) {
+  return MODEL_LABELS[model] || model;
+}
+
 function ConversationSettingsBar({
   systemPrompt,
   onChangeSystemPrompt,
   onExport,
   onOpenSidebar,
+  availableModels,
+  selectedModel,
+  onChangeModel,
+  hasGlobalPrompt,
 }: {
   systemPrompt: string;
   onChangeSystemPrompt: (prompt: string) => void;
   onExport: () => void;
   onOpenSidebar: () => void;
+  availableModels: string[];
+  selectedModel: string;
+  onChangeModel: (model: string) => void;
+  hasGlobalPrompt: boolean;
 }) {
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [draft, setDraft] = useState(systemPrompt);
@@ -481,27 +516,51 @@ function ConversationSettingsBar({
   useEffect(() => setDraft(systemPrompt), [systemPrompt]);
 
   return (
-    <div className="rounded-t-2xl border-b border-brand-border bg-brand-white px-3 py-2 sm:px-6">
+    <div className="rounded-t-2xl border-b border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-3 py-2 sm:px-6">
       <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-3 text-sm">
         <button
           onClick={onOpenSidebar}
           aria-label="Otwórz listę rozmów"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-brand-dark/60 hover:bg-brand-surface/60 md:hidden"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 md:hidden"
         >
           <Menu size={18} />
         </button>
-        <div className="flex items-center gap-1.5 text-brand-dark/60">
-          Pracujesz na modelu <span className="font-medium text-brand-dark">Claude Sonnet 5</span>
+        <div className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400">
+          Model:
+          <select
+            value={selectedModel}
+            onChange={(e) => onChangeModel(e.target.value)}
+            className="rounded-md border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2 py-1 text-sm font-medium text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
+          >
+            {availableModels.length === 0 && <option value={selectedModel}>{modelLabel(selectedModel)}</option>}
+            {availableModels.map((m) => (
+              <option key={m} value={m}>
+                {modelLabel(m)}
+              </option>
+            ))}
+          </select>
         </div>
         <button
           onClick={() => setShowPromptEditor((v) => !v)}
-          className="text-brand-dark/60 underline decoration-dotted hover:text-brand-dark"
+          className="text-brand-dark/60 dark:text-zinc-400 underline decoration-dotted hover:text-brand-dark dark:hover:text-zinc-100"
         >
-          {systemPrompt ? 'Edytuj prompt systemowy' : 'Dodaj prompt systemowy'}
+          {systemPrompt ? 'Edytuj prompt systemowy (tej rozmowy)' : 'Dodaj prompt systemowy (tej rozmowy)'}
         </button>
+        <a
+          href="/settings"
+          title="Globalny kontekst z Ustawień obowiązuje we wszystkich rozmowach, a prompt tej rozmowy jest do niego dodawany."
+          className={clsx(
+            'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
+            hasGlobalPrompt
+              ? 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20'
+              : 'text-brand-dark/40 dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
+          )}
+        >
+          {hasGlobalPrompt ? 'Globalny kontekst: aktywny' : 'Globalny kontekst: brak'}
+        </a>
         <button
           onClick={onExport}
-          className="ml-auto flex items-center gap-1.5 text-brand-dark/60 hover:text-brand-dark"
+          className="ml-auto flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
         >
           <Download size={14} />
           Eksportuj
@@ -514,12 +573,12 @@ function ConversationSettingsBar({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             placeholder="Opcjonalne instrukcje systemowe dla tej rozmowy…"
-            className="w-full resize-none rounded-lg border border-brand-border px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-orange"
+            className="w-full resize-none rounded-lg border border-brand-border dark:border-zinc-700 px-3 py-2 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
           />
           <div className="mt-1 flex justify-end gap-2">
             <button
               onClick={() => setShowPromptEditor(false)}
-              className="rounded-md px-3 py-1 text-xs text-brand-dark/60 hover:bg-brand-surface/60"
+              className="rounded-md px-3 py-1 text-xs text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
             >
               Anuluj
             </button>
@@ -549,9 +608,12 @@ function ChatView() {
   const [sending, setSending] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
   const [editingDraft, setEditingDraft] = useState('');
   const [openArtifactId, setOpenArtifactId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const lastRequestRef = useRef<((handlers: import('@/lib/api').StreamHandlers, signal: AbortSignal) => Promise<void>) | null>(null);
   const [blockedNotice, setBlockedNotice] = useState<{
     level: 'żółta' | 'czerwona';
     reply: string;
@@ -562,6 +624,8 @@ function ChatView() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);
   const [draftEstimate, setDraftEstimate] = useState<{ inputTokens: number; estimatedCostUsd: number } | null>(null);
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [hasGlobalPrompt, setHasGlobalPrompt] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -586,6 +650,8 @@ function ChatView() {
       setConversationId(initial.id);
       setMessages(await api.listMessages(initial.id));
     })();
+    api.availableModels().then(({ models }) => setAvailableModels(models));
+    api.me().then((me) => setHasGlobalPrompt(!!me.defaultSystemPrompt)).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -669,6 +735,16 @@ function ChatView() {
     }
   }
 
+  async function handleChangeModel(model: string) {
+    if (conversationId === null) return;
+    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, model } : c)));
+    try {
+      await api.updateConversationSettings(conversationId, { model });
+    } catch {
+      setErrorMessage('Nie udało się zmienić modelu.');
+    }
+  }
+
   async function handleExportConversation() {
     if (conversationId === null) return;
     try {
@@ -713,18 +789,26 @@ function ChatView() {
    * grow `streamingText` as chunks arrive, then refetch the authoritative
    * message list once the stream ends (normally or via Stop).
    */
-  async function runStream(startRequest: (handlers: import('@/lib/api').StreamHandlers, signal: AbortSignal) => Promise<void>) {
+  async function runStream(
+    startRequest: (handlers: import('@/lib/api').StreamHandlers, signal: AbortSignal) => Promise<void>,
+    retryCount = 0,
+  ) {
     if (conversationId === null) return;
+    lastRequestRef.current = startRequest;
     const controller = new AbortController();
     abortControllerRef.current = controller;
     setSending(true);
     setStreamingText('');
     setErrorMessage(null);
+    let rawError: string | null = null;
     try {
       await startRequest(
         {
           onDelta: (text) => setStreamingText((prev) => prev + text),
-          onError: (message) => setErrorMessage(friendlyErrorMessage(message)),
+          onError: (message) => {
+            rawError = message;
+            setErrorMessage(friendlyErrorMessage(message));
+          },
         },
         controller.signal,
       );
@@ -732,8 +816,10 @@ function ChatView() {
       if (err instanceof DOMException && err.name === 'AbortError') {
         // user-initiated stop, not an error
       } else if (err instanceof ApiError) {
+        rawError = err.message;
         setErrorMessage(friendlyErrorMessage(err.message));
       } else {
+        rawError = 'network';
         setErrorMessage('Nie udało się połączyć z serwerem. Sprawdź połączenie z internetem i spróbuj ponownie.');
       }
     } finally {
@@ -752,11 +838,29 @@ function ChatView() {
       setSending(false);
       setStreamingText('');
       abortControllerRef.current = null;
+
+      // Transient errors (429/5xx/network) get a couple of automatic
+      // backoff retries before we hand it to the user as a manual retry.
+      const shouldAutoRetry =
+        !controller.signal.aborted &&
+        rawError &&
+        (rawError === 'network' || isRetryableError(rawError)) &&
+        retryCount < RETRY_BACKOFF_MS.length;
+      if (shouldAutoRetry) {
+        setRetrying(true);
+        await new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFF_MS[retryCount]));
+        setRetrying(false);
+        await runStream(startRequest, retryCount + 1);
+      }
     }
   }
 
   function handleStop() {
     abortControllerRef.current?.abort();
+  }
+
+  function handleRetry() {
+    if (lastRequestRef.current) runStream(lastRequestRef.current);
   }
 
   /** Actually submits the turn — called once the message has cleared classification (or the user confirmed anyway). */
@@ -825,6 +929,12 @@ function ChatView() {
     await runStream((handlers, signal) => api.regenerateMessageStream(conversationId, assistantMessageId, handlers, signal));
   }
 
+  async function handleCopy(message: ChatMessage) {
+    await navigator.clipboard.writeText(message.content);
+    setCopiedMessageId(message.id);
+    setTimeout(() => setCopiedMessageId((prev) => (prev === message.id ? null : prev)), 1500);
+  }
+
   /** Branches the conversation from a given message into a new, independent conversation. */
   async function handleBranch(messageId: number) {
     if (conversationId === null) return;
@@ -858,18 +968,33 @@ function ChatView() {
   }
 
   return (
-    <div className="flex h-screen flex-col gap-3 bg-brand-surface p-3">
+    <div className="flex h-screen flex-col gap-3 bg-brand-surface dark:bg-zinc-950 p-3">
       <BrandHeader />
       {errorMessage && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700">
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-6 py-2.5 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
           <span>{errorMessage}</span>
-          <button
-            onClick={() => setErrorMessage(null)}
-            aria-label="Zamknij komunikat błędu"
-            className="shrink-0 text-red-700/60 hover:text-red-700"
-          >
-            <X size={16} />
-          </button>
+          <div className="flex shrink-0 items-center gap-3">
+            {lastRequestRef.current && !sending && (
+              <button
+                onClick={handleRetry}
+                className="rounded-md border border-red-300 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-100 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/40"
+              >
+                Spróbuj ponownie
+              </button>
+            )}
+            <button
+              onClick={() => setErrorMessage(null)}
+              aria-label="Zamknij komunikat błędu"
+              className="text-red-700/60 hover:text-red-700 dark:text-red-400/70 dark:hover:text-red-300"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+      {retrying && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-6 py-2 text-sm text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-300">
+          Ponawiam próbę…
         </div>
       )}
       <div className="flex flex-1 gap-3 overflow-hidden">
@@ -883,19 +1008,48 @@ function ChatView() {
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
         />
-        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border bg-brand-white shadow-soft">
+        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
           <ConversationSettingsBar
             systemPrompt={conversations.find((c) => c.id === conversationId)?.systemPrompt || ''}
             onChangeSystemPrompt={handleChangeSystemPrompt}
             onExport={handleExportConversation}
             onOpenSidebar={() => setSidebarOpen(true)}
+            availableModels={availableModels}
+            selectedModel={conversations.find((c) => c.id === conversationId)?.model || 'claude-sonnet-5'}
+            onChangeModel={handleChangeModel}
+            hasGlobalPrompt={hasGlobalPrompt}
           />
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-3xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
               {messages.length === 0 && !sending && (
-                <p className="mt-16 text-center text-brand-dark/50">
-                  Napisz wiadomość albo spróbuj <span className="font-mono">/pomoc</span>.
-                </p>
+                <div className="mt-12 flex flex-col items-center gap-6 text-center">
+                  <div>
+                    <p className="text-brand-dark/70 dark:text-zinc-300">
+                      Nowa rozmowa. Napisz wiadomość, wybierz przykładowy prompt
+                      albo spróbuj <span className="font-mono">/pomoc</span>.
+                    </p>
+                    <p className="mt-1 text-sm text-brand-dark/45 dark:text-zinc-500">
+                      Możesz też załączyć plik (📎), poprosić o gotowy dokument
+                      (artefakt otworzy się w panelu obok) albo użyć gotowej
+                      slash-komendy, np. <span className="font-mono">/brief-kreatywny</span>.
+                    </p>
+                  </div>
+                  <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
+                    {EXAMPLE_PROMPTS.map((example) => (
+                      <button
+                        key={example}
+                        type="button"
+                        onClick={() => {
+                          setDraft(example);
+                          textareaRef.current?.focus();
+                        }}
+                        className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-800 px-4 py-3 text-left text-sm text-brand-dark/80 dark:text-zinc-200 shadow-soft transition hover:border-brand-primary/60 hover:bg-brand-primary/5 dark:hover:bg-zinc-700"
+                      >
+                        {example}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {messages.map((m, i) => {
                 const isLast = i === messages.length - 1;
@@ -910,18 +1064,18 @@ function ChatView() {
                       </div>
                     )}
                     {isEditing ? (
-                      <div className="w-full max-w-[75%] rounded-2xl border border-brand-orange/50 bg-brand-white p-3">
+                      <div className="w-full max-w-[75%] rounded-2xl border border-brand-orange/50 bg-brand-white dark:bg-zinc-900 p-3">
                         <textarea
                           autoFocus
                           rows={3}
-                          className="w-full resize-none bg-transparent text-brand-dark focus:outline-none"
+                          className="w-full resize-none bg-transparent text-brand-dark dark:text-zinc-100 focus:outline-none"
                           value={editingDraft}
                           onChange={(e) => setEditingDraft(e.target.value)}
                         />
                         <div className="mt-2 flex justify-end gap-2">
                           <button
                             onClick={handleCancelEdit}
-                            className="rounded-md px-3 py-1.5 text-sm text-brand-dark/60 hover:bg-brand-surface/60"
+                            className="rounded-md px-3 py-1.5 text-sm text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
                           >
                             Anuluj
                           </button>
@@ -943,10 +1097,10 @@ function ChatView() {
                       m.content && (
                         <div
                           className={clsx(
-                            'prose prose-sm max-w-[75%] leading-relaxed',
+                            'prose prose-sm dark:prose-invert max-w-[75%] leading-relaxed',
                             m.role === 'user'
-                              ? 'rounded-2xl bg-brand-orange/10 px-4 py-2.5 text-brand-dark'
-                              : 'max-w-full text-brand-dark',
+                              ? 'rounded-2xl bg-brand-orange/10 px-4 py-2.5 text-brand-dark dark:text-zinc-100'
+                              : 'max-w-full text-brand-dark dark:text-zinc-100',
                           )}
                         >
                           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{m.content}</ReactMarkdown>
@@ -965,17 +1119,27 @@ function ChatView() {
                           <button
                             onClick={() => handleStartEdit(m)}
                             aria-label="Edytuj wiadomość"
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 hover:bg-brand-surface/60 hover:text-brand-dark"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                           >
                             <Pencil size={12} />
                             Edytuj
+                          </button>
+                        )}
+                        {m.role === 'assistant' && m.content && !m.commandUsed && (
+                          <button
+                            onClick={() => handleCopy(m)}
+                            aria-label="Kopiuj odpowiedź"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                          >
+                            {copiedMessageId === m.id ? <Check size={12} /> : <Copy size={12} />}
+                            {copiedMessageId === m.id ? 'Skopiowano' : 'Kopiuj'}
                           </button>
                         )}
                         {m.role === 'assistant' && isLast && !m.commandUsed && (
                           <button
                             onClick={() => handleRegenerate(m.id)}
                             aria-label="Regeneruj odpowiedź"
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 hover:bg-brand-surface/60 hover:text-brand-dark"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                           >
                             <RefreshCw size={12} />
                             Regeneruj
@@ -984,7 +1148,7 @@ function ChatView() {
                         <button
                           onClick={() => handleBranch(m.id)}
                           aria-label="Rozgałęź rozmowę od tego miejsca"
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 hover:bg-brand-surface/60 hover:text-brand-dark"
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                         >
                           <GitBranch size={12} />
                           Rozgałęź
@@ -995,11 +1159,11 @@ function ChatView() {
                 );
               })}
               {sending && (
-                <div className="prose prose-sm max-w-full leading-relaxed text-brand-dark">
+                <div className="prose prose-sm dark:prose-invert max-w-full leading-relaxed text-brand-dark dark:text-zinc-100">
                   {streamingText ? (
                     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{streamingText}</ReactMarkdown>
                   ) : (
-                    <div className="flex items-center gap-2 text-brand-dark/50">
+                    <div className="flex items-center gap-2 text-brand-dark/50 dark:text-zinc-400">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-orange" />
                       Asystent pisze…
                     </div>
@@ -1012,23 +1176,29 @@ function ChatView() {
           <div className="border-t border-brand-orange/20 bg-brand-orange/10 px-3 py-3 sm:px-6 sm:py-4">
             <div className="mx-auto max-w-3xl">
               {fileError && <p className="mb-2 text-sm text-brand-orange">{fileError}</p>}
+              {classifying && (
+                <div className="mb-2 flex items-center gap-2 text-xs text-brand-dark/50 dark:text-zinc-400">
+                  <Loader2 size={12} className="animate-spin" />
+                  Sprawdzam wiadomość pod kątem danych wrażliwych…
+                </div>
+              )}
               {pendingFiles.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-2">
                   {pendingFiles.map((f, i) => (
                     <div
                       key={`${f.name}-${i}`}
-                      className="flex items-center gap-2 rounded-lg border border-brand-border bg-brand-white px-2.5 py-1.5 text-xs text-brand-dark"
+                      className="flex items-center gap-2 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-brand-dark dark:text-zinc-100"
                     >
                       <span className="max-w-[160px] truncate">{f.name}</span>
-                      <span className="text-brand-dark/40">{formatSize(f.size)}</span>
-                      <button onClick={() => removePendingFile(i)} aria-label="Usuń plik" className="text-brand-dark/40 hover:text-brand-orange">
+                      <span className="text-brand-dark/40 dark:text-zinc-500">{formatSize(f.size)}</span>
+                      <button onClick={() => removePendingFile(i)} aria-label="Usuń plik" className="text-brand-dark/40 dark:text-zinc-500 hover:text-brand-orange">
                         <X size={14} />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="flex items-end gap-2 rounded-3xl border border-brand-border bg-brand-white px-4 py-2.5 shadow-sm focus-within:border-brand-orange/60">
+              <div className="flex items-end gap-2 rounded-3xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2.5 shadow-sm focus-within:border-brand-orange/60">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1042,14 +1212,14 @@ function ChatView() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   aria-label="Załącz plik"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-brand-dark/60 hover:bg-brand-surface/60 hover:text-brand-dark"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                 >
                   <Paperclip size={18} />
                 </button>
                 <textarea
                   ref={textareaRef}
                   rows={1}
-                  className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-brand-dark placeholder:text-brand-dark/40 focus:outline-none"
+                  className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-brand-dark dark:text-zinc-100 placeholder:text-brand-dark/40 dark:placeholder:text-zinc-500 focus:outline-none"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
@@ -1075,12 +1245,12 @@ function ChatView() {
                     aria-label="Wyślij"
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange text-brand-white transition hover:brightness-95 disabled:opacity-30"
                   >
-                    <ArrowUp size={18} />
+                    {classifying ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
                   </button>
                 )}
               </div>
               {draftEstimate && draftEstimate.inputTokens > 0 && (
-                <p className="mt-1.5 text-right text-xs text-brand-dark/40">
+                <p className="mt-1.5 text-right text-xs text-brand-dark/40 dark:text-zinc-500">
                   ~{draftEstimate.inputTokens.toLocaleString('pl-PL')} tok. wejściowych · ~$
                   {draftEstimate.estimatedCostUsd.toFixed(4)} (bez odpowiedzi)
                 </p>
@@ -1091,19 +1261,19 @@ function ChatView() {
         {openArtifactId !== null && <ArtifactPanel artifactId={openArtifactId} onClose={() => setOpenArtifactId(null)} />}
         {blockedNotice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-2xl bg-brand-white p-6 shadow-xl">
-              <h2 className="text-base font-semibold text-brand-dark">
+            <div className="w-full max-w-md rounded-2xl bg-brand-white dark:bg-zinc-900 p-6 shadow-xl">
+              <h2 className="text-base font-semibold text-brand-dark dark:text-zinc-100">
                 Wiadomość zablokowana — poziom {blockedNotice.level === 'czerwona' ? 'czerwony' : 'żółty'}
               </h2>
-              <p className="mt-2 text-sm text-brand-dark/70">{blockedNotice.reply}</p>
-              <p className="mt-3 text-xs text-brand-dark/50">
+              <p className="mt-2 text-sm text-brand-dark/70 dark:text-zinc-300">{blockedNotice.reply}</p>
+              <p className="mt-3 text-xs text-brand-dark/50 dark:text-zinc-400">
                 Wysłanie mimo blokady jest świadomym wyjątkiem od polityki bezpieczeństwa danych — zostanie odnotowane w dzienniku audytowym.
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button
                   onClick={() => setBlockedNotice(null)}
                   disabled={overriding}
-                  className="rounded-full border border-brand-dark/20 px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 disabled:opacity-50"
+                  className="rounded-full border border-brand-dark/20 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-brand-dark dark:text-zinc-100 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 disabled:opacity-50"
                 >
                   Anuluj / edytuj
                 </button>

@@ -5,6 +5,7 @@ import typography from '@tailwindcss/typography';
 // and the shared brand-book (colors confirmed on real reference files).
 // Orange is the ONLY strong accent; use it sparingly, not everywhere.
 const config: Config = {
+  darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
   theme: {
     extend: {

@@ -60,9 +60,9 @@ function MemorySection() {
   }
 
   return (
-    <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5">
+    <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="mb-2 flex items-center justify-between">
-        <div className="flex items-center gap-2 font-semibold text-brand-dark">
+        <div className="flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
           <Brain size={18} className="text-brand-orange" />
           Co asystent o Tobie pamięta
         </div>
@@ -76,29 +76,29 @@ function MemorySection() {
           </button>
         )}
       </div>
-      <p className="mb-4 text-sm text-brand-dark/60">
+      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">
         Asystent może zapisywać sobie trwałe notatki (preferencje, ustalenia), które pamięta w kolejnych rozmowach.
         Widoczne są tylko dla Ciebie — możesz je w każdej chwili przejrzeć lub usunąć.
       </p>
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+      {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {files === null ? (
-        <p className="text-sm text-brand-dark/50">Ładowanie…</p>
+        <p className="text-sm text-brand-dark/50 dark:text-zinc-400">Ładowanie…</p>
       ) : files.length === 0 ? (
-        <p className="text-sm text-brand-dark/50">Asystent nic jeszcze o Tobie nie zapamiętał.</p>
+        <p className="text-sm text-brand-dark/50 dark:text-zinc-400">Asystent nic jeszcze o Tobie nie zapamiętał.</p>
       ) : (
-        <ul className="divide-y divide-brand-border/60">
+        <ul className="divide-y divide-brand-border/60 dark:divide-zinc-700">
           {files.map((f) => (
             <li key={f.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0 flex-1">
-                <div className="truncate font-mono text-brand-dark">{f.path}</div>
-                <div className="text-xs text-brand-dark/40">
+                <div className="truncate font-mono text-brand-dark dark:text-zinc-100">{f.path}</div>
+                <div className="text-xs text-brand-dark/40 dark:text-zinc-500">
                   {formatSize(f.size_bytes)} · zaktualizowano {new Date(f.updated_at).toLocaleDateString('pl-PL')}
                 </div>
               </div>
               <button
                 onClick={() => handleDeleteFile(f.id)}
                 aria-label={`Usuń wpis ${f.path}`}
-                className="shrink-0 text-brand-dark/40 hover:text-red-600"
+                className="shrink-0 text-brand-dark/40 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400"
               >
                 <Trash2 size={16} />
               </button>
@@ -144,18 +144,18 @@ function DefaultSystemPromptSection() {
   }
 
   return (
-    <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5">
-      <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark">
+    <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+      <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
         <MessageSquareText size={18} className="text-brand-orange" />
         Domyślny kontekst dla asystenta
       </div>
-      <p className="mb-4 text-sm text-brand-dark/60">
+      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">
         Opisz kim jesteś i jak asystent ma Ci odpowiadać (np. rola, branża, styl odpowiedzi). Ten kontekst będzie
         automatycznie dołączany do każdej Twojej rozmowy — a w danej rozmowie możesz go dodatkowo uzupełnić przez
         &quot;Dodaj prompt systemowy&quot;.
       </p>
       {!loaded ? (
-        <p className="text-sm text-brand-dark/50">Ładowanie…</p>
+        <p className="text-sm text-brand-dark/50 dark:text-zinc-400">Ładowanie…</p>
       ) : (
         <>
           <textarea
@@ -163,9 +163,9 @@ function DefaultSystemPromptSection() {
             onChange={(e) => setValue(e.target.value)}
             rows={5}
             placeholder="Np. Jestem specjalistą ds. kampanii Meta Ads dla klientów e-commerce. Odpowiadaj konkretnie, z liczbami, po polsku."
-            className="mb-3 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-orange"
+            className="mb-3 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-orange dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
           />
-          {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+          {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex items-center gap-3">
             <button
               onClick={handleSave}
@@ -174,7 +174,7 @@ function DefaultSystemPromptSection() {
             >
               {saving ? 'Zapisywanie…' : 'Zapisz'}
             </button>
-            {savedAt && !saving && <span className="text-sm text-brand-dark/50">Zapisano.</span>}
+            {savedAt && !saving && <span className="text-sm text-brand-dark/50 dark:text-zinc-400">Zapisano.</span>}
           </div>
         </>
       )}
@@ -204,33 +204,33 @@ function SettingsView() {
   }
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col bg-brand-white dark:bg-zinc-950">
       <BrandHeader />
       <div className="mx-auto w-full max-w-xl px-6 py-10">
-        <h1 className="mb-1 text-xl font-bold text-brand-dark">Ustawienia konta</h1>
-        <p className="mb-8 text-sm text-brand-dark/60">Zalogowano jako {user?.email}</p>
+        <h1 className="mb-1 text-xl font-bold text-brand-dark dark:text-zinc-100">Ustawienia konta</h1>
+        <p className="mb-8 text-sm text-brand-dark/60 dark:text-zinc-400">Zalogowano jako {user?.email}</p>
 
         <DefaultSystemPromptSection />
         <MemorySection />
 
-        <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5">
-          <div className="mb-2 flex items-center gap-2 font-semibold text-red-700">
+        <div className="mt-8 rounded-xl border border-red-200 bg-red-50 p-5 dark:border-red-900/50 dark:bg-red-950/30">
+          <div className="mb-2 flex items-center gap-2 font-semibold text-red-700 dark:text-red-400">
             <AlertTriangle size={18} />
             Usuń konto i wszystkie dane
           </div>
-          <p className="mb-4 text-sm text-red-700/90">
+          <p className="mb-4 text-sm text-red-700/90 dark:text-red-400/90">
             Ta operacja trwale usunie Twoje konto, wszystkie rozmowy, wiadomości i załączniki. Tej operacji nie
             można cofnąć.
           </p>
-          <label className="mb-1 block text-sm text-red-700/90">
+          <label className="mb-1 block text-sm text-red-700/90 dark:text-red-400/90">
             Wpisz <span className="font-mono font-semibold">{CONFIRM_PHRASE}</span>, aby potwierdzić:
           </label>
           <input
             value={confirmText}
             onChange={(e) => setConfirmText(e.target.value)}
-            className="mb-3 w-full rounded-lg border border-red-300 bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-red-500"
+            className="mb-3 w-full rounded-lg border border-red-300 bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-red-500 dark:border-red-900/50 dark:bg-zinc-900 dark:text-zinc-100"
           />
-          {error && <p className="mb-3 text-sm text-red-700">{error}</p>}
+          {error && <p className="mb-3 text-sm text-red-700 dark:text-red-400">{error}</p>}
           <button
             onClick={handleDelete}
             disabled={confirmText !== CONFIRM_PHRASE || deleting}
