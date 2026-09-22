@@ -69,7 +69,7 @@ export default function CodePage() {
                       <Download size={15} className="shrink-0 text-brand-orange" />
                       <span className="truncate">{f.filename}</span>
                     </a>
-                    <div className="mt-0.5 truncate text-xs text-brand-dark/50">
+                    <div className="mt-0.5 truncate text-xs text-brand-muted">
                       <Link href={`/chat?conversation=${f.conversationId}`} className="hover:text-brand-orange hover:underline">
                         {f.conversationTitle?.trim() || `Rozmowa #${f.conversationId}`}
                       </Link>
@@ -77,7 +77,7 @@ export default function CodePage() {
                       {formatDate(f.createdAt)}
                     </div>
                   </div>
-                  <span className="shrink-0 text-xs text-brand-dark/40">{formatSize(f.sizeBytes)}</span>
+                  <span className="shrink-0 text-xs text-brand-muted">{formatSize(f.sizeBytes)}</span>
                 </li>
               ))}
             </ul>

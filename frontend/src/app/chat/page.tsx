@@ -114,7 +114,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
           <FileOutput size={16} className="text-brand-orange" />
           {artifact?.title ?? '…'}
         </div>
-        <button onClick={onClose} aria-label="Zamknij artefakt" className="text-brand-dark/50 dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100">
+        <button onClick={onClose} aria-label="Zamknij artefakt" className="text-brand-muted dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100">
           <X size={18} />
         </button>
       </div>
@@ -126,7 +126,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
               onClick={() => setTab('preview')}
               className={clsx(
                 'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-                tab === 'preview' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
+                tab === 'preview' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
               )}
             >
               <Eye size={13} /> Podgląd
@@ -136,7 +136,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
             onClick={() => setTab('source')}
             className={clsx(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-              tab === 'source' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
+              tab === 'source' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
             )}
           >
             <Code2 size={13} /> {artifact.type === 'html' ? 'Markdown' : 'Treść'}
@@ -145,7 +145,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
             onClick={() => setTab('edit')}
             className={clsx(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-              tab === 'edit' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
+              tab === 'edit' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
             )}
           >
             <Pencil size={13} /> Edytuj
@@ -169,7 +169,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
 
       <div className="flex flex-1 flex-col overflow-y-auto px-5 py-4">
         {!artifact ? (
-          <div className="text-sm text-brand-dark/50 dark:text-zinc-400">Ładowanie…</div>
+          <div className="text-sm text-brand-muted dark:text-zinc-400">Ładowanie…</div>
         ) : tab === 'edit' ? (
           <textarea
             value={draft}
@@ -225,7 +225,7 @@ function ArtifactCard({ title, onOpen }: { title: string; onOpen: () => void }) 
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold text-brand-dark dark:text-zinc-100">{title}</div>
-        <div className="text-xs text-brand-dark/50 dark:text-zinc-400">Otwórz artefakt</div>
+        <div className="text-xs text-brand-muted dark:text-zinc-400">Otwórz artefakt</div>
       </div>
     </button>
   );
@@ -495,11 +495,11 @@ function ConversationSidebar({
                 )}
                 <span className="truncate">{conversationLabel(c)}</span>
               </button>
-              <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100">
+              <div className="flex shrink-0 gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
                 <button
                   onClick={() => startRename(c)}
                   aria-label="Zmień nazwę rozmowy"
-                  className="rounded p-1 text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white"
+                  className="rounded p-[15px] text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white sm:p-1.5"
                 >
                   <Pencil size={13} />
                 </button>
@@ -508,7 +508,7 @@ function ConversationSidebar({
                     if (window.confirm('Usunąć tę rozmowę? Tej operacji nie można cofnąć.')) onDelete(c.id);
                   }}
                   aria-label="Usuń rozmowę"
-                  className="rounded p-1 text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white"
+                  className="rounded p-[15px] text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white sm:p-1.5"
                 >
                   <Trash2 size={13} />
                 </button>
@@ -541,7 +541,7 @@ function AttachmentChip({ attachment }: { attachment: Attachment }) {
     >
       <FileText size={16} className="shrink-0 opacity-60" />
       <span className="truncate">{attachment.filename}</span>
-      <span className="shrink-0 text-xs text-brand-dark/40 dark:text-zinc-500">{formatSize(attachment.sizeBytes)}</span>
+      <span className="shrink-0 text-xs text-brand-muted dark:text-zinc-500">{formatSize(attachment.sizeBytes)}</span>
     </a>
   );
 }
@@ -581,7 +581,7 @@ function GeneratedFileList({ files }: { files: GeneratedFile[] }) {
         >
           <Download size={16} className="shrink-0 text-brand-orange" />
           <span className="truncate">{f.filename}</span>
-          <span className="shrink-0 text-xs text-brand-dark/40 dark:text-zinc-500">{formatSize(f.sizeBytes)}</span>
+          <span className="shrink-0 text-xs text-brand-muted dark:text-zinc-500">{formatSize(f.sizeBytes)}</span>
         </a>
       ))}
     </div>
@@ -635,7 +635,7 @@ function ThinkingBlock({ text }: { text: string }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-brand-dark/50 dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-300"
+        className="flex items-center gap-1 text-brand-muted dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-300"
       >
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <Brain size={13} />
@@ -690,7 +690,7 @@ function UsageBadge() {
         'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
         pct !== null && pct >= 90
           ? 'bg-red-500/10 text-red-600 dark:bg-red-500/20 dark:text-red-400'
-          : 'text-brand-dark/40 dark:text-zinc-500'
+          : 'text-brand-muted dark:text-zinc-500'
       )}
     >
       <Gauge size={12} />
@@ -828,7 +828,7 @@ function ConversationSettingsBar({
             'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
             extendedThinking
               ? 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20'
-              : 'text-brand-dark/40 dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
+              : 'text-brand-muted dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
           )}
         >
           <Brain size={12} />
@@ -841,7 +841,7 @@ function ConversationSettingsBar({
             'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
             hasGlobalPrompt
               ? 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20'
-              : 'text-brand-dark/40 dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
+              : 'text-brand-muted dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
           )}
         >
           {hasGlobalPrompt ? 'Globalny kontekst: aktywny' : 'Globalny kontekst: brak'}
@@ -1645,7 +1645,7 @@ function ChatView() {
                           <button
                             onClick={() => handleStartEdit(m)}
                             aria-label="Edytuj wiadomość"
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                           >
                             <Pencil size={12} />
                             Edytuj
@@ -1655,7 +1655,7 @@ function ChatView() {
                           <button
                             onClick={() => handleCopy(m)}
                             aria-label="Kopiuj odpowiedź"
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                           >
                             {copiedMessageId === m.id ? <Check size={12} /> : <Copy size={12} />}
                             {copiedMessageId === m.id ? 'Skopiowano' : 'Kopiuj'}
@@ -1665,7 +1665,7 @@ function ChatView() {
                           <button
                             onClick={() => handleExportMessage(m)}
                             aria-label="Eksportuj wiadomość"
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                           >
                             <Download size={12} />
                             Eksportuj
@@ -1675,7 +1675,7 @@ function ChatView() {
                           <button
                             onClick={() => handleRegenerate(m.id)}
                             aria-label="Regeneruj odpowiedź"
-                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                           >
                             <RefreshCw size={12} />
                             Regeneruj
@@ -1684,7 +1684,7 @@ function ChatView() {
                         <button
                           onClick={() => handleBranch(m.id)}
                           aria-label="Rozgałęź rozmowę od tego miejsca"
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-dark/50 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                         >
                           <GitBranch size={12} />
                           Rozgałęź
@@ -1705,7 +1705,7 @@ function ChatView() {
                       />
                     </span>
                   ) : (
-                    <div className="flex items-center gap-2 text-brand-dark/50 dark:text-zinc-400">
+                    <div className="flex items-center gap-2 text-brand-muted dark:text-zinc-400">
                       <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-orange" />
                       Asystent pisze…
                     </div>
@@ -1719,7 +1719,7 @@ function ChatView() {
             <div className="mx-auto max-w-3xl">
               {fileError && <p className="mb-2 text-sm text-brand-orange">{fileError}</p>}
               {classifying && (
-                <div className="mb-2 flex items-center gap-2 text-xs text-brand-dark/50 dark:text-zinc-400">
+                <div className="mb-2 flex items-center gap-2 text-xs text-brand-muted dark:text-zinc-400">
                   <Loader2 size={12} className="animate-spin" />
                   Sprawdzam wiadomość pod kątem danych wrażliwych…
                 </div>
@@ -1732,8 +1732,8 @@ function ChatView() {
                       className="flex items-center gap-2 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-brand-dark dark:text-zinc-100"
                     >
                       <span className="max-w-[160px] truncate">{f.name}</span>
-                      <span className="text-brand-dark/40 dark:text-zinc-500">{formatSize(f.size)}</span>
-                      <button onClick={() => removePendingFile(i)} aria-label="Usuń plik" className="text-brand-dark/40 dark:text-zinc-500 hover:text-brand-orange">
+                      <span className="text-brand-muted dark:text-zinc-500">{formatSize(f.size)}</span>
+                      <button onClick={() => removePendingFile(i)} aria-label="Usuń plik" className="text-brand-muted dark:text-zinc-500 hover:text-brand-orange">
                         <X size={14} />
                       </button>
                     </div>
@@ -1761,7 +1761,7 @@ function ChatView() {
                 <textarea
                   ref={textareaRef}
                   rows={1}
-                  className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-brand-dark dark:text-zinc-100 placeholder:text-brand-dark/40 dark:placeholder:text-zinc-500 focus:outline-none"
+                  className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-brand-dark dark:text-zinc-100 placeholder:text-brand-muted dark:placeholder:text-zinc-500 focus:outline-none"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
@@ -1806,7 +1806,7 @@ function ChatView() {
                 )}
               </div>
               {draftEstimate && draftEstimate.inputTokens > 0 && (
-                <p className="mt-1.5 text-right text-xs text-brand-dark/40 dark:text-zinc-500">
+                <p className="mt-1.5 text-right text-xs text-brand-muted dark:text-zinc-500">
                   ~{draftEstimate.inputTokens.toLocaleString('pl-PL')} tok. wejściowych · ~$
                   {draftEstimate.estimatedCostUsd.toFixed(4)} (bez odpowiedzi)
                 </p>
@@ -1822,7 +1822,7 @@ function ChatView() {
                 Wiadomość zablokowana — poziom {blockedNotice.level === 'czerwona' ? 'czerwony' : 'żółty'}
               </h2>
               <p className="mt-2 text-sm text-brand-dark/70 dark:text-zinc-300">{blockedNotice.reply}</p>
-              <p className="mt-3 text-xs text-brand-dark/50 dark:text-zinc-400">
+              <p className="mt-3 text-xs text-brand-muted dark:text-zinc-400">
                 Wysłanie mimo blokady jest świadomym wyjątkiem od polityki bezpieczeństwa danych — zostanie odnotowane w dzienniku audytowym.
               </p>
               <div className="mt-5 flex justify-end gap-2">

@@ -28,7 +28,7 @@ export default function PublicArtifactPage({ params }: { params: Promise<{ token
         {artifact?.title ?? 'Artefakt'}
       </div>
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {!artifact && !error && <p className="text-sm text-brand-dark/50">Ładowanie…</p>}
+      {!artifact && !error && <p className="text-sm text-brand-muted">Ładowanie…</p>}
       {artifact && (
         <div className="flex flex-1 flex-col rounded-2xl border border-brand-border bg-brand-white p-4 shadow-sm">
           <ArtifactViewer artifact={artifact} />

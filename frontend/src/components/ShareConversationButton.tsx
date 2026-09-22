@@ -114,12 +114,12 @@ export function ShareConversationButton({
             <span className="text-xs font-semibold uppercase tracking-wide text-brand-dark/70 dark:text-zinc-300">
               {t('chat.share')}
             </span>
-            <button onClick={() => setOpen(false)} className="text-brand-dark/50 hover:text-brand-dark dark:text-zinc-400 dark:hover:text-zinc-100">
+            <button onClick={() => setOpen(false)} className="text-brand-muted hover:text-brand-dark dark:text-zinc-400 dark:hover:text-zinc-100">
               <X size={14} />
             </button>
           </div>
           {loading && !shareToken ? (
-            <div className="text-sm text-brand-dark/50 dark:text-zinc-400">{locale === 'pl' ? 'Generowanie linku…' : 'Generating link…'}</div>
+            <div className="text-sm text-brand-muted dark:text-zinc-400">{locale === 'pl' ? 'Generowanie linku…' : 'Generating link…'}</div>
           ) : blockedReason && !shareToken ? (
             <div className="text-sm text-red-600 dark:text-red-400">{blockedReason}</div>
           ) : (

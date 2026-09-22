@@ -39,7 +39,7 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
           <button
             onClick={onClose}
             aria-label={locale === 'pl' ? 'Zamknij' : 'Close'}
-            className="text-brand-dark/50 hover:text-brand-dark dark:text-zinc-400 dark:hover:text-zinc-100"
+            className="text-brand-muted hover:text-brand-dark dark:text-zinc-400 dark:hover:text-zinc-100"
           >
             <X size={18} />
           </button>

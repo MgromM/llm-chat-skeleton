@@ -70,7 +70,7 @@ function KnowledgeBaseSection() {
         </label>
       </div>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -91,7 +91,7 @@ function KnowledgeBaseSection() {
                 <td className="p-3 text-brand-muted dark:text-zinc-400">{doc.uploaded_by_email}</td>
                 <td className="p-3 text-brand-muted dark:text-zinc-400">{new Date(doc.created_at).toLocaleDateString('pl-PL')}</td>
                 <td className="p-3 text-right">
-                  <button onClick={() => handleDelete(doc.id)} aria-label={`Usuń dokument ${doc.title}`} className="text-brand-dark/50 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400" title="Usuń">
+                  <button onClick={() => handleDelete(doc.id)} aria-label={`Usuń dokument ${doc.title}`} className="text-brand-muted dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400" title="Usuń">
                     <Trash2 size={16} />
                   </button>
                 </td>
@@ -201,7 +201,7 @@ function McpConnectorsSection() {
         </div>
       )}
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -235,7 +235,7 @@ function McpConnectorsSection() {
                   </button>
                 </td>
                 <td className="p-3 text-right">
-                  <button onClick={() => handleDelete(c.id)} aria-label={`Usuń konektor ${c.name}`} className="text-brand-dark/50 dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400" title="Usuń">
+                  <button onClick={() => handleDelete(c.id)} aria-label={`Usuń konektor ${c.name}`} className="text-brand-muted dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400" title="Usuń">
                     <Trash2 size={16} />
                   </button>
                 </td>
@@ -572,7 +572,7 @@ function ClientsSection() {
           {creating ? 'Dodawanie…' : 'Dodaj'}
         </button>
       </form>
-      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -664,7 +664,7 @@ function UsersSection() {
         Użytkownicy
       </h2>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -770,7 +770,7 @@ function UsageMetricsTab() {
           <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
           Koszt łączny (30 dni): ${totalCost.toFixed(4)}
         </h2>
-        <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+        <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -801,7 +801,7 @@ function UsageMetricsTab() {
           <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
           Koszt per użytkownik (30 dni)
         </h2>
-        <div className="overflow-hidden rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+        <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">

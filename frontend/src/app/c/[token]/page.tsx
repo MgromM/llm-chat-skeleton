@@ -34,7 +34,7 @@ export default function PublicConversationPage({ params }: { params: Promise<{ t
         {conversation?.title ?? 'Rozmowa'}
       </div>
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {!conversation && !error && <p className="text-sm text-brand-dark/50">Ładowanie…</p>}
+      {!conversation && !error && <p className="text-sm text-brand-muted">Ładowanie…</p>}
       {conversation && (
         <div className="flex flex-1 flex-col gap-6 rounded-2xl border border-brand-border bg-brand-white p-4 shadow-sm sm:p-6">
           {conversation.messages.map((m) => (

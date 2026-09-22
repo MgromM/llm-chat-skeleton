@@ -139,23 +139,23 @@ function MemorySection() {
       </p>
       {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
       {files === null ? (
-        <p className="text-sm text-brand-dark/50 dark:text-zinc-400">Ładowanie…</p>
+        <p className="text-sm text-brand-muted dark:text-zinc-400">Ładowanie…</p>
       ) : files.length === 0 ? (
-        <p className="text-sm text-brand-dark/50 dark:text-zinc-400">Asystent nic jeszcze o Tobie nie zapamiętał.</p>
+        <p className="text-sm text-brand-muted dark:text-zinc-400">Asystent nic jeszcze o Tobie nie zapamiętał.</p>
       ) : (
         <ul className="divide-y divide-brand-border/60 dark:divide-zinc-700">
           {files.map((f) => (
             <li key={f.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div className="min-w-0 flex-1">
                 <div className="truncate font-mono text-brand-dark dark:text-zinc-100">{f.path}</div>
-                <div className="text-xs text-brand-dark/40 dark:text-zinc-500">
+                <div className="text-xs text-brand-muted dark:text-zinc-500">
                   {formatSize(f.size_bytes)} · zaktualizowano {new Date(f.updated_at).toLocaleDateString('pl-PL')}
                 </div>
               </div>
               <button
                 onClick={() => handleDeleteFile(f.id)}
                 aria-label={`Usuń wpis ${f.path}`}
-                className="shrink-0 text-brand-dark/40 hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400"
+                className="shrink-0 text-brand-muted hover:text-red-600 dark:text-zinc-500 dark:hover:text-red-400"
               >
                 <Trash2 size={16} />
               </button>
@@ -212,7 +212,7 @@ function DefaultSystemPromptSection() {
         &quot;Dodaj prompt systemowy&quot;.
       </p>
       {!loaded ? (
-        <p className="text-sm text-brand-dark/50 dark:text-zinc-400">Ładowanie…</p>
+        <p className="text-sm text-brand-muted dark:text-zinc-400">Ładowanie…</p>
       ) : (
         <>
           <textarea
@@ -231,7 +231,7 @@ function DefaultSystemPromptSection() {
             >
               {saving ? 'Zapisywanie…' : 'Zapisz'}
             </button>
-            {savedAt && !saving && <span className="text-sm text-brand-dark/50 dark:text-zinc-400">Zapisano.</span>}
+            {savedAt && !saving && <span className="text-sm text-brand-muted dark:text-zinc-400">Zapisano.</span>}
           </div>
         </>
       )}
