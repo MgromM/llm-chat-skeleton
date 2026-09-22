@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Share2, Check, X } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
@@ -27,6 +27,23 @@ export function ShareConversationButton({
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    function onClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousedown', onClickOutside);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [open]);
 
   async function handleOpen() {
     if (!conversationId) return;
@@ -100,16 +117,22 @@ export function ShareConversationButton({
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         onClick={handleOpen}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
       >
         <Share2 size={14} />
         {t('chat.share')}
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-brand-border bg-brand-white p-3 shadow-soft dark:border-zinc-700 dark:bg-zinc-900">
+        <div
+          role="dialog"
+          aria-label={t('chat.share')}
+          className="absolute right-0 top-full z-20 mt-2 w-72 rounded-xl border border-brand-border bg-brand-white p-3 shadow-soft dark:border-zinc-700 dark:bg-zinc-900"
+        >
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-brand-dark/70 dark:text-zinc-300">
               {t('chat.share')}

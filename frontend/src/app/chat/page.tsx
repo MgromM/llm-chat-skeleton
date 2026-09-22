@@ -14,6 +14,7 @@ import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 import { ArtifactViewer } from '@/components/ArtifactViewer';
 import { ShareConversationButton } from '@/components/ShareConversationButton';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { exportConversationAsPdf } from '@/lib/exportPdf';
 import { useLocale } from '@/lib/LocaleContext';
 
@@ -114,7 +115,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
   }
 
   return (
-    <aside className="fixed inset-0 z-50 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white dark:bg-zinc-900 shadow-soft sm:static sm:z-auto sm:w-[480px]">
+    <aside className="fixed inset-0 z-50 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white dark:bg-zinc-900 shadow-soft sm:static sm:z-auto sm:w-[480px] sm:max-w-[85vw]">
       <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-border dark:border-zinc-700 px-5 py-4">
         <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark dark:text-zinc-100">
           <FileOutput size={16} className="text-brand-orange" />
@@ -294,6 +295,7 @@ function ConversationSidebar({
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Conversation[] | null>(null);
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
@@ -501,7 +503,7 @@ function ConversationSidebar({
                 )}
                 <span className="truncate">{conversationLabel(c)}</span>
               </button>
-              <div className="flex shrink-0 gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
+              <div className="flex shrink-0 gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                 <button
                   onClick={() => startRename(c)}
                   aria-label="Zmień nazwę rozmowy"
@@ -510,9 +512,7 @@ function ConversationSidebar({
                   <Pencil size={13} />
                 </button>
                 <button
-                  onClick={() => {
-                    if (window.confirm('Usunąć tę rozmowę? Tej operacji nie można cofnąć.')) onDelete(c.id);
-                  }}
+                  onClick={() => setDeleteConfirmId(c.id)}
                   aria-label="Usuń rozmowę"
                   className="rounded p-[15px] text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white sm:p-1.5"
                 >
@@ -524,6 +524,18 @@ function ConversationSidebar({
         )}
       </div>
       </aside>
+      {deleteConfirmId !== null && (
+        <ConfirmDialog
+          title="Usuń rozmowę"
+          description="Usunąć tę rozmowę? Tej operacji nie można cofnąć."
+          confirmLabel="Usuń"
+          onConfirm={() => {
+            onDelete(deleteConfirmId);
+            setDeleteConfirmId(null);
+          }}
+          onCancel={() => setDeleteConfirmId(null)}
+        />
+      )}
     </>
   );
 }
@@ -534,7 +546,12 @@ function AttachmentChip({ attachment }: { attachment: Attachment }) {
     return (
       <a href={url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-lg border border-brand-border dark:border-zinc-700">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={attachment.filename} className="max-h-48 w-auto object-cover" />
+        <img
+          src={url}
+          alt={`Załącznik obrazu: ${attachment.filename}`}
+          loading="lazy"
+          className="max-h-48 w-auto object-cover"
+        />
       </a>
     );
   }
@@ -749,6 +766,23 @@ function ConversationSettingsBar({
   const { t } = useLocale();
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!exportOpen) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setExportOpen(false);
+    }
+    function onClickOutside(e: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) setExportOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousedown', onClickOutside);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousedown', onClickOutside);
+    };
+  }, [exportOpen]);
   const [draft, setDraft] = useState(systemPrompt);
 
   useEffect(() => setDraft(systemPrompt), [systemPrompt]);
@@ -853,16 +887,18 @@ function ConversationSettingsBar({
           {hasGlobalPrompt ? 'Globalny kontekst: aktywny' : 'Globalny kontekst: brak'}
         </a>
         <UsageBadge />
-        <div className="relative ml-auto">
+        <div className="relative ml-auto" ref={exportMenuRef}>
           <button
             onClick={() => setExportOpen((v) => !v)}
+            aria-haspopup="menu"
+            aria-expanded={exportOpen}
             className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
           >
             <Download size={14} />
             {t('chat.export')}
           </button>
           {exportOpen && (
-            <div className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-brand-border bg-brand-white p-1 shadow-soft dark:border-zinc-700 dark:bg-zinc-900">
+            <div role="menu" className="absolute right-0 top-full z-20 mt-2 w-44 rounded-xl border border-brand-border bg-brand-white p-1 shadow-soft dark:border-zinc-700 dark:bg-zinc-900">
               <button
                 onClick={() => {
                   setExportOpen(false);
@@ -941,6 +977,16 @@ function ChatView() {
     files: File[];
   } | null>(null);
   const [overriding, setOverriding] = useState(false);
+
+  useEffect(() => {
+    if (!blockedNotice) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setBlockedNotice(null);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [blockedNotice]);
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);
   const [draftEstimate, setDraftEstimate] = useState<{ inputTokens: number; estimatedCostUsd: number } | null>(null);
@@ -1745,7 +1791,7 @@ function ChatView() {
                       key={`${f.name}-${i}`}
                       className="flex items-center gap-2 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2.5 py-1.5 text-xs text-brand-dark dark:text-zinc-100"
                     >
-                      <span className="max-w-[160px] truncate">{f.name}</span>
+                      <span className="max-w-[160px] truncate" title={f.name}>{f.name}</span>
                       <span className="text-brand-muted dark:text-zinc-500">{formatSize(f.size)}</span>
                       <button onClick={() => removePendingFile(i)} aria-label="Usuń plik" className="text-brand-muted dark:text-zinc-500 hover:text-brand-orange">
                         <X size={14} />
@@ -1830,9 +1876,18 @@ function ChatView() {
         </div>
         {openArtifactId !== null && <ArtifactPanel artifactId={openArtifactId} onClose={() => setOpenArtifactId(null)} />}
         {blockedNotice && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-            <div className="w-full max-w-md rounded-2xl bg-brand-white dark:bg-zinc-900 p-6 shadow-xl">
-              <h2 className="text-base font-semibold text-brand-dark dark:text-zinc-100">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+            onClick={() => setBlockedNotice(null)}
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="blocked-notice-title"
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-brand-white dark:bg-zinc-900 p-6 shadow-xl"
+            >
+              <h2 id="blocked-notice-title" className="text-base font-semibold text-brand-dark dark:text-zinc-100">
                 Wiadomość zablokowana — poziom {blockedNotice.level === 'czerwona' ? 'czerwony' : 'żółty'}
               </h2>
               <p className="mt-2 text-sm text-brand-dark/70 dark:text-zinc-300">{blockedNotice.reply}</p>

@@ -539,19 +539,6 @@ export const api = {
   listLeakAlerts: (onlyUnreviewed = true) =>
     apiFetch<LeakAlert[]>(`/metrics/leak-alerts${onlyUnreviewed ? '?reviewed=false' : ''}`),
   reviewLeakAlert: (id: number) => apiFetch<{ ok: true }>(`/metrics/leak-alerts/${id}/review`, { method: 'POST' }),
-  reportIncident: async (payload: { description: string; severity: string; screenshot?: File | null }) => {
-    const form = new FormData();
-    form.append('description', payload.description);
-    form.append('severity', payload.severity);
-    if (payload.screenshot) form.append('screenshot', payload.screenshot);
-    const res = await fetch('/api/incidents', { method: 'POST', headers: authHeaders(), body: form });
-    if (!res.ok) {
-      if (res.status === 401) handleUnauthorized();
-      const body = await res.json().catch(() => ({}));
-      throw new ApiError(body.error ?? `Request failed: ${res.status}`);
-    }
-    return res.json() as Promise<{ id: number; created_at: string }>;
-  },
   incidentScreenshotUrl: (id: number) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return `/api/incidents/${id}/screenshot${token ? `?token=${encodeURIComponent(token)}` : ''}`;

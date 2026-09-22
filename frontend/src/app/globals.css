@@ -14,12 +14,12 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid #f8502c;
+  outline: 2px solid theme('colors.brand.orange');
   outline-offset: 2px;
 }
 
 ::selection {
-  background-color: rgba(248, 80, 44, 0.18);
+  background-color: theme('colors.brand.orange / 18%');
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -33,10 +33,10 @@ body {
   }
 }
 
-/* Thin, unobtrusive scrollbars that still read on white */
+/* Thin, unobtrusive scrollbars that still read on white — and on dark surfaces */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #edecf1 transparent;
+  scrollbar-color: theme('colors.brand.border') transparent;
 }
 
 *::-webkit-scrollbar {
@@ -45,10 +45,22 @@ body {
 }
 
 *::-webkit-scrollbar-thumb {
-  background-color: #ededf1;
+  background-color: theme('colors.brand.border');
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background-color: #dcdce3;
+  background-color: theme('colors.brand.muted / 40%');
+}
+
+.dark * {
+  scrollbar-color: theme('colors.zinc.700') transparent;
+}
+
+.dark *::-webkit-scrollbar-thumb {
+  background-color: theme('colors.zinc.700');
+}
+
+.dark *::-webkit-scrollbar-thumb:hover {
+  background-color: theme('colors.zinc.600');
 }

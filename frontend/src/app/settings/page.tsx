@@ -6,6 +6,7 @@ import { AlertTriangle, Brain, MessageSquareText, Trash2, SunMoon, Languages } f
 import { api, ApiError, type MemoryFile } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAuth } from '@/lib/AuthContext';
 import { useTheme } from '@/lib/ThemeContext';
 import { useLocale, type Locale } from '@/lib/LocaleContext';
@@ -81,6 +82,7 @@ function MemorySection() {
   const [files, setFiles] = useState<MemoryFile[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   async function load() {
     try {
@@ -104,7 +106,6 @@ function MemorySection() {
   }
 
   async function handleClearAll() {
-    if (!window.confirm('Usunąć wszystko, co asystent zapamiętał o Tobie? Tej operacji nie można cofnąć.')) return;
     setClearing(true);
     try {
       await api.clearMemory();
@@ -113,6 +114,7 @@ function MemorySection() {
       setError('Nie udało się wyczyścić pamięci.');
     } finally {
       setClearing(false);
+      setConfirmingClear(false);
     }
   }
 
@@ -125,7 +127,7 @@ function MemorySection() {
         </div>
         {files && files.length > 0 && (
           <button
-            onClick={handleClearAll}
+            onClick={() => setConfirmingClear(true)}
             disabled={clearing}
             className="text-sm font-medium text-red-600 hover:underline disabled:opacity-50"
           >
@@ -133,6 +135,16 @@ function MemorySection() {
           </button>
         )}
       </div>
+      {confirmingClear && (
+        <ConfirmDialog
+          title="Wyczyść pamięć asystenta"
+          description="Usunąć wszystko, co asystent zapamiętał o Tobie? Tej operacji nie można cofnąć."
+          confirmLabel="Usuń wszystko"
+          loading={clearing}
+          onConfirm={handleClearAll}
+          onCancel={() => setConfirmingClear(false)}
+        />
+      )}
       <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">
         Asystent może zapisywać sobie trwałe notatki (preferencje, ustalenia), które pamięta w kolejnych rozmowach.
         Widoczne są tylko dla Ciebie — możesz je w każdej chwili przejrzeć lub usunąć.

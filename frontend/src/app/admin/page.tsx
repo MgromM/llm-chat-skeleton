@@ -23,7 +23,16 @@ import {
 } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useAuth } from '@/lib/AuthContext';
+
+function TableCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      {children}
+    </div>
+  );
+}
 
 function KnowledgeBaseSection() {
   const { data: documents, mutate } = useSWR<KnowledgeDocument[]>('/knowledge/documents', apiFetch);
@@ -48,8 +57,13 @@ function KnowledgeBaseSection() {
   }
 
   async function handleDelete(id: number) {
-    await api.deleteKnowledgeDocument(id);
-    await mutate();
+    setError(null);
+    try {
+      await api.deleteKnowledgeDocument(id);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się usunąć dokumentu');
+    }
   }
 
   return (
@@ -70,7 +84,7 @@ function KnowledgeBaseSection() {
         </label>
       </div>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <TableCard>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -100,7 +114,7 @@ function KnowledgeBaseSection() {
           </tbody>
         </table>
         {(documents ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak dokumentów w bazie wiedzy.</p>}
-      </div>
+      </TableCard>
     </section>
   );
 }
@@ -138,13 +152,23 @@ function McpConnectorsSection() {
   }
 
   async function handleToggle(id: number, enabled: boolean) {
-    await api.setMcpConnectorEnabled(id, enabled);
-    await mutate();
+    setError(null);
+    try {
+      await api.setMcpConnectorEnabled(id, enabled);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się zmienić stanu konektora');
+    }
   }
 
   async function handleDelete(id: number) {
-    await api.deleteMcpConnector(id);
-    await mutate();
+    setError(null);
+    try {
+      await api.deleteMcpConnector(id);
+      await mutate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nie udało się usunąć konektora');
+    }
   }
 
   return (
@@ -201,7 +225,7 @@ function McpConnectorsSection() {
         </div>
       )}
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <TableCard>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -221,7 +245,7 @@ function McpConnectorsSection() {
                     {c.name}
                   </span>
                 </td>
-                <td className="max-w-[280px] truncate p-3 text-brand-muted dark:text-zinc-400">{c.url}</td>
+                <td className="max-w-[280px] truncate p-3 text-brand-muted dark:text-zinc-400" title={c.url}>{c.url}</td>
                 <td className="p-3 text-brand-muted dark:text-zinc-400">{c.has_token ? 'ustawiony' : '—'}</td>
                 <td className="p-3">
                   <button
@@ -244,7 +268,7 @@ function McpConnectorsSection() {
           </tbody>
         </table>
         {(connectors ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak skonfigurowanych konektorów MCP.</p>}
-      </div>
+      </TableCard>
     </section>
   );
 }
@@ -430,11 +454,9 @@ function RetentionSection() {
   const [running, setRunning] = useState(false);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   async function handleRun(dryRun: boolean) {
-    if (!dryRun && !window.confirm('Trwale usunąć wygasłe konwersacje? Tej operacji nie można odwrócić.')) {
-      return;
-    }
     setRunning(true);
     setError(null);
     try {
@@ -449,6 +471,7 @@ function RetentionSection() {
       setError(err instanceof Error ? err.message : 'Nie udało się uruchomić czyszczenia');
     } finally {
       setRunning(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -473,7 +496,7 @@ function RetentionSection() {
             Odśwież podgląd
           </button>
           <button
-            onClick={() => handleRun(false)}
+            onClick={() => setConfirmingDelete(true)}
             disabled={running}
             className="rounded-md border border-red-300 dark:border-red-800 px-3 py-1.5 text-xs font-semibold text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -481,6 +504,16 @@ function RetentionSection() {
           </button>
         </div>
       </div>
+      {confirmingDelete && (
+        <ConfirmDialog
+          title="Trwałe usunięcie konwersacji"
+          description="Trwale usunąć wygasłe konwersacje? Tej operacji nie można odwrócić."
+          confirmLabel="Usuń trwale"
+          loading={running}
+          onConfirm={() => handleRun(false)}
+          onCancel={() => setConfirmingDelete(false)}
+        />
+      )}
     </section>
   );
 }
@@ -557,7 +590,11 @@ function ClientsSection() {
       </h2>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
       <form onSubmit={handleCreate} className="mb-3 flex gap-2">
+        <label htmlFor="new-client-name" className="sr-only">
+          Nazwa zleceniodawcy
+        </label>
         <input
+          id="new-client-name"
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           placeholder="Nazwa zleceniodawcy"
@@ -572,7 +609,7 @@ function ClientsSection() {
           {creating ? 'Dodawanie…' : 'Dodaj'}
         </button>
       </form>
-      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <TableCard>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -605,7 +642,7 @@ function ClientsSection() {
                   <td className="p-3 text-right">
                     <button
                       onClick={() => setExpandedId(expandedId === c.id ? null : c.id)}
-                      className="mr-2 rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:bg-zinc-800"
+                      className="mr-2 rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1.5 text-xs font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:hover:bg-zinc-700"
                     >
                       {expandedId === c.id ? 'Skryj historię' : 'Historia'}
                     </button>
@@ -632,7 +669,7 @@ function ClientsSection() {
           </tbody>
         </table>
         {(clients ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak zleceniodawców.</p>}
-      </div>
+      </TableCard>
     </section>
   );
 }
@@ -664,7 +701,7 @@ function UsersSection() {
         Użytkownicy
       </h2>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+      <TableCard>
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -702,7 +739,7 @@ function UsersSection() {
           </tbody>
         </table>
         {(users ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak użytkowników.</p>}
-      </div>
+      </TableCard>
     </section>
   );
 }
@@ -770,7 +807,7 @@ function UsageMetricsTab() {
           <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
           Koszt łączny (30 dni): ${totalCost.toFixed(4)}
         </h2>
-        <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+        <TableCard>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -793,7 +830,7 @@ function UsageMetricsTab() {
               ))}
             </tbody>
           </table>
-        </div>
+        </TableCard>
       </section>
 
       <section>
@@ -801,7 +838,7 @@ function UsageMetricsTab() {
           <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
           Koszt per użytkownik (30 dni)
         </h2>
-        <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+        <TableCard>
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
@@ -823,7 +860,7 @@ function UsageMetricsTab() {
             </tbody>
           </table>
           {(costsByUser ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak danych.</p>}
-        </div>
+        </TableCard>
       </section>
 
       <section>
@@ -847,14 +884,18 @@ function UsageMetricsTab() {
       <div className="flex gap-3">
         <a
           href="/api/export/xlsx"
-          className="flex items-center gap-1.5 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:bg-zinc-800"
+          download
+          aria-label="Pobierz eksport metryk w formacie XLSX"
+          className="flex items-center gap-1.5 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:hover:bg-zinc-700"
         >
           <Download size={16} />
           Eksport XLSX
         </a>
         <a
           href="/api/export/pptx"
-          className="flex items-center gap-1.5 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:bg-zinc-800"
+          download
+          aria-label="Pobierz eksport metryk w formacie PPTX"
+          className="flex items-center gap-1.5 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2 text-sm font-semibold text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:bg-zinc-800 dark:hover:bg-zinc-700"
         >
           <Download size={16} />
           Eksport PPTX

@@ -37,18 +37,18 @@ export function BrandHeader() {
         <div className="rounded-lg bg-brand-white px-3 py-1.5">
           <Image src="/logo-salesmore.png" alt="Sales&More" width={140} height={23} priority className="h-5 w-auto" />
         </div>
-        <span className="hidden text-sm font-medium text-brand-white/90 sm:inline">LLM</span>
+        <span className="hidden rounded-lg bg-brand-white/95 px-2 py-1 text-sm font-medium text-brand-dark sm:inline">LLM</span>
       </Link>
       {user && (
         <div className="flex items-center gap-3">
-          <span className="hidden text-sm text-brand-white/90 sm:inline">
-            {user.email} <span className="text-brand-white/60">· {user.role}</span>
+          <span className="hidden rounded-lg bg-brand-white/95 px-2.5 py-1 text-sm text-brand-dark sm:inline">
+            {user.email} <span className="text-brand-muted">· {user.role}</span>
           </span>
           <button
             onClick={() => setShortcutsOpen(true)}
             aria-label={t('header.shortcuts')}
             title={t('header.shortcuts')}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
           >
             <Keyboard size={15} />
           </button>
@@ -58,27 +58,27 @@ export function BrandHeader() {
             rel="noopener noreferrer"
             aria-label={t('header.incident')}
             title={t('header.incident')}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
           >
             <AlertTriangle size={15} />
           </a>
           <Link
             href="/code"
             aria-label={t('header.code')}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
           >
             <FileCode2 size={15} />
           </Link>
           <Link
             href="/settings"
             aria-label={t('header.settings')}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+            className="flex h-11 w-11 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
           >
             <Settings size={15} />
           </Link>
           <button
             onClick={logout}
-            className="flex h-9 items-center gap-1.5 rounded-lg border border-brand-white/30 px-3 text-sm font-medium text-brand-white transition hover:bg-brand-white/10"
+            className="flex h-11 items-center gap-1.5 rounded-lg border border-brand-white/30 px-3 text-sm font-medium text-brand-white transition hover:bg-brand-white/10"
           >
             <LogOut size={15} />
             {t('header.logout')}

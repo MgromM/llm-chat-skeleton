@@ -29,11 +29,14 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="shortcuts-modal-title"
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-2xl bg-brand-white p-5 shadow-soft dark:bg-zinc-900"
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-brand-dark dark:text-zinc-100">
+          <h2 id="shortcuts-modal-title" className="text-sm font-semibold uppercase tracking-wide text-brand-dark dark:text-zinc-100">
             {locale === 'pl' ? 'Skróty klawiszowe' : 'Keyboard shortcuts'}
           </h2>
           <button
