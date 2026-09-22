@@ -39,6 +39,8 @@ const ARTIFACT_COMMAND_TITLES: Record<string, string> = {
   '/analiza-konkurencji': 'Analiza konkurencji',
   '/plan-kampanii': 'Plan kampanii',
   '/email-ofertowy': 'E-mail ofertowy',
+  '/podsumowanie-spotkania': 'Podsumowanie spotkania',
+  '/persona-klienta': 'Persona klienta',
 };
 
 function artifactFilename(title: string, type: string) {

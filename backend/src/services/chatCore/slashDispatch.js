@@ -7,6 +7,8 @@ import { pomyslyNaPostyCommand } from './commands/pomyslyNaPosty.js';
 import { analizaKonkurencjiCommand } from './commands/analizaKonkurencji.js';
 import { planKampaniiCommand } from './commands/planKampanii.js';
 import { emailOfertowyCommand } from './commands/emailOfertowy.js';
+import { podsumowanieSpotkaniaCommand } from './commands/podsumowanieSpotkania.js';
+import { personaKlientaCommand } from './commands/personaKlienta.js';
 
 // Central slash-command registry, mirroring the bypass/continue split used in
 // the sister pongo-monorepo project's slash_dispatch.py:
@@ -22,6 +24,8 @@ const COMMANDS = {
   '/analiza-konkurencji': analizaKonkurencjiCommand,
   '/plan-kampanii': planKampaniiCommand,
   '/email-ofertowy': emailOfertowyCommand,
+  '/podsumowanie-spotkania': podsumowanieSpotkaniaCommand,
+  '/persona-klienta': personaKlientaCommand,
 };
 
 // Slash commands whose reply is a full deliverable, materialized as a
@@ -35,6 +39,8 @@ export const ARTIFACT_COMMANDS = {
   '/analiza-konkurencji': 'Analiza konkurencji',
   '/plan-kampanii': 'Plan kampanii',
   '/email-ofertowy': 'E-mail ofertowy',
+  '/podsumowanie-spotkania': 'Podsumowanie spotkania',
+  '/persona-klienta': 'Persona klienta',
 };
 
 export function parseCommand(rawMessage) {
