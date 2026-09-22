@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Share2, Check, X } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 import { useLocale } from '@/lib/LocaleContext';
 
 /**
@@ -14,21 +14,45 @@ import { useLocale } from '@/lib/LocaleContext';
  * conversation always starts this control from "Udostępnij" even if a link
  * was issued earlier; the existing link keeps working either way.
  */
-export function ShareConversationButton({ conversationId }: { conversationId: number | null }) {
+export function ShareConversationButton({
+  conversationId,
+  isTemporary,
+}: {
+  conversationId: number | null;
+  isTemporary?: boolean;
+}) {
   const { t, locale } = useLocale();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [shareToken, setShareToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   async function handleOpen() {
     if (!conversationId) return;
     setOpen(true);
     if (shareToken) return;
+    setBlockedReason(null);
     setLoading(true);
     try {
       const { shareToken: token } = await api.shareConversation(conversationId);
       setShareToken(token);
+    } catch (err) {
+      if (err instanceof ApiError && err.message === 'flagged_conversation_not_shareable') {
+        setBlockedReason(
+          locale === 'pl'
+            ? 'Tej rozmowy nie można udostępnić — została oznaczona przez system wykrywania wycieków danych jako zawierająca treści wrażliwe.'
+            : 'This conversation cannot be shared — it was flagged by the leak-detection system as containing sensitive content.',
+        );
+      } else if (err instanceof ApiError && err.message === 'temporary_conversation_not_shareable') {
+        setBlockedReason(
+          locale === 'pl'
+            ? 'Rozmów incognito/tymczasowych nie można udostępniać publicznym linkiem.'
+            : 'Temporary/incognito conversations cannot be shared via a public link.',
+        );
+      } else {
+        setBlockedReason(locale === 'pl' ? 'Nie udało się utworzyć linku.' : 'Failed to create the share link.');
+      }
     } finally {
       setLoading(false);
     }
@@ -59,6 +83,22 @@ export function ShareConversationButton({ conversationId }: { conversationId: nu
   if (!conversationId) return null;
   const shareUrl = shareToken ? `${window.location.origin}/c/${shareToken}` : '';
 
+  if (isTemporary) {
+    return (
+      <span
+        className="flex items-center gap-1.5 text-brand-dark/30 dark:text-zinc-600"
+        title={
+          locale === 'pl'
+            ? 'Rozmów incognito/tymczasowych nie można udostępniać publicznym linkiem.'
+            : 'Temporary/incognito conversations cannot be shared via a public link.'
+        }
+      >
+        <Share2 size={14} />
+        {t('chat.share')}
+      </span>
+    );
+  }
+
   return (
     <div className="relative">
       <button
@@ -80,6 +120,8 @@ export function ShareConversationButton({ conversationId }: { conversationId: nu
           </div>
           {loading && !shareToken ? (
             <div className="text-sm text-brand-dark/50 dark:text-zinc-400">{locale === 'pl' ? 'Generowanie linku…' : 'Generating link…'}</div>
+          ) : blockedReason && !shareToken ? (
+            <div className="text-sm text-red-600 dark:text-red-400">{blockedReason}</div>
           ) : (
             <>
               <input

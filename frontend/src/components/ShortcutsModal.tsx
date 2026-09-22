@@ -1,18 +1,30 @@
 'use client';
 
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useLocale } from '@/lib/LocaleContext';
 
 const SHORTCUTS: { keys: string; labelPl: string; labelEn: string }[] = [
   { keys: 'Cmd/Ctrl + K', labelPl: 'Otwórz listę rozmów i przejdź do wyszukiwania', labelEn: 'Open the conversation list and jump to search' },
   { keys: 'Cmd/Ctrl + Shift + O', labelPl: 'Nowa rozmowa', labelEn: 'New conversation' },
+  { keys: 'Cmd/Ctrl + B', labelPl: 'Pokaż/ukryj panel boczny', labelEn: 'Toggle the sidebar' },
+  { keys: 'Cmd/Ctrl + /', labelPl: 'Ustaw kursor w polu wiadomości', labelEn: 'Focus the message input' },
   { keys: 'Shift + /', labelPl: 'Pokaż ten panel skrótów', labelEn: 'Show this shortcuts panel' },
+  { keys: 'Esc', labelPl: 'Zamknij panel boczny lub odfokusuj pole', labelEn: 'Close the sidebar or blur the focused field' },
   { keys: 'Enter', labelPl: 'Wyślij wiadomość', labelEn: 'Send message' },
   { keys: 'Shift + Enter', labelPl: 'Nowa linia w wiadomości', labelEn: 'New line in message' },
 ];
 
 export function ShortcutsModal({ onClose }: { onClose: () => void }) {
   const { locale } = useLocale();
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>

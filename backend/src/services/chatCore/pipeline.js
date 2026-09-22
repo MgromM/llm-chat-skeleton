@@ -104,6 +104,40 @@ function stripThinkingBlocks(content) {
   return content.filter((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking');
 }
 
+// Item 20 (docs/tasks/007-ui-ux-braki.md, section D): extended thinking is
+// opt-in per conversation. The Anthropic API requires a minimum
+// `budget_tokens` of 1024 and `max_tokens` strictly greater than
+// `budget_tokens` (the thinking budget is carved out of max_tokens, it
+// doesn't add to it). 4096 is a reasonable default reasoning budget --
+// enough for genuine multi-step reasoning without ballooning latency/cost on
+// every turn -- and max_tokens is doubled to 8192 so the visible answer
+// still has the same ~4096 tokens of room it gets today, on top of the
+// thinking budget. When the flag is off, behavior is completely unchanged
+// (max_tokens: 4096, no `thinking` param).
+const THINKING_BUDGET_TOKENS = 4096;
+const THINKING_MAX_TOKENS = 8192;
+function thinkingCallParams(extendedThinking) {
+  return extendedThinking
+    ? { max_tokens: THINKING_MAX_TOKENS, thinking: { type: 'enabled', budget_tokens: THINKING_BUDGET_TOKENS } }
+    : { max_tokens: 4096 };
+}
+
+/**
+ * Joins every `thinking` block's text off a finished response, so it can be
+ * persisted (`messages.thinking_content`) and shown to the user collapsed
+ * under the answer, the way Claude.ai does. Returns `null` when extended
+ * thinking wasn't on for this turn (no thinking blocks present) so the
+ * column stays NULL for ordinary turns, matching current default behavior.
+ */
+function extractThinkingText(content) {
+  if (!Array.isArray(content)) return null;
+  const text = content
+    .filter((b) => b.type === 'thinking' && typeof b.thinking === 'string')
+    .map((b) => b.thinking)
+    .join('\n\n');
+  return text || null;
+}
+
 /**
  * Runs every `tool_use` block found in a Claude response (not just the
  * first) and returns one `tool_result` block per call, matched by
@@ -194,9 +228,17 @@ async function assertConversationOwner(conversationId, userId) {
   if (rows.length === 0) throw Object.assign(new Error('Conversation not found'), { status: 404 });
 }
 
-export async function saveMessage(conversationId, role, content, commandUsed = null, citations = null, generatedFiles = null) {
+export async function saveMessage(
+  conversationId,
+  role,
+  content,
+  commandUsed = null,
+  citations = null,
+  generatedFiles = null,
+  thinkingContent = null,
+) {
   const { rows } = await query(
-    'INSERT INTO messages (conversation_id, role, content, command_used, citations, generated_files) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+    'INSERT INTO messages (conversation_id, role, content, command_used, citations, generated_files, thinking_content) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
     [
       conversationId,
       role,
@@ -204,6 +246,7 @@ export async function saveMessage(conversationId, role, content, commandUsed = n
       commandUsed,
       citations ? JSON.stringify(citations) : null,
       generatedFiles ? JSON.stringify(generatedFiles) : null,
+      thinkingContent,
     ],
   );
   return rows[0].id;
@@ -598,13 +641,13 @@ async function createChatMessage(client, params) {
   });
 }
 
-async function runToolLoop(client, messages, redaction, userId, { model = CHAT_MODEL, system } = {}) {
+async function runToolLoop(client, messages, redaction, userId, { model = CHAT_MODEL, system, extendedThinking = false } = {}) {
   messages = stripOrphanedToolUses(messages);
   const bashSession = { sandbox: null };
   try {
     let response = await createChatMessage(client, {
       model,
-      max_tokens: 4096,
+      ...thinkingCallParams(extendedThinking),
       tools: TOOLS,
       messages,
       system: systemParam(system),
@@ -617,15 +660,19 @@ async function runToolLoop(client, messages, redaction, userId, { model = CHAT_M
       }
       const toolResults = await runAllToolUses(response.content, redaction, userId, bashSession);
 
+      // Extended thinking requires thinking blocks to be echoed back
+      // unchanged when tool use follows them in the same turn; the default
+      // (non-extended-thinking) path is untouched -- still strips them, same
+      // as before this item.
       messages = stripOrphanedToolUses([
         ...messages,
-        { role: 'assistant', content: stripThinkingBlocks(response.content) },
+        { role: 'assistant', content: extendedThinking ? response.content : stripThinkingBlocks(response.content) },
         { role: 'user', content: toolResults },
       ]);
 
       response = await createChatMessage(client, {
         model,
-        max_tokens: 4096,
+        ...thinkingCallParams(extendedThinking),
         tools: TOOLS,
         messages,
         system: systemParam(system),
@@ -675,6 +722,10 @@ async function streamChatMessage(client, params, onChunk, signal) {
         block._partialJson = (block._partialJson ?? '') + event.delta.partial_json;
       } else if (event.delta.type === 'citations_delta') {
         block.citations = [...(block.citations ?? []), event.delta.citation];
+      } else if (event.delta.type === 'thinking_delta') {
+        block.thinking = (block.thinking ?? '') + event.delta.thinking;
+      } else if (event.delta.type === 'signature_delta') {
+        block.signature = (block.signature ?? '') + event.delta.signature;
       }
     } else if (event.type === 'content_block_stop') {
       const block = blocks[event.index];
@@ -698,7 +749,7 @@ async function streamChatMessage(client, params, onChunk, signal) {
  * calls don't produce user-facing text anyway); the round after the tool
  * result resumes streaming normally.
  */
-async function runToolLoopStreaming(client, messages, redaction, onChunk, signal, userId, { model = CHAT_MODEL, system } = {}) {
+async function runToolLoopStreaming(client, messages, redaction, onChunk, signal, userId, { model = CHAT_MODEL, system, extendedThinking = false } = {}) {
   let fullText = '';
   let usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   let toolRounds = 0;
@@ -716,7 +767,7 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
       try {
         message = await streamChatMessage(
           client,
-          { model, max_tokens: 4096, tools: TOOLS, messages, system: systemParam(system) },
+          { model, ...thinkingCallParams(extendedThinking), tools: TOOLS, messages, system: systemParam(system) },
           (delta) => {
             fullText += delta;
             onChunk(delta);
@@ -744,7 +795,7 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
 
       messages = stripOrphanedToolUses([
         ...messages,
-        { role: 'assistant', content: stripThinkingBlocks(message.content) },
+        { role: 'assistant', content: extendedThinking ? message.content : stripThinkingBlocks(message.content) },
         { role: 'user', content: toolResults },
       ]);
     }
@@ -757,6 +808,7 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
     usage,
     citations: extractCitations(lastContent),
     generatedFiles: await extractGeneratedFiles(client, lastContent),
+    thinkingContent: extractThinkingText(lastContent),
   };
 }
 
@@ -770,8 +822,17 @@ async function finishAssistantReply({
   model = CHAT_MODEL,
   citations = null,
   generatedFiles = null,
+  thinkingContent = null,
 }) {
-  const assistantMessageId = await saveMessage(conversationId, 'assistant', replyText, commandUsed, citations, generatedFiles);
+  const assistantMessageId = await saveMessage(
+    conversationId,
+    'assistant',
+    replyText,
+    commandUsed,
+    citations,
+    generatedFiles,
+    thinkingContent,
+  );
   await recordUsage({
     messageId: assistantMessageId,
     model,
@@ -845,7 +906,7 @@ export const STYLE_PRESETS = {
 
 async function getConversationSettings(conversationId) {
   const { rows } = await query(
-    `SELECT c.model, c.system_prompt, c.style, u.default_system_prompt, p.system_prompt AS project_system_prompt
+    `SELECT c.model, c.system_prompt, c.style, c.extended_thinking, u.default_system_prompt, p.system_prompt AS project_system_prompt
      FROM conversations c
      JOIN users u ON u.id = c.user_id
      LEFT JOIN projects p ON p.id = c.project_id
@@ -864,6 +925,7 @@ async function getConversationSettings(conversationId) {
   return {
     model: rows[0]?.model || CHAT_MODEL,
     system,
+    extendedThinking: rows[0]?.extended_thinking === true,
   };
 }
 
@@ -1080,6 +1142,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     .join('');
   const citations = extractCitations(response.content);
   const generatedFiles = await extractGeneratedFiles(client, response.content);
+  const thinkingContent = extractThinkingText(response.content);
   const { assistantMessageId, artifactId } = await finishAssistantReply({
     conversationId,
     safeMessage: prep.safeMessage,
@@ -1090,6 +1153,7 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
     model: prep.settings.model,
     citations,
     generatedFiles,
+    thinkingContent,
   });
   // Tool results (BigQuery/RAG) can mint additional tokens mid-turn — persist
   // the session's final state so the next turn's counters continue from here.
@@ -1116,7 +1180,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
   // The chunker reads prep.session.map live, so tokens discovered in a
   // BigQuery/RAG tool result mid-stream still get de-tokenized correctly.
   const chunker = prep.session.createChunker(onChunk);
-  const { text, usage, citations, generatedFiles } = await runToolLoopStreaming(
+  const { text, usage, citations, generatedFiles, thinkingContent } = await runToolLoopStreaming(
     client,
     [...withHistoryCacheBreakpoint(prep.history), { role: 'user', content: prep.currentContent }],
     prep.session,
@@ -1144,6 +1208,7 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
     model: prep.settings.model,
     citations,
     generatedFiles,
+    thinkingContent,
   });
   await saveRedactionState(conversationId, prep.session);
   return {
@@ -1219,7 +1284,7 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
 
   const client = await getAnthropicClient();
   const started = Date.now();
-  const { text, usage, citations, generatedFiles } = await runToolLoopStreaming(
+  const { text, usage, citations, generatedFiles, thinkingContent } = await runToolLoopStreaming(
     client,
     [...withHistoryCacheBreakpoint(history), { role: 'user', content: currentContent }],
     session,
@@ -1247,6 +1312,7 @@ export async function continueFromUserMessage({ conversationId, userId, userMess
     latencyMs,
     citations,
     generatedFiles,
+    thinkingContent,
   });
   await saveRedactionState(conversationId, session);
   return { reply: text, messageId: assistantMessageId, commandUsed, artifactId, citations, generatedFiles };

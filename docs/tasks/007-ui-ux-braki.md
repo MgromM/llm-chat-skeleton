@@ -589,11 +589,103 @@ z sekcji na dole.
       (rzeczywisty odczyt budżetu/kosztu w pasku ustawień czatu) niemożliwa
       w tym środowisku — ten sam blocker logowania wyłącznie przez Google
       OAuth opisany w punktach 1–18.
-- [ ] 20. Przełącznik "extended thinking" widoczny dla użytkownika w UI
+- [x] 20. Przełącznik "extended thinking" widoczny dla użytkownika w UI
        czatu (dziś reasoning/thinking istnieje tylko wewnętrznie w
        subagentach/pipeline backendu, backend aktywnie usuwa bloki myślenia
        przed zapisem historii — brak przełącznika i brak widoku
        rozumowania dla użytkownika).
+
+      **Zrobione (2026-09-21):** Zweryfikowano dokładnie, gdzie dziś dzieje
+      się usuwanie: `stripThinkingBlocks` w
+      [backend/src/services/chatCore/pipeline.js](../../backend/src/services/chatCore/pipeline.js)
+      (komentarz przy niej: Sonnet 5 zawsze zwraca blok `thinking` gdy
+      przekazane są `tools`, a echo tego bloku w kolejnej turze pętli
+      narzędziowej powoduje 400 z API) — wywoływana w `runToolLoop` i
+      `runToolLoopStreaming` przy odsyłaniu historii do kolejnej rundy.
+      Backend dotąd nigdy nie prosił o prawdziwe extended thinking
+      (`thinking: {type:'enabled'}` nigdzie nie występowało) — usuwane bloki
+      to tylko domyślne, niepożądane echo modelu, nie świadomie zamówione
+      rozumowanie.
+
+      Dodano opt-in per-rozmowa, analogicznie do stylu/projektu z punktów
+      14/15. Backend: nowa migracja
+      [backend/src/db/migrations/032_extended_thinking.sql](../../backend/src/db/migrations/032_extended_thinking.sql)
+      — `conversations.extended_thinking` (BOOLEAN NOT NULL DEFAULT false,
+      wzorem `is_temporary` z punktu 17) oraz nullable
+      `messages.thinking_content` (TEXT, wzorem `citations`/`generated_files`
+      z punktów 6/11). `getConversationSettings` w pipeline.js zwraca teraz
+      `extendedThinking`; nowe stałe `THINKING_BUDGET_TOKENS = 4096` i
+      `THINKING_MAX_TOKENS = 8192` w `thinkingCallParams()` — Anthropic
+      wymaga `budget_tokens >= 1024` i `max_tokens` ściśle większego niż
+      `budget_tokens` (budżet myślenia jest wycinany z `max_tokens`, nie
+      dokładany do niego); 4096 tokenów budżetu to sensowny kompromis na
+      realne wieloetapowe rozumowanie bez nadmiernego wydłużania
+      latencji/kosztu, a `max_tokens` podwojono do 8192, żeby widoczna
+      odpowiedź nadal miała tyle samo miejsca (~4096) co dziś, tylko dodatkowo
+      nad budżetem myślenia. Gdy flaga wyłączona: `max_tokens: 4096`, bez
+      `thinking` — zero zmian względem stanu sprzed tego punktu.
+      `runToolLoop`/`runToolLoopStreaming` używają `thinkingCallParams()`
+      zamiast twardo wpisanego `max_tokens: 4096`; w pętli narzędziowej blok
+      `thinking` jest teraz odsyłany API bez zmian gdy `extendedThinking` jest
+      włączone (wymóg API przy łączeniu extended thinking z narzędziami),
+      a `stripThinkingBlocks` nadal działa dokładnie jak wcześniej dla
+      zwykłych rozmów. `streamChatMessage` (ręczny parser SSE) dostał
+      obsługę zdarzeń `thinking_delta`/`signature_delta`, których wcześniej
+      nie było (odpowiedzi z myśleniem po prostu nie akumulowały tekstu w
+      trybie stream). Nowa `extractThinkingText()` zbiera tekst bloków
+      `thinking` z finalnej odpowiedzi; `saveMessage`/`finishAssistantReply`
+      dostały dodatkowy parametr `thinkingContent`, zapisywany do
+      `messages.thinking_content` tylko gdy jest coś do zapisania (`NULL`
+      dla zwykłych wiadomości i wiadomości użytkownika — bez zmian).
+      `subAgentTool.js` (własna, wewnętrzna pętla subagenta) pozostawiono
+      bez zmian — to osobny mechanizm, poza zakresem przełącznika
+      user-facing z tego punktu.
+
+      `PATCH /chat/conversations/:id` w
+      [backend/src/routes/chat.routes.js](../../backend/src/routes/chat.routes.js)
+      przyjmuje teraz `extendedThinking` (walidacja: musi być boolean),
+      `GET /chat/conversations` i odpowiedź PATCH zwracają `extendedThinking`;
+      `fetchMessages`/`GET /chat/conversations/:id/messages` zwraca
+      `thinkingContent` dla każdej wiadomości.
+
+      Frontend: w [frontend/src/lib/api.ts](../../frontend/src/lib/api.ts)
+      dodano `extendedThinking` w `ConversationSettings`, `thinkingContent` w
+      `ChatMessage`, `extendedThinking` w sygnaturze
+      `updateConversationSettings` i nową
+      `api.setConversationExtendedThinking(conversationId, boolean)`. W
+      [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx):
+      `ConversationSettingsBar` dostał przycisk-przełącznik z ikoną `Brain`
+      (`lucide-react`) obok badge'a stylu/projektu — "Rozszerzone
+      rozumowanie: wł./wył.", stylistycznie spójny z badge'em "Globalny
+      kontekst" z punktu 8 (te same warianty aktywny/nieaktywny, `dark:`).
+      Nowy komponent `ThinkingBlock` renderuje się nad treścią odpowiedzi
+      asystenta, gdy `m.thinkingContent` istnieje — domyślnie zwinięty
+      przycisk "Pokaż tok rozumowania" (ikony `ChevronRight`/`ChevronDown` +
+      `Brain`), po rozwinięciu pokazuje pełny tekst myślenia w osobnym boksie
+      (`whitespace-pre-wrap`, przyciemniony tekst, spójne klasy Tailwind z
+      resztą pliku).
+
+      Zweryfikowane: `npx tsc --noEmit` w `frontend/` bez błędów. `node
+      --check` bez błędów dla `pipeline.js` i `chat.routes.js`. Migrację
+      `032_extended_thinking.sql` uruchomiono realnie na lokalnej dev bazie
+      Postgres (`npm run migrate`, `salesmore_llm_test`) — przeszła bez
+      błędów razem z całym łańcuchem 001–032. Uruchomiony lokalnie backend
+      (`PORT=8099 node src/server.js`) zwraca `200` na `/health` i `401` na
+      `GET /chat/conversations` oraz `PATCH /chat/conversations/1` bez tokenu
+      (trasy nadal chronione). Nazwy pól API (`thinking`, `budget_tokens`,
+      typ bloku `thinking`, zdarzenia `thinking_delta`/`signature_delta`,
+      minimalny budżet 1024) zweryfikowano bezpośrednio w typach
+      `@anthropic-ai/sdk` (`node_modules/@anthropic-ai/sdk/resources/beta/
+      messages/messages.d.ts`), nie z pamięci. Rzeczywiste wywołanie
+      Anthropic API z `thinking: enabled` end-to-end (żeby potwierdzić realne
+      bloki myślenia w odpowiedzi i ich zapis/render) nie zostało wykonane w
+      tym środowisku — brak w tej sesji sprawdzonego działającego
+      `ANTHROPIC_API_KEY` do bezpiecznego, jednorazowego wywołania poza pełnym
+      UI; poprawność oparto o code review + udokumentowany kształt
+      request/response SDK. Pełna wizualna weryfikacja zalogowanego UI
+      (kliknięcie przełącznika, realny widok rozwiniętego toku rozumowania)
+      niemożliwa w tym środowisku — ten sam blocker logowania wyłącznie przez
+      Google OAuth opisany w punktach 1–19.
 - [x] 21. Udostępnianie całej rozmowy publicznym linkiem (dziś tylko
        pojedyncze artefakty mają udostępnianie, nie cała konwersacja).
 
@@ -615,16 +707,121 @@ z sekcji na dole.
       konwersacji nie zwracają jeszcze `share_token`) — link mimo to działa
       poprawnie, tylko UI zawsze startuje od „Udostępnij". `npx tsc --noEmit`
       bez błędów, `node --check` na nowych plikach backendu bez błędów.
+
+      **Dopełnione o zabezpieczenia compliance (2026-09-21, druga sesja):**
+      poprzednia wersja tego punktu implementowała mechanikę linku
+      (token/UI/publiczna strona), ale nie miała jeszcze żadnej bramki
+      zgodności opisanej w zadaniu 21 — udostępnianie całej rozmowy jest
+      większym ryzykiem wycieku niż pojedynczy artefakt (może ujawnić dane
+      klienta/PII wykryte przez pipeline klasyfikacji). Dodano, bez
+      osłabiania istniejącej logiki RLS/leak-detection (tylko odczyt jej
+      wyników):
+      - **Blokada rozmów oflagowanych przez wykrywanie wycieków.** W
+        [backend/src/routes/sharing.routes.js](../../backend/src/routes/sharing.routes.js)
+        `POST /chat/conversations/:id/share` sprawdza teraz
+        `SELECT 1 FROM leak_alerts WHERE conversation_id = $1` (ta sama
+        tabela, do której piszą `uncertainLeakAgent.js` i
+        `sensitiveDataPrecheck.js` z punktu 5/17) i odrzuca żądanie `403
+        flagged_conversation_not_shareable`, jeśli istnieje choć jeden alert
+        — również jeśli został już oznaczony `reviewed`, bo przegląd przez
+        człowieka potwierdza incydent, nie „odflagowywuje" treści jako
+        bezpiecznej do publikacji.
+      - **Blokada rozmów tymczasowych/incognito.** Ten sam endpoint
+        sprawdza `conversations.is_temporary` (punkt 17) i zwraca `403
+        temporary_conversation_not_shareable` — rozmowa incognito nie
+        powinna dostawać trwałego publicznego linku, skoro celowo jest
+        ukryta z listy usera.
+      - **Ścisła tylko-do-odczytu strona publiczna.** Zweryfikowano, że
+        `GET /public/conversations/:token` (bez zmian w tej sesji) i tak już
+        zwraca wyłącznie `{id, role, content, created_at}` per wiadomość —
+        bez `thinking_content` (punkt 20), bez załączników (osobna kontrola
+        dostępu w `backend/src/services/attachments/attachmentStore.js`,
+        nieujęta w publicznym payloadzie) i bez żadnych identyfikatorów
+        użytkownika/konwersacji poza samym tokenem; strona
+        [frontend/src/app/c/[token]/page.tsx](../../frontend/src/app/c/[token]/page.tsx)
+        nie ma pola do wysyłania wiadomości ani żadnego wywołania
+        autoryzowanego API — czysty odczyt.
+      - **Odwoływalność** już istniała (`DELETE
+        /chat/conversations/:id/share` czyści `share_token` na `NULL`) —
+        bez zmian, tylko potwierdzona jako spełniająca wymóg.
+      - Frontend:
+        [frontend/src/components/ShareConversationButton.tsx](../../frontend/src/components/ShareConversationButton.tsx)
+        renderuje przycisk jako wyszarzony, nieklikalny `<span>` z
+        tooltipem, gdy `isTemporary` jest `true` (prop dociągnięty z
+        `ConversationSettingsBar` w
+        [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx),
+        gdzie ta flaga już istniała z punktu 17); przy próbie
+        udostępnienia rozmowy oflagowanej (odpowiedź `403` z backendu)
+        popover pokazuje czerwony komunikat wyjaśniający powód zamiast
+        linku, zamiast cichego błędu.
+
+      **Weryfikacja:** `npx tsc --noEmit` w `frontend/` — czysto (exit 0).
+      `node --check src/routes/sharing.routes.js` — bez błędów. Migracje
+      001–032 (włącznie z `031_conversation_sharing.sql`) uruchomione od
+      zera na lokalnej dev bazie Postgres (`npm run migrate`,
+      `salesmore_llm_test`) — przeszły bez błędów. Lokalnie uruchomiony
+      backend: `POST /chat/conversations/1/share` bez tokenu Authorization
+      zwraca `401` (trasa chroniona `requireAuth`), `GET
+      /public/conversations/nonexistent-token` zwraca `404` bez żadnego
+      nagłówka autoryzacji (trasa publiczna działa), `GET /health` zwraca
+      `200`. Nie udało się w tym środowisku zweryfikować end-to-end samej
+      bramki compliance na żywych danych (utworzenie realnego alertu
+      `leak_alerts` i próba udostępnienia tej konkretnej rozmowy przez
+      zalogowanego usera) ani wizualnie kliknięcia „Udostępnij" w
+      przeglądarce — ten sam blocker logowania wyłącznie przez Google OAuth
+      bez dev-loginu, opisany w punktach 1–20; logika bramki (zapytanie do
+      `leak_alerts`/`is_temporary` i wczesny `return res.status(403)`) jest
+      jednak prosta i przeczytana ręcznie pod kątem poprawności.
 - [x] 22. Panel pomocy ze skrótami klawiszowymi — skróty (Cmd+K,
        Cmd+Shift+O itd.) działają, ale brak listy/modala z pomocą.
 
       **Zrobione (2026-09-21):** Nowy
       [ShortcutsModal](../../frontend/src/components/ShortcutsModal.tsx)
-      wypisujący wszystkie skróty (Cmd/Ctrl+K, Cmd/Ctrl+Shift+O, Shift+/,
-      Enter, Shift+Enter), otwierany przyciskiem z ikoną klawiatury w
-      [BrandHeader](../../frontend/src/components/BrandHeader.tsx) (widoczny
-      na każdej zalogowanej stronie) albo skrótem `Shift+/` z dowolnego
-      miejsca (poza polami tekstowymi). `npx tsc --noEmit` bez błędów.
+      wypisujący wszystkie skróty potwierdzone w kodzie
+      [chat/page.tsx](../../frontend/src/app/chat/page.tsx) (punkt 12) i w
+      samym pliku wiadomości:
+      - `Cmd/Ctrl+K` — otwórz listę rozmów i przejdź do wyszukiwania,
+      - `Cmd/Ctrl+Shift+O` — nowa rozmowa,
+      - `Shift+/` — pokaż ten panel skrótów,
+      - `Enter` — wyślij wiadomość,
+      - `Shift+Enter` — nowa linia w wiadomości.
+
+      Otwierany przyciskiem z ikoną klawiatury (`Keyboard` z `lucide-react`)
+      w [BrandHeader](../../frontend/src/components/BrandHeader.tsx) —
+      widoczny w topbarze na każdej zalogowanej stronie, czyli dostępny bez
+      znajomości skrótu — albo skrótem `Shift+/` z dowolnego miejsca poza
+      polami `INPUT`/`TEXTAREA` (żeby nie przechwytywać `?` wpisywanego w
+      treści wiadomości). Modal zamykany na trzy sposoby: przyciskiem `X`,
+      kliknięciem w tło (`onClick` na overlayu, `stopPropagation` na karcie)
+      i klawiszem `Escape` (dodany w tej sesji — brakowało go w wersji
+      z poprzedniej sesji, mimo że zadanie tego wymaga; nowy
+      `useEffect`+`keydown` listener w `ShortcutsModal.tsx`). Stylistyka
+      spójna z innymi modalami w projekcie (np.
+      [IncidentReportModal](../../frontend/src/components/IncidentReportModal.tsx)):
+      overlay `fixed inset-0 bg-black/40`, karta `rounded-2xl` z `dark:`
+      wariantami. Treść i etykiety po polsku/angielsku przez
+      `useLocale` (i18n z punktu 21).
+
+      Pliki zmienione w tej sesji: tylko
+      [frontend/src/components/ShortcutsModal.tsx](../../frontend/src/components/ShortcutsModal.tsx)
+      (dodano obsługę `Escape`) — modal, przycisk w topbarze i skrót
+      `Shift+/` istniały już wcześniej (niescommitowane z poprzedniej sesji,
+      teraz w tym samym stanie roboczym). Nie zmieniono zachowania żadnego
+      istniejącego skrótu (`Cmd+K`, `Cmd+Shift+O` w chat/page.tsx
+      nietknięte). **Zweryfikowano:** `npx tsc --noEmit` w `frontend/` bez
+      błędów; `npm run build` w `frontend/` przechodzi bez błędów
+      (kompilacja, typy, generowanie stron statycznych — wszystkie trasy
+      w tym `/chat`). `npm run lint` nie da się uruchomić nieinteraktywnie
+      w tym repo (Next.js prosi o wybór konfiguracji ESLint przy pierwszym
+      uruchomieniu — projekt nie ma jeszcze zatwierdzonego `.eslintrc`), więc
+      pominięto. Pełna wizualna weryfikacja w zalogowanym czacie (otwarcie
+      panelu skrótem i przyciskiem, zamknięcie Escape/klik w tło/X)
+      niemożliwa w tym środowisku — ten sam blocker logowania wyłącznie
+      przez Google OAuth bez dev-loginu, opisany w punktach 1–21; kod
+      przejrzano ręcznie pod kątem konfliktów z natywnymi skrótami
+      przeglądarki (żaden z użytych kombinacji nie nadpisuje skrótów
+      systemowych) i z pozostałymi handlerami `keydown` w `chat/page.tsx`
+      (różne kombinacje klawiszy, brak nakładania).
 - [x] 23. Eksport wiadomości/rozmowy do PDF/obrazka — dziś jest tylko
        eksport do Markdown.
 
@@ -686,18 +883,51 @@ Znalezione i naprawione w tej sesji:
 
 Nowe braki znalezione, ale nie naprawione na dziko (do osobnej wyceny):
 
-- [ ] E.2 Pasek „Sprawdzam wiadomość pod kątem danych wrażliwych…" (punkt 5)
+- [x] E.2 Pasek „Sprawdzam wiadomość pod kątem danych wrażliwych…" (punkt 5)
       nie znika natychmiast, gdy zaczyna płynąć tekst odpowiedzi — w trakcie
       testu SSE widać było jednocześnie banner klasyfikacji i już
       streamowany tekst z migającym kursorem. Drobne, ale myląca kolejność
       stanów UI (sugeruje, że klasyfikacja wciąż trwa, gdy odpowiedź już
-      się generuje).
-- [ ] E.3 Punkt 9 (z-index sidebar/panel artefaktów) zweryfikowany tylko
+      się generuje). **Naprawiono:** w
+      [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx),
+      w `handleSend`, `setClassifying(true)` obejmował całe `try`, łącznie
+      z `await submitMessage(...)`, które samo w sobie czeka na cały
+      przebieg SSE (`runStream`) — więc `classifying` był `true` przez cały
+      czas streamowania odpowiedzi, nie tylko przez czas klasyfikacji.
+      `setClassifying(false)` przeniesiono tak, by był wywoływany od razu
+      po otrzymaniu werdyktu klasyfikatora (i w gałęzi `catch` przy awarii
+      klasyfikatora), a nie w `finally` po zakończeniu `submitMessage`.
+      Banner znika więc natychmiast po klasyfikacji, jeszcze przed
+      rozpoczęciem streamu, zamiast nakładać się na już streamowany tekst.
+      Render `{classifying && (...)}` nie wymagał zmiany warunku — sam stan
+      teraz poprawnie odzwierciedla fazę klasyfikacji. `npx tsc --noEmit`
+      bez błędów.
+- [x] E.3 Punkt 9 (z-index sidebar/panel artefaktów) zweryfikowany tylko
       przez potwierdzenie klasy `z-50` w zbudowanym bundlu + osobne
       przetestowanie sidebara — nie odtworzono na żywo scenariusza z oboma
       panelami otwartymi naraz na mobile. Zmiana jest trywialna (jedna
       wartość CSS), ale warto dograć realny test przy okazji następnej
-      wizyty w tym repo.
+      wizyty w tym repo. **Weryfikacja statyczna (bez realnej sesji mobile w
+      tym środowisku):** w
+      [frontend/src/app/chat/page.tsx](../../frontend/src/app/chat/page.tsx)
+      panel artefaktów (`ArtifactPanel`) to `<aside className="fixed inset-0
+      z-50 ...">`, overlay sidebara na mobile to `<div className="fixed
+      inset-0 z-30 ...">`, a sam sidebar to `<aside className="fixed
+      inset-y-0 left-0 z-40 ...">`. Oba (`ConversationSidebar` i
+      `ArtifactPanel`) są renderowane jako bezpośrednie sibliki wewnątrz
+      tego samego `<div className="flex flex-1 gap-3 overflow-hidden">` —
+      żaden z ich przodków nie ma `transform`/`filter`/`perspective`/
+      `isolation`, więc żaden nie tworzy lokalnego stacking contextu, który
+      mógłby odciąć je od siebie; wszystkie trzy elementy (`z-50`, `z-40`,
+      `z-30`) konkurują więc w tym samym, globalnym stacking contexcie.
+      Przeszukano cały plik pod kątem innych wartości `z-*` — jedyne
+      pozostałe to `z-20` (dropdown akcji wiadomości) i drugie użycie
+      `z-50` (modal `blockedNotice`, niezależny od tego scenariusza, sam
+      też fixed bez transformowanego przodka). Żaden element w drzewie nie
+      ma wyższego z-index niż `z-50`. Wniosek: przy jednoczesnym otwarciu
+      sidebara (`z-40`/`z-30`) i panelu artefaktów (`z-50`) na mobile panel
+      artefaktów zawsze wygrywa i renderuje się na wierzchu — logika
+      z-index jest poprawna, zmiana kodu nie była potrzebna.
 
 ## Stan na koniec sesji (2026-09-21)
 
@@ -706,5 +936,7 @@ deployu Railway jako zalogowany admin (michal.grom@salesmore.pl). Zadanie
 zamknięte. Sekcja D (14–20, porównanie z Claude.ai) pozostaje nietknięta —
 to osobny, nowy backlog, nie część tego audytu logowania. Sekcja E.2/E.3
 to nowe, mniejsze braki do ewentualnego domknięcia w kolejnym czacie.
+E.2 i E.3 zostały domknięte w kolejnej sesji (E.2 naprawiony w kodzie, E.3
+zweryfikowany statycznie bez konieczności zmian).
 
 Zalecane wyczyszczenie czatu — zadanie z promptu startowego zakończone.

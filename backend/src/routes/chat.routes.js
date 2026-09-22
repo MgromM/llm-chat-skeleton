@@ -75,7 +75,7 @@ chatRouter.get('/conversations', async (req, res, next) => {
   try {
     const includeTemporary = req.query.includeTemporary === 'true';
     const { rows } = await query(
-      `SELECT id, title, created_at, model, system_prompt, style, branched_from_conversation_id, branched_from_message_id, project_id, is_temporary
+      `SELECT id, title, created_at, model, system_prompt, style, extended_thinking, branched_from_conversation_id, branched_from_message_id, project_id, is_temporary
        FROM conversations WHERE user_id = $1 ${includeTemporary ? '' : 'AND is_temporary = false'} ORDER BY created_at DESC`,
       [req.user.sub],
     );
@@ -87,6 +87,7 @@ chatRouter.get('/conversations', async (req, res, next) => {
         branchedFromMessageId: r.branched_from_message_id,
         projectId: r.project_id,
         isTemporary: r.is_temporary,
+        extendedThinking: r.extended_thinking === true,
       })),
     );
   } catch (err) {
@@ -221,12 +222,19 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
       updates.push(`is_temporary = $${paramIndex++}`);
       values.push(req.body.isTemporary === true);
     }
+    if (req.body.extendedThinking !== undefined) {
+      if (typeof req.body.extendedThinking !== 'boolean') {
+        return res.status(400).json({ error: 'extendedThinking must be a boolean' });
+      }
+      updates.push(`extended_thinking = $${paramIndex++}`);
+      values.push(req.body.extendedThinking);
+    }
     if (updates.length === 0) return res.status(400).json({ error: 'nothing to update' });
 
     values.push(req.params.id, req.user.sub);
     const { rows } = await query(
       `UPDATE conversations SET ${updates.join(', ')} WHERE id = $${paramIndex++} AND user_id = $${paramIndex}
-       RETURNING id, title, created_at, model, system_prompt, project_id, style, is_temporary`,
+       RETURNING id, title, created_at, model, system_prompt, project_id, style, is_temporary, extended_thinking`,
       values,
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
@@ -239,6 +247,7 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
       projectId: rows[0].project_id,
       style: rows[0].style,
       isTemporary: rows[0].is_temporary,
+      extendedThinking: rows[0].extended_thinking === true,
     });
   } catch (err) {
     next(err);
@@ -326,7 +335,7 @@ chatRouter.get('/conversations/search', async (req, res, next) => {
 
 async function fetchMessages(conversationId, userId) {
   const { rows } = await query(
-    `SELECT m.id, m.role, m.content, m.created_at, m.command_used, m.citations, m.generated_files, a.id AS artifact_id
+    `SELECT m.id, m.role, m.content, m.created_at, m.command_used, m.citations, m.generated_files, m.thinking_content, a.id AS artifact_id
      FROM messages m
      JOIN conversations c ON c.id = m.conversation_id
      LEFT JOIN artifacts a ON a.message_id = m.id
@@ -362,6 +371,7 @@ async function fetchMessages(conversationId, userId) {
     commandUsed: r.command_used,
     citations: r.citations ?? null,
     generatedFiles: r.generated_files ?? null,
+    thinkingContent: r.thinking_content ?? null,
     artifactId: r.artifact_id ?? null,
     attachments: attachmentsByMessage.get(r.id) ?? [],
   }));

@@ -2,7 +2,10 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import type { Artifact } from '@/lib/api';
 
 /**
@@ -27,7 +30,7 @@ export function ArtifactViewer({ artifact, mode = 'preview' }: { artifact: Artif
 
   return (
     <div className="prose prose-sm max-w-none text-brand-dark">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeHighlight, rehypeKatex]}>
         {artifact.content}
       </ReactMarkdown>
     </div>

@@ -23,6 +23,7 @@ export interface ConversationSettings {
   projectId?: number | null;
   style?: string | null;
   isTemporary?: boolean;
+  extendedThinking?: boolean;
 }
 
 export interface PublicConversation {
@@ -72,6 +73,7 @@ export interface ChatMessage {
   commandUsed?: string | null;
   citations?: Citation[] | null;
   generatedFiles?: GeneratedFile[] | null;
+  thinkingContent?: string | null;
   artifactId?: number | null;
 }
 
@@ -373,7 +375,13 @@ export const api = {
     }),
   updateConversationSettings: (
     conversationId: number,
-    updates: { model?: string; systemPrompt?: string | null; projectId?: number | null; style?: string | null },
+    updates: {
+      model?: string;
+      systemPrompt?: string | null;
+      projectId?: number | null;
+      style?: string | null;
+      extendedThinking?: boolean;
+    },
   ) =>
     apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
       method: 'PATCH',
@@ -396,6 +404,11 @@ export const api = {
     apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
       method: 'PATCH',
       body: JSON.stringify({ style }),
+    }),
+  setConversationExtendedThinking: (conversationId: number, extendedThinking: boolean) =>
+    apiFetch<ConversationSettings>(`/chat/conversations/${conversationId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ extendedThinking }),
     }),
   deleteConversation: (conversationId: number) =>
     apiFetch<{ ok: true }>(`/chat/conversations/${conversationId}`, { method: 'DELETE' }),

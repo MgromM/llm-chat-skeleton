@@ -1,11 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, EyeOff, Code2, Loader2, Copy, FolderKanban, Sparkles, Mic, MicOff, Gauge } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, EyeOff, Code2, Loader2, Copy, FolderKanban, Sparkles, Mic, MicOff, Gauge, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile, type Artifact, type ArtifactVersionSummary, type Project, type StylePreset, type UsageInfo } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
@@ -238,6 +241,7 @@ interface Conversation {
   projectId?: number | null;
   style?: string | null;
   isTemporary?: boolean;
+  extendedThinking?: boolean;
 }
 
 
@@ -600,6 +604,14 @@ function isRetryableError(raw: string): boolean {
   return raw === 'stream_interrupted' || /429/.test(raw) || /^Request failed: 5\d\d/.test(raw) || /500/.test(raw);
 }
 
+/** Non-streaming actions (rename, delete, export, settings...) also hit the rate limiter — surface that instead of a generic failure message. */
+function actionErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && /429/.test(err.message)) {
+    return 'Zbyt wiele żądań w krótkim czasie. Odczekaj chwilę i spróbuj ponownie.';
+  }
+  return fallback;
+}
+
 const RETRY_BACKOFF_MS = [1000, 3000, 8000];
 
 const MODEL_LABELS: Record<string, string> = {
@@ -610,6 +622,32 @@ const MODEL_LABELS: Record<string, string> = {
 
 function modelLabel(model: string) {
   return MODEL_LABELS[model] || model;
+}
+
+// Item 20 (UI/UX audit): shows the model's "extended thinking" content
+// (persisted in messages.thinking_content when the conversation had the
+// toggle on for that turn) collapsed by default, like Claude.ai's reasoning
+// block above the final answer.
+function ThinkingBlock({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="max-w-full text-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-brand-dark/50 dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-300"
+      >
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <Brain size={13} />
+        {open ? 'Ukryj tok rozumowania' : 'Pokaż tok rozumowania'}
+      </button>
+      {open && (
+        <div className="mt-1.5 whitespace-pre-wrap rounded-lg border border-brand-border/60 dark:border-zinc-700 bg-brand-surface/40 dark:bg-zinc-800/60 p-3 text-brand-dark/70 dark:text-zinc-400">
+          {text}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Item 19 (UI/UX audit): usage indicator for regular users. There's no
@@ -676,6 +714,8 @@ function ConversationSettingsBar({
   availableStyles,
   selectedStyle,
   onChangeStyle,
+  extendedThinking,
+  onChangeExtendedThinking,
   isTemporary,
   onExportPdf,
   conversationId,
@@ -694,6 +734,8 @@ function ConversationSettingsBar({
   availableStyles: StylePreset[];
   selectedStyle: string | null;
   onChangeStyle: (style: string | null) => void;
+  extendedThinking?: boolean;
+  onChangeExtendedThinking: (enabled: boolean) => void;
   isTemporary?: boolean;
   onExportPdf: () => void;
   conversationId: number | null;
@@ -777,6 +819,21 @@ function ConversationSettingsBar({
             ))}
           </select>
         </div>
+        <button
+          type="button"
+          onClick={() => onChangeExtendedThinking(!extendedThinking)}
+          title="Rozszerzone rozumowanie — model pokazuje tok rozumowania przed odpowiedzią (dłuższy czas odpowiedzi, wyższy koszt)."
+          aria-pressed={!!extendedThinking}
+          className={clsx(
+            'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
+            extendedThinking
+              ? 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20'
+              : 'text-brand-dark/40 dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
+          )}
+        >
+          <Brain size={12} />
+          Rozszerzone rozumowanie: {extendedThinking ? 'wł.' : 'wył.'}
+        </button>
         <a
           href="/settings"
           title="Globalny kontekst z Ustawień obowiązuje we wszystkich rozmowach, a prompt tej rozmowy jest do niego dodawany."
@@ -821,7 +878,7 @@ function ConversationSettingsBar({
             </div>
           )}
         </div>
-        <ShareConversationButton conversationId={conversationId} />
+        <ShareConversationButton conversationId={conversationId} isTemporary={isTemporary} />
       </div>
       {showPromptEditor && (
         <div className="mx-auto mt-2 max-w-3xl">
@@ -985,10 +1042,20 @@ function ChatView() {
   }, [messages, sending, streamingText]);
 
   // Keyboard shortcuts: Cmd/Ctrl+K focuses conversation search, Cmd/Ctrl+Shift+O
-  // starts a new conversation — both open the sidebar on mobile first.
+  // starts a new conversation, Cmd/Ctrl+B toggles the sidebar, Cmd/Ctrl+/
+  // focuses the message input, Esc closes the mobile sidebar overlay or
+  // blurs the currently focused field.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
+      if (e.key === 'Escape') {
+        if (sidebarOpen) {
+          setSidebarOpen(false);
+        } else {
+          (document.activeElement as HTMLElement | null)?.blur();
+        }
+        return;
+      }
       if (!meta) return;
       if (e.key.toLowerCase() === 'k') {
         e.preventDefault();
@@ -997,11 +1064,17 @@ function ChatView() {
       } else if (e.shiftKey && e.key.toLowerCase() === 'o') {
         e.preventDefault();
         handleNewConversation();
+      } else if (e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        setSidebarOpen((open) => !open);
+      } else if (e.key === '/') {
+        e.preventDefault();
+        textareaRef.current?.focus();
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [sidebarOpen]);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -1056,8 +1129,8 @@ function ChatView() {
     try {
       const updated = await api.renameConversation(id, title);
       setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, title: updated.title } : c)));
-    } catch {
-      setErrorMessage('Nie udało się zmienić nazwy rozmowy.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się zmienić nazwy rozmowy.'));
     }
   }
 
@@ -1077,8 +1150,8 @@ function ChatView() {
           setMessages([]);
         }
       }
-    } catch {
-      setErrorMessage('Nie udało się usunąć rozmowy.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się usunąć rozmowy.'));
     }
   }
 
@@ -1088,8 +1161,8 @@ function ChatView() {
     setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, systemPrompt: trimmed } : c)));
     try {
       await api.updateConversationSettings(conversationId, { systemPrompt: trimmed });
-    } catch {
-      setErrorMessage('Nie udało się zapisać promptu systemowego.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się zapisać promptu systemowego.'));
     }
   }
 
@@ -1098,8 +1171,8 @@ function ChatView() {
     setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, model } : c)));
     try {
       await api.updateConversationSettings(conversationId, { model });
-    } catch {
-      setErrorMessage('Nie udało się zmienić modelu.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się zmienić modelu.'));
     }
   }
 
@@ -1108,8 +1181,8 @@ function ChatView() {
     setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, projectId } : c)));
     try {
       await api.setConversationProject(conversationId, projectId);
-    } catch {
-      setErrorMessage('Nie udało się przypisać rozmowy do projektu.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się przypisać rozmowy do projektu.'));
     }
   }
 
@@ -1118,8 +1191,18 @@ function ChatView() {
     setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, style } : c)));
     try {
       await api.setConversationStyle(conversationId, style);
-    } catch {
-      setErrorMessage('Nie udało się zmienić stylu odpowiedzi.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się zmienić stylu odpowiedzi.'));
+    }
+  }
+
+  async function handleChangeExtendedThinking(extendedThinking: boolean) {
+    if (conversationId === null) return;
+    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, extendedThinking } : c)));
+    try {
+      await api.setConversationExtendedThinking(conversationId, extendedThinking);
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się zmienić trybu rozszerzonego rozumowania.'));
     }
   }
 
@@ -1127,8 +1210,8 @@ function ChatView() {
     try {
       const project = await api.createProject({ name, description: description || null });
       setProjects((prev) => [project, ...prev]);
-    } catch {
-      setErrorMessage('Nie udało się utworzyć projektu.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się utworzyć projektu.'));
     }
   }
 
@@ -1142,8 +1225,8 @@ function ChatView() {
       a.download = filename;
       a.click();
       URL.revokeObjectURL(url);
-    } catch {
-      setErrorMessage('Nie udało się wyeksportować rozmowy.');
+    } catch (err) {
+      setErrorMessage(actionErrorMessage(err, 'Nie udało się wyeksportować rozmowy.'));
     }
   }
 
@@ -1298,6 +1381,10 @@ function ChatView() {
     setClassifying(true);
     try {
       const classification = await api.classifyMessage(conversationId, content);
+      // Classification is done the moment we have a verdict — clear the banner
+      // here, before submitMessage() awaits the full SSE stream, so it doesn't
+      // stay visible alongside the already-streaming answer text.
+      setClassifying(false);
       if (classification.blocked) {
         setBlockedNotice({
           level: classification.level === 'czerwona' ? 'czerwona' : 'żółta',
@@ -1310,9 +1397,8 @@ function ChatView() {
       await submitMessage(content, filesToSend);
     } catch {
       // Classifier outage shouldn't block the chat — fail open, same as the backend precheck.
-      await submitMessage(content, filesToSend);
-    } finally {
       setClassifying(false);
+      await submitMessage(content, filesToSend);
     }
   }
 
@@ -1451,6 +1537,8 @@ function ChatView() {
             availableStyles={availableStyles}
             selectedStyle={conversations.find((c) => c.id === conversationId)?.style ?? null}
             onChangeStyle={handleChangeStyle}
+            extendedThinking={!!conversations.find((c) => c.id === conversationId)?.extendedThinking}
+            onChangeExtendedThinking={handleChangeExtendedThinking}
             isTemporary={!!conversations.find((c) => c.id === conversationId)?.isTemporary}
             onExportPdf={handleExportConversationPdf}
             conversationId={conversationId}
@@ -1524,7 +1612,9 @@ function ChatView() {
                           </button>
                         </div>
                       </div>
-                    ) : m.content && m.role === 'assistant' && m.commandUsed && m.artifactId && ARTIFACT_COMMAND_TITLES[m.commandUsed] ? (
+                    ) : null}
+                    {m.role === 'assistant' && m.thinkingContent && <ThinkingBlock text={m.thinkingContent} />}
+                    {isEditing ? null : m.content && m.role === 'assistant' && m.commandUsed && m.artifactId && ARTIFACT_COMMAND_TITLES[m.commandUsed] ? (
                       <ArtifactCard
                         title={ARTIFACT_COMMAND_TITLES[m.commandUsed]}
                         onOpen={() => setOpenArtifactId(m.artifactId!)}
@@ -1539,7 +1629,7 @@ function ChatView() {
                               : 'max-w-full text-brand-dark dark:text-zinc-100',
                           )}
                         >
-                          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{m.content}</ReactMarkdown>
+                          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeHighlight, rehypeKatex]}>{m.content}</ReactMarkdown>
                         </div>
                       )
                     )}
@@ -1608,7 +1698,7 @@ function ChatView() {
                 <div className="prose prose-sm dark:prose-invert max-w-full leading-relaxed text-brand-dark dark:text-zinc-100">
                   {streamingText ? (
                     <span className="relative">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>{streamingText}</ReactMarkdown>
+                      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeHighlight, rehypeKatex]}>{streamingText}</ReactMarkdown>
                       <span
                         aria-hidden="true"
                         className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-brand-dark/70 dark:bg-zinc-100/70"

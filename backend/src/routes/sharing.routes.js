@@ -16,12 +16,30 @@ export const sharingRouter = Router();
 
 sharingRouter.post('/chat/conversations/:id/share', requireAuth, attachUserDbContext, async (req, res, next) => {
   try {
-    const { rows } = await query(`SELECT id, share_token FROM conversations WHERE id = $1 AND user_id = $2`, [
-      req.params.id,
-      req.user.sub,
-    ]);
+    const { rows } = await query(
+      `SELECT id, share_token, is_temporary FROM conversations WHERE id = $1 AND user_id = $2`,
+      [req.params.id, req.user.sub],
+    );
     const conversation = rows[0];
     if (!conversation) return res.status(404).json({ error: 'Conversation not found' });
+
+    // Compliance gate: never allow a public link for a temporary/incognito
+    // conversation (item 17) or one the leak-detection pipeline
+    // (uncertainLeakAgent.js / sensitiveDataPrecheck.js, writing to
+    // leak_alerts — see migration 003_leak_alerts.sql) has ever flagged.
+    // A single historical flag is enough to block sharing for good, even
+    // if the flag was later marked reviewed — reviewing an alert records
+    // that a human looked at it, not that the content became safe to make
+    // public.
+    if (conversation.is_temporary) {
+      return res.status(403).json({ error: 'temporary_conversation_not_shareable' });
+    }
+    const { rows: leakRows } = await query(`SELECT 1 FROM leak_alerts WHERE conversation_id = $1 LIMIT 1`, [
+      conversation.id,
+    ]);
+    if (leakRows.length > 0) {
+      return res.status(403).json({ error: 'flagged_conversation_not_shareable' });
+    }
 
     const shareToken = conversation.share_token ?? crypto.randomBytes(24).toString('base64url');
     if (!conversation.share_token) {

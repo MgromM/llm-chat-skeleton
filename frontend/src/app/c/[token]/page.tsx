@@ -4,7 +4,10 @@ import { use, useEffect, useState } from 'react';
 import { MessageSquare } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import clsx from 'clsx';
 import { api, ApiError, type PublicConversation } from '@/lib/api';
 
@@ -42,7 +45,7 @@ export default function PublicConversationPage({ params }: { params: Promise<{ t
                   m.role === 'user' ? 'rounded-2xl bg-brand-orange/10 px-4 py-2.5 text-brand-dark' : 'max-w-full text-brand-dark',
                 )}
               >
-                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}>
+                <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeHighlight, rehypeKatex]}>
                   {m.content}
                 </ReactMarkdown>
               </div>
