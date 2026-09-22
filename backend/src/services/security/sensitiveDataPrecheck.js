@@ -98,11 +98,11 @@ export async function precheckMessage({ conversationId, userMessage }) {
   const rawLevel = String(verdict.level ?? 'ZIELONA').toUpperCase();
   const level = LEVEL_LABELS[rawLevel] ?? 'zielona';
   const isRisky = level === 'żółta' || level === 'czerwona';
-  const confidence = verdict.confidence;
+  const confidence = typeof verdict.confidence === 'number' ? verdict.confidence : Number(verdict.confidence);
   // Below threshold (or confidence missing/unparseable), don't hard-block —
   // flag for manager review instead, since an uncertain call shouldn't stop
   // legitimate traffic.
-  const isConfident = typeof confidence === 'number' && confidence >= PRECHECK_CONFIDENCE_THRESHOLD;
+  const isConfident = Number.isFinite(confidence) && confidence >= PRECHECK_CONFIDENCE_THRESHOLD;
   const blocked = isRisky && isConfident;
   const needsReview = isRisky && !isConfident;
 
@@ -110,7 +110,7 @@ export async function precheckMessage({ conversationId, userMessage }) {
     conversationId,
     blocked,
     category: verdict.category ?? null,
-    confidence: confidence ?? null,
+    confidence: Number.isFinite(confidence) ? confidence : null,
     rationale: verdict.rationale ?? null,
     level,
     needsReview,

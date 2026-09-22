@@ -79,10 +79,11 @@ function withHistoryCacheBreakpoint(messages) {
   return [...messages.slice(0, lastIndex), { ...last, content }];
 }
 
-async function runTool(toolUse, userId, bashSession) {
-  if (toolUse.name === 'query_bigquery') return runBigQueryTool(toolUse.input);
+async function runTool(toolUse, userId, bashSession, signal) {
+  if (signal?.aborted) throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+  if (toolUse.name === 'query_bigquery') return runBigQueryTool(toolUse.input, signal);
   if (toolUse.name === 'search_knowledge_base') return runKnowledgeSearchTool(toolUse.input);
-  if (toolUse.name === 'spawn_subagent') return runSubAgentTool(toolUse.input);
+  if (toolUse.name === 'spawn_subagent') return runSubAgentTool(toolUse.input, signal);
   if (toolUse.name === 'memory') return runMemoryTool(userId, toolUse.input);
   if (toolUse.name === 'bash') return runBashTool(bashSession, toolUse.input);
   throw new Error(`Unknown tool: ${toolUse.name}`);
@@ -155,13 +156,13 @@ function extractThinkingText(content) {
  * budgets, and PII as a pasted-in prompt, and without this they'd reach the
  * model (and, on the way back, the specialist) completely unredacted.
  */
-async function runAllToolUses(content, redaction, userId, bashSession) {
+async function runAllToolUses(content, redaction, userId, bashSession, signal) {
   const toolUses = content.filter((b) => b.type === 'tool_use');
   const results = await Promise.all(
     toolUses.map(async (toolUse) => {
       let toolResult;
       try {
-        toolResult = await runTool(toolUse, userId, bashSession);
+        toolResult = await runTool(toolUse, userId, bashSession, signal);
       } catch (err) {
         toolResult = { error: err.message };
       }
@@ -492,15 +493,20 @@ async function loadHistory(conversationId, { beforeId } = {}) {
   ];
 }
 
-async function maybeSetConversationTitle(conversationId, text) {
+async function maybeSetConversationTitle(conversationId, text, attachments = []) {
   const { rows } = await query(
     `SELECT (SELECT count(*)::int FROM messages WHERE conversation_id = $1) AS message_count`,
     [conversationId],
   );
   if (rows.length === 0 || Number(rows[0].message_count) > 0) return;
   const trimmed = text.trim();
-  if (!trimmed) return;
-  const title = trimmed.length > TITLE_MAX_LENGTH ? `${trimmed.slice(0, TITLE_MAX_LENGTH)}…` : trimmed;
+  // A first turn that's just an attachment (no typed text) has nothing to
+  // title from — without this fallback the conversation stays "Nowa
+  // rozmowa" forever, since this only ever runs once, on message_count === 0.
+  const fallback = attachments[0]?.filename ?? attachments[0]?.name;
+  const source = trimmed || fallback;
+  if (!source) return;
+  const title = source.length > TITLE_MAX_LENGTH ? `${source.slice(0, TITLE_MAX_LENGTH)}…` : source;
   await query('UPDATE conversations SET title = $2 WHERE id = $1', [conversationId, title]);
 }
 
@@ -715,6 +721,7 @@ async function streamChatMessage(client, params, onChunk, signal) {
       blocks[event.index] = { ...event.content_block };
     } else if (event.type === 'content_block_delta') {
       const block = blocks[event.index];
+      if (!block) continue;
       if (event.delta.type === 'text_delta') {
         block.text = (block.text ?? '') + event.delta.text;
         onChunk(event.delta.text);
@@ -729,6 +736,7 @@ async function streamChatMessage(client, params, onChunk, signal) {
       }
     } else if (event.type === 'content_block_stop') {
       const block = blocks[event.index];
+      if (!block) continue;
       if (block._partialJson !== undefined) {
         block.input = block._partialJson ? JSON.parse(block._partialJson) : {};
         delete block._partialJson;
@@ -791,7 +799,7 @@ async function runToolLoopStreaming(client, messages, redaction, onChunk, signal
       if (message.stop_reason !== 'tool_use') break;
       toolRounds += 1;
 
-      const toolResults = await runAllToolUses(message.content, redaction, userId, bashSession);
+      const toolResults = await runAllToolUses(message.content, redaction, userId, bashSession, signal);
 
       messages = stripOrphanedToolUses([
         ...messages,
@@ -935,6 +943,24 @@ async function getConversationSettings(conversationId) {
  * (`[KLIENT_7]`, not a restarted `[KLIENT_1]`) instead of colliding with
  * tokens already saved into this conversation's message history.
  */
+// Serializes the load->redact->save cycle for a single conversation's
+// redaction_state (token map + per-category counters). Without this, two
+// concurrent turns on the same conversation (e.g. edit + regenerate) each
+// load the same base state, mint tokens independently, and the one that
+// saves last silently wins — corrupting the token map for anything already
+// persisted under the other turn's tokens.
+const conversationLocks = new Map();
+function withConversationLock(conversationId, fn) {
+  const previous = conversationLocks.get(conversationId) ?? Promise.resolve();
+  const next = previous.then(fn, fn);
+  const settled = next.catch(() => {});
+  conversationLocks.set(conversationId, settled);
+  settled.finally(() => {
+    if (conversationLocks.get(conversationId) === settled) conversationLocks.delete(conversationId);
+  });
+  return next;
+}
+
 async function loadRedactionState(conversationId) {
   const { rows } = await query('SELECT redaction_state FROM conversations WHERE id = $1', [conversationId]);
   return rows[0]?.redaction_state ?? {};
@@ -1033,7 +1059,7 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
   // return below) so every path that saves `safeMessage` to `messages` has
   // already reserved its tokens against this conversation's running counters.
   await saveRedactionState(conversationId, session);
-  await maybeSetConversationTitle(conversationId, safeMessage);
+  await maybeSetConversationTitle(conversationId, safeMessage, attachments);
 
   const precheckText = await buildPrecheckText(safeMessage, attachments);
   const precheck = await precheckMessage({ conversationId, userMessage: precheckText });
@@ -1106,7 +1132,11 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
 }
 
 /** Non-streaming entry point for a brand-new user turn. */
-export async function handleChatTurn({ conversationId, userId, userMessage, attachments = [], overrideBlock = false }) {
+export async function handleChatTurn(args) {
+  return withConversationLock(args.conversationId, () => handleChatTurnImpl(args));
+}
+
+async function handleChatTurnImpl({ conversationId, userId, userMessage, attachments = [], overrideBlock = false }) {
   const prep = await prepareNewTurn({ conversationId, userId, userMessage, attachments, overrideBlock });
   if (prep.done) return prep.result;
 
@@ -1169,7 +1199,11 @@ export async function handleChatTurn({ conversationId, userId, userMessage, atta
 }
 
 /** Streaming entry point for a brand-new user turn (`onChunk` gets each text delta). */
-export async function streamChatTurn({ conversationId, userId, userMessage, attachments = [], onChunk, signal, overrideBlock = false }) {
+export async function streamChatTurn(args) {
+  return withConversationLock(args.conversationId, () => streamChatTurnImpl(args));
+}
+
+async function streamChatTurnImpl({ conversationId, userId, userMessage, attachments = [], onChunk, signal, overrideBlock = false }) {
   const prep = await prepareNewTurn({ conversationId, userId, userMessage, attachments, overrideBlock });
   if (prep.done) return prep.result;
 
@@ -1228,7 +1262,11 @@ export async function streamChatTurn({ conversationId, userId, userMessage, atta
  * for it. Does NOT save a new user message or touch the auto-title — both
  * only make sense for a brand-new turn.
  */
-export async function continueFromUserMessage({ conversationId, userId, userMessageId, onChunk, signal }) {
+export async function continueFromUserMessage(args) {
+  return withConversationLock(args.conversationId, () => continueFromUserMessageImpl(args));
+}
+
+async function continueFromUserMessageImpl({ conversationId, userId, userMessageId, onChunk, signal }) {
   await assertConversationOwner(conversationId, userId);
   const { rows } = await query(
     'SELECT content FROM messages WHERE id = $1 AND conversation_id = $2 AND role = $3',

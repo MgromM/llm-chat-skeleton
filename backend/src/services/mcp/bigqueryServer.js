@@ -71,7 +71,7 @@ export async function checkBigQueryConnection() {
   }
 }
 
-export async function runBigQueryTool({ sql }) {
+export async function runBigQueryTool({ sql }, signal) {
   if (!/^\s*select/i.test(sql)) {
     throw new Error('Only SELECT queries are allowed');
   }
@@ -89,6 +89,30 @@ export async function runBigQueryTool({ sql }) {
     );
   }
 
-  const [rows] = await getBigQuery().query({ query: sql, useLegacySql: false, maxResults: 200 });
-  return rows;
+  if (signal?.aborted) throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
+
+  const [job] = await getBigQuery().createQueryJob({ query: sql, useLegacySql: false, maxResults: 200 });
+  if (!signal) {
+    const [rows] = await job.getQueryResults();
+    return rows;
+  }
+
+  // The BigQuery client has no built-in AbortSignal support — race the query
+  // against the abort so an SSE disconnect (tab closed, user hit stop) stops
+  // waiting on it immediately, and cancel the job itself instead of leaving
+  // it to burn compute in the background for a response nobody reads anymore.
+  let onAbort;
+  const abortPromise = new Promise((_, reject) => {
+    onAbort = () => reject(Object.assign(new Error('Aborted'), { name: 'AbortError' }));
+    signal.addEventListener('abort', onAbort);
+  });
+  try {
+    const [rows] = await Promise.race([job.getQueryResults(), abortPromise]);
+    return rows;
+  } catch (err) {
+    if (signal.aborted) job.cancel().catch(() => {});
+    throw err;
+  } finally {
+    signal.removeEventListener('abort', onAbort);
+  }
 }

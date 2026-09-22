@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import multer from 'multer';
+import { logger } from '../config/logger.js';
 import { requireAuth, requireAuthViaHeaderOrQuery } from '../middleware/auth.js';
 import { attachUserDbContext } from '../middleware/dbContext.js';
 import { query } from '../config/db.js';
@@ -425,15 +426,23 @@ function streamTurnResponse(req, res, runTurn) {
 
   const controller = new AbortController();
   req.on('close', () => controller.abort());
+  // A client that closes its tab/connection mid-stream leaves res.write()
+  // writing to a dead socket — without this handler, that emits an
+  // unhandled 'error' event (e.g. EPIPE/ECONNRESET) and can crash the process.
+  res.on('error', (err) => {
+    logger.warn('SSE response socket error', { error: err.message });
+  });
 
   let emittedAny = false;
   const onChunk = (delta) => {
+    if (res.writableEnded) return;
     emittedAny = true;
     res.write(`data: ${JSON.stringify({ type: 'delta', text: delta })}\n\n`);
   };
 
   runTurn(onChunk, controller.signal)
     .then((result) => {
+      if (res.writableEnded) return;
       // Bypass/blocked/budget replies resolve instantly without ever calling
       // onChunk — emit the whole thing as one chunk so the frontend's
       // streaming renderer still shows it.
@@ -444,6 +453,7 @@ function streamTurnResponse(req, res, runTurn) {
       res.end();
     })
     .catch((err) => {
+      if (res.writableEnded) return;
       res.write(`data: ${JSON.stringify({ type: 'error', error: err.message })}\n\n`);
       res.end();
     });

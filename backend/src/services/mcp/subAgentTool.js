@@ -12,19 +12,23 @@ const SUBAGENT_TOOLS = [knowledgeSearchTool, webSearchTool];
 const SUBAGENT_MAX_ROUNDS = 4;
 const SUBAGENT_MAX_TOKENS = 2048;
 
-async function runSubAgentTool_Impl({ task, system_prompt: systemPrompt }) {
+async function runSubAgentTool_Impl({ task, system_prompt: systemPrompt }, signal) {
   const client = await getAnthropicClient();
   let messages = [{ role: 'user', content: task }];
-  let response = await client.messages.create({
-    model: SUBAGENT_MODEL,
-    max_tokens: SUBAGENT_MAX_TOKENS,
-    tools: SUBAGENT_TOOLS,
-    messages,
-    ...(systemPrompt ? { system: systemPrompt } : {}),
-  });
+  let response = await client.messages.create(
+    {
+      model: SUBAGENT_MODEL,
+      max_tokens: SUBAGENT_MAX_TOKENS,
+      tools: SUBAGENT_TOOLS,
+      messages,
+      ...(systemPrompt ? { system: systemPrompt } : {}),
+    },
+    { signal },
+  );
 
   let rounds = 0;
   while (response.stop_reason === 'tool_use') {
+    if (signal?.aborted) throw Object.assign(new Error('Aborted'), { name: 'AbortError' });
     if (++rounds > SUBAGENT_MAX_ROUNDS) {
       throw new Error(`Sub-agent tool-use loop exceeded ${SUBAGENT_MAX_ROUNDS} rounds`);
     }
@@ -48,13 +52,16 @@ async function runSubAgentTool_Impl({ task, system_prompt: systemPrompt }) {
       { role: 'user', content: toolResults },
     ];
 
-    response = await client.messages.create({
-      model: SUBAGENT_MODEL,
-      max_tokens: SUBAGENT_MAX_TOKENS,
-      tools: SUBAGENT_TOOLS,
-      messages,
-      ...(systemPrompt ? { system: systemPrompt } : {}),
-    });
+    response = await client.messages.create(
+      {
+        model: SUBAGENT_MODEL,
+        max_tokens: SUBAGENT_MAX_TOKENS,
+        tools: SUBAGENT_TOOLS,
+        messages,
+        ...(systemPrompt ? { system: systemPrompt } : {}),
+      },
+      { signal },
+    );
   }
 
   return response.content
@@ -81,6 +88,6 @@ export const subAgentTool = {
   },
 };
 
-export async function runSubAgentTool(input) {
-  return runSubAgentTool_Impl(input);
+export async function runSubAgentTool(input, signal) {
+  return runSubAgentTool_Impl(input, signal);
 }

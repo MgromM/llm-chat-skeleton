@@ -1821,7 +1821,8 @@ function ChatView() {
                 <textarea
                   ref={textareaRef}
                   rows={1}
-                  className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-brand-dark dark:text-zinc-100 placeholder:text-brand-muted dark:placeholder:text-zinc-500 focus:outline-none"
+                  disabled={conversationId === null}
+                  className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-brand-dark dark:text-zinc-100 placeholder:text-brand-muted dark:placeholder:text-zinc-500 focus:outline-none disabled:opacity-50"
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => {
@@ -1830,7 +1831,7 @@ function ChatView() {
                       handleSend();
                     }
                   }}
-                  placeholder="Napisz wiadomość lub /pomoc…"
+                  placeholder={conversationId === null ? 'Ładowanie rozmowy…' : 'Napisz wiadomość lub /pomoc…'}
                 />
                 {speechSupported && (
                   <button
@@ -1857,7 +1858,7 @@ function ChatView() {
                 ) : (
                   <button
                     onClick={handleSend}
-                    disabled={(!draft.trim() && pendingFiles.length === 0) || classifying}
+                    disabled={(!draft.trim() && pendingFiles.length === 0) || classifying || conversationId === null}
                     aria-label="Wyślij"
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange text-brand-white transition hover:brightness-95 disabled:opacity-30"
                   >

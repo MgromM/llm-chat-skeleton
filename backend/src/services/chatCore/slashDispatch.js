@@ -45,10 +45,12 @@ export const ARTIFACT_COMMANDS = {
 
 export function parseCommand(rawMessage) {
   const trimmed = rawMessage.trim();
-  const [name, ...rest] = trimmed.split(/\s+/);
+  const match = trimmed.match(/^(\S+)([\s\S]*)$/);
+  if (!match) return null;
+  const [, name, rest] = match;
   const command = COMMANDS[name.toLowerCase()];
   if (!command) return null;
-  return { command, name: name.toLowerCase(), args: rest.join(' ') };
+  return { command, name: name.toLowerCase(), args: rest.trim() };
 }
 
 /**

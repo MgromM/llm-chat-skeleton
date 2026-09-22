@@ -1,8 +1,16 @@
+// Order matters: the greedy KARTA_PLATNICZA pattern (13-19 digits, loose
+// separators) can swallow a shorter number sequence sitting right next to
+// it in the text (e.g. an order number glued to a phone number) before the
+// more specific TELEFON/PESEL patterns get a chance to claim their own
+// fixed-length span. Matching shortest/most-specific patterns first — so
+// they tokenize and remove their digits from `text` — before the wider
+// card pattern runs keeps that from misclassifying (and thus miscounting
+// in the audit log) plain phone numbers as card numbers.
 const PATTERNS = [
   { name: 'EMAIL', regex: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g },
+  { name: 'TELEFON', regex: /(?:\+48[ -]?)?\b\d{3}[ -]?\d{3}[ -]?\d{3}\b/g },
   { name: 'PESEL', regex: /\b\d{11}\b/g },
   { name: 'KARTA_PLATNICZA', regex: /\b(?:\d[ -]?){13,19}\b/g },
-  { name: 'TELEFON', regex: /(?:\+48[ -]?)?\b\d{3}[ -]?\d{3}[ -]?\d{3}\b/g },
 ];
 
 function escapeRegExp(str) {
