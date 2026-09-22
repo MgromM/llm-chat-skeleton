@@ -348,7 +348,7 @@ function ConversationSidebar({
       )}
       <aside
         className={clsx(
-          'fixed inset-y-0 left-0 z-40 m-3 flex w-64 shrink-0 flex-col rounded-2xl bg-brand-dark shadow-soft transition-transform duration-200 md:static md:m-0 md:z-auto md:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 m-3 flex w-64 shrink-0 flex-col rounded-2xl bg-zinc-100 dark:bg-brand-dark shadow-soft transition-transform duration-200 md:static md:m-0 md:z-auto md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -370,7 +370,7 @@ function ConversationSidebar({
             onClose();
           }}
           title="Rozmowa tymczasowa/incognito — nie pojawia się na tej liście"
-          className="mt-1.5 flex w-full items-center gap-2 rounded-lg border border-brand-white/20 px-3 py-2 text-sm font-medium text-brand-white/80 hover:bg-brand-white/10"
+          className="mt-1.5 flex w-full items-center gap-2 rounded-lg border border-brand-dark/15 dark:border-brand-white/20 px-3 py-2 text-sm font-medium text-brand-dark/70 dark:text-brand-white/80 hover:bg-brand-dark/5 dark:hover:bg-brand-white/10"
         >
           <EyeOff size={16} />
           Nowa incognito
@@ -382,44 +382,44 @@ function ConversationSidebar({
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Szukaj w rozmowach… (Cmd+K)"
-          className="w-full rounded-lg border border-brand-white/30 bg-brand-white/10 px-3 py-1.5 text-sm text-brand-white placeholder:text-brand-white/50 outline-none focus:border-brand-white/60"
+          className="w-full rounded-lg border border-brand-dark/20 dark:border-brand-white/30 bg-brand-dark/5 dark:bg-brand-white/10 px-3 py-1.5 text-sm text-brand-dark dark:text-brand-white placeholder:text-brand-dark/40 dark:placeholder:text-brand-white/50 outline-none focus:border-brand-dark/50 dark:focus:border-brand-white/60"
         />
       </div>
       <div className="px-3 pb-2">
         <div className="mb-1 flex items-center justify-between px-1">
-          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-white/50">
+          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-dark/50 dark:text-brand-white/50">
             <FolderKanban size={12} />
             Projekty
           </span>
           <button
             onClick={() => setShowNewProjectForm((v) => !v)}
             aria-label="Nowy projekt"
-            className="rounded p-0.5 text-brand-white/60 hover:bg-brand-white/10 hover:text-brand-white"
+            className="rounded p-0.5 text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/5 dark:hover:bg-brand-white/10 hover:text-brand-dark dark:hover:text-brand-white"
           >
             <Plus size={13} />
           </button>
         </div>
         {showNewProjectForm && (
-          <div className="mb-2 space-y-1.5 rounded-lg border border-brand-white/20 bg-brand-white/5 p-2">
+          <div className="mb-2 space-y-1.5 rounded-lg border border-brand-dark/15 dark:border-brand-white/20 bg-brand-dark/[0.03] dark:bg-brand-white/5 p-2">
             <input
               autoFocus
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && submitNewProject()}
               placeholder="Nazwa projektu"
-              className="w-full rounded-md border border-brand-white/30 bg-brand-white/10 px-2 py-1 text-xs text-brand-white placeholder:text-brand-white/40 outline-none focus:border-brand-white/60"
+              className="w-full rounded-md border border-brand-dark/20 dark:border-brand-white/30 bg-brand-dark/5 dark:bg-brand-white/10 px-2 py-1 text-xs text-brand-dark dark:text-brand-white placeholder:text-brand-dark/40 dark:placeholder:text-brand-white/40 outline-none focus:border-brand-dark/50 dark:focus:border-brand-white/60"
             />
             <textarea
               value={newProjectDescription}
               onChange={(e) => setNewProjectDescription(e.target.value)}
               placeholder="Opis / instrukcje projektu (opcjonalnie)"
               rows={2}
-              className="w-full resize-none rounded-md border border-brand-white/30 bg-brand-white/10 px-2 py-1 text-xs text-brand-white placeholder:text-brand-white/40 outline-none focus:border-brand-white/60"
+              className="w-full resize-none rounded-md border border-brand-dark/20 dark:border-brand-white/30 bg-brand-dark/5 dark:bg-brand-white/10 px-2 py-1 text-xs text-brand-dark dark:text-brand-white placeholder:text-brand-dark/40 dark:placeholder:text-brand-white/40 outline-none focus:border-brand-dark/50 dark:focus:border-brand-white/60"
             />
             <div className="flex justify-end gap-1.5">
               <button
                 onClick={() => setShowNewProjectForm(false)}
-                className="rounded px-2 py-1 text-xs text-brand-white/60 hover:bg-brand-white/10"
+                className="rounded px-2 py-1 text-xs text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/5 dark:hover:bg-brand-white/10"
               >
                 Anuluj
               </button>
@@ -438,8 +438,8 @@ function ConversationSidebar({
             className={clsx(
               'w-full truncate rounded-md px-2 py-1 text-left text-xs',
               projectFilter === null
-                ? 'bg-brand-white/10 font-medium text-brand-white'
-                : 'text-brand-white/60 hover:bg-brand-white/5',
+                ? 'bg-brand-dark/5 dark:bg-brand-white/10 font-medium text-brand-dark dark:text-brand-white'
+                : 'text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/[0.03] dark:hover:bg-brand-white/5',
             )}
           >
             Wszystkie
@@ -452,8 +452,8 @@ function ConversationSidebar({
               className={clsx(
                 'w-full truncate rounded-md px-2 py-1 text-left text-xs',
                 projectFilter === p.id
-                  ? 'bg-brand-white/10 font-medium text-brand-white'
-                  : 'text-brand-white/60 hover:bg-brand-white/5',
+                  ? 'bg-brand-dark/5 dark:bg-brand-white/10 font-medium text-brand-dark dark:text-brand-white'
+                  : 'text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/[0.03] dark:hover:bg-brand-white/5',
               )}
             >
               {p.name}
@@ -463,7 +463,7 @@ function ConversationSidebar({
       </div>
       <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
         {visibleConversations.length === 0 && (
-          <p className="px-3 py-2 text-sm text-brand-white/60">Brak wyników.</p>
+          <p className="px-3 py-2 text-sm text-brand-dark/60 dark:text-brand-white/60">Brak wyników.</p>
         )}
         {visibleConversations.map((c) =>
           renamingId === c.id ? (
@@ -477,7 +477,7 @@ function ConversationSidebar({
                 if (e.key === 'Enter') commitRename();
                 if (e.key === 'Escape') setRenamingId(null);
               }}
-              className="w-full rounded-lg border-l-2 border-brand-white bg-brand-white/15 px-3 py-2 text-sm text-brand-white outline-none"
+              className="w-full rounded-lg border-l-2 border-brand-dark dark:border-brand-white bg-brand-dark/10 dark:bg-brand-white/15 px-3 py-2 text-sm text-brand-dark dark:text-brand-white outline-none"
             />
           ) : (
             <div
@@ -485,8 +485,8 @@ function ConversationSidebar({
               className={clsx(
                 'group flex w-full items-center gap-2 truncate rounded-lg border-l-2 pl-3 pr-1 text-left text-sm',
                 c.id === activeId
-                  ? 'border-brand-orange bg-brand-white/10 font-medium text-brand-white'
-                  : 'border-transparent text-brand-white/70 hover:bg-brand-white/5',
+                  ? 'border-brand-orange bg-brand-dark/5 dark:bg-brand-white/10 font-medium text-brand-dark dark:text-brand-white'
+                  : 'border-transparent text-brand-dark/70 dark:text-brand-white/70 hover:bg-brand-dark/[0.03] dark:hover:bg-brand-white/5',
               )}
             >
               <button
@@ -507,14 +507,14 @@ function ConversationSidebar({
                 <button
                   onClick={() => startRename(c)}
                   aria-label="Zmień nazwę rozmowy"
-                  className="rounded p-[15px] text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white sm:p-1.5"
+                  className="rounded p-[15px] text-brand-dark/70 dark:text-brand-white/70 hover:bg-brand-dark/10 dark:hover:bg-brand-white/20 hover:text-brand-dark dark:hover:text-brand-white sm:p-1.5"
                 >
                   <Pencil size={13} />
                 </button>
                 <button
                   onClick={() => setDeleteConfirmId(c.id)}
                   aria-label="Usuń rozmowę"
-                  className="rounded p-[15px] text-brand-white/70 hover:bg-brand-white/20 hover:text-brand-white sm:p-1.5"
+                  className="rounded p-[15px] text-brand-dark/70 dark:text-brand-white/70 hover:bg-brand-dark/10 dark:hover:bg-brand-white/20 hover:text-brand-dark dark:hover:text-brand-white sm:p-1.5"
                 >
                   <Trash2 size={13} />
                 </button>
