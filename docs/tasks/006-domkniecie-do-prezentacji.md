@@ -85,8 +85,31 @@ ręcznie na lokalnej bazie:
       przeglądarce, w tym sprawdza że dwa różne non-admin konta widzą
       tylko swoje konwersacje). Do zrobienia przez Michała: przejść 002 na
       powyższym URL i odhaczyć ten punkt tutaj po zakończeniu.
-- [ ] 11. Smoke test całego flow: login → czat → koszt/jakość w bazie →
+- [x] 11. Smoke test całego flow: login → czat → koszt/jakość w bazie →
       eksport pptx/xlsx z panelu admina.
+      **Zrobione lokalnie (2026-09-22)** — produkcyjny login to Google OAuth
+      robione ręcznie przez Michała (patrz punkt 10), więc smoke test zrobiono
+      na `localhost` z lokalną bazą i backendem. Do logowania bez przechodzenia
+      przez Google dodano jednorazowy dev-helper
+      [backend/scripts/mint-dev-token.mjs](../../backend/scripts/mint-dev-token.mjs)
+      (mintuje JWT dla istniejącego użytkownika z lokalnej bazy, używając
+      lokalnego `JWT_SECRET` — nic nie commituje do sekretów, tylko czyta
+      istniejący `.env`).
+      **Po drodze znaleziono i naprawiono prawdziwego buga:** `login`/`logout`
+      w [frontend/src/lib/AuthContext.tsx](../../frontend/src/lib/AuthContext.tsx)
+      były tworzone od nowa przy każdym renderze, co wpadało w nieskończoną
+      pętlę re-renderu z `useEffect` na `/auth/callback` (`login` w tablicy
+      zależności) — po zalogowaniu front wywoływał `/auth/me` dziesiątki razy
+      na sekundę, aż trafiał w rate-limit (60 req/min), dostawał 429/401 i user
+      od razu wracał na ekran logowania. Naprawione owinięciem obu funkcji w
+      `useCallback` (stabilne referencje). To by uderzyło też w Michała przy
+      próbie 10/16 na produkcji, więc naprawa jest krytyczna przed próbą
+      generalną.
+      Zweryfikowane w przeglądarce lokalnie: logowanie stabilne (bez pętli),
+      wysłana wiadomość w czacie dostała odpowiedź, wiersz w `usage_metrics`
+      (koszt/tokeny) zapisany w bazie, `GET /export/xlsx` i `GET /export/pptx`
+      zwróciły poprawne pliki (`.xlsx`/`.pptx`, niezerowy rozmiar, poprawny
+      format binarny).
 
 ## Dzień 2 — dane i materiał na prezentację
 
