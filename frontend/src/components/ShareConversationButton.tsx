@@ -28,6 +28,8 @@ export function ShareConversationButton({
   const [copied, setCopied] = useState(false);
   const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverCloseRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -43,6 +45,21 @@ export function ShareConversationButton({
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('mousedown', onClickOutside);
     };
+  }, [open]);
+
+  // Focus management: move focus into the popover when it opens, and return
+  // it to the "Udostępnij" trigger button when it closes (Escape, outside
+  // click, or revoke) so keyboard focus isn't dropped back to <body>. Skips
+  // the initial mount (open starts false) so it doesn't steal page focus.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (open) {
+      popoverCloseRef.current?.focus();
+      wasOpenRef.current = true;
+    } else if (wasOpenRef.current) {
+      triggerRef.current?.focus();
+      wasOpenRef.current = false;
+    }
   }, [open]);
 
   async function handleOpen() {
@@ -119,6 +136,7 @@ export function ShareConversationButton({
   return (
     <div className="relative" ref={containerRef}>
       <button
+        ref={triggerRef}
         onClick={handleOpen}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -137,7 +155,7 @@ export function ShareConversationButton({
             <span className="text-xs font-semibold uppercase tracking-wide text-brand-dark/70 dark:text-zinc-300">
               {t('chat.share')}
             </span>
-            <button onClick={() => setOpen(false)} className="text-brand-muted hover:text-brand-dark dark:text-zinc-400 dark:hover:text-zinc-100">
+            <button ref={popoverCloseRef} onClick={() => setOpen(false)} className="text-brand-muted hover:text-brand-dark dark:text-zinc-400 dark:hover:text-zinc-100">
               <X size={14} />
             </button>
           </div>

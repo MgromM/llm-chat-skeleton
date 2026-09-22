@@ -977,6 +977,7 @@ function ChatView() {
     files: File[];
   } | null>(null);
   const [overriding, setOverriding] = useState(false);
+  const blockedNoticeCancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!blockedNotice) return;
@@ -985,6 +986,17 @@ function ChatView() {
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, [blockedNotice]);
+
+  // Focus management: this dialog interrupts the composer mid-send, so move
+  // focus into it on open and back to the composer once it closes, instead
+  // of leaving focus stranded on a now-hidden element.
+  useEffect(() => {
+    if (blockedNotice) {
+      blockedNoticeCancelRef.current?.focus();
+    } else {
+      textareaRef.current?.focus();
+    }
   }, [blockedNotice]);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1860,7 +1872,7 @@ function ChatView() {
                     onClick={handleSend}
                     disabled={(!draft.trim() && pendingFiles.length === 0) || classifying || conversationId === null}
                     aria-label="Wyślij"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange text-brand-white transition hover:brightness-95 disabled:opacity-30"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange text-brand-white transition hover:brightness-95 disabled:opacity-40"
                   >
                     {classifying ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
                   </button>
@@ -1897,6 +1909,7 @@ function ChatView() {
               </p>
               <div className="mt-5 flex justify-end gap-2">
                 <button
+                  ref={blockedNoticeCancelRef}
                   onClick={() => setBlockedNotice(null)}
                   disabled={overriding}
                   className="rounded-full border border-brand-dark/20 dark:border-zinc-600 px-4 py-2 text-sm font-medium text-brand-dark dark:text-zinc-100 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 disabled:opacity-50"

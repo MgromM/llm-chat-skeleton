@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 export function ConfirmDialog({
   title,
@@ -21,6 +21,8 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') onCancel();
@@ -28,6 +30,17 @@ export function ConfirmDialog({
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onCancel]);
+
+  // Focus management: move focus into the dialog on open, and return it to
+  // whatever triggered the dialog (e.g. the "Usuń" icon button) when it
+  // closes — otherwise keyboard focus is silently dropped back to <body>.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    cancelButtonRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={onCancel}>
@@ -44,6 +57,7 @@ export function ConfirmDialog({
         <p className="mt-2 text-sm text-brand-dark/70 dark:text-zinc-300">{description}</p>
         <div className="mt-5 flex justify-end gap-2">
           <button
+            ref={cancelButtonRef}
             onClick={onCancel}
             disabled={loading}
             className="rounded-full border border-brand-dark/20 px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-100 dark:hover:bg-zinc-800"

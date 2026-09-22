@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { useLocale } from '@/lib/LocaleContext';
 
@@ -17,6 +17,7 @@ const SHORTCUTS: { keys: string; labelPl: string; labelEn: string }[] = [
 
 export function ShortcutsModal({ onClose }: { onClose: () => void }) {
   const { locale } = useLocale();
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -25,6 +26,16 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onClose]);
+
+  // Focus management: move focus into the dialog on open, and return it to
+  // whatever triggered it (e.g. the "?" shortcuts button) once it closes.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeButtonRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -40,6 +51,7 @@ export function ShortcutsModal({ onClose }: { onClose: () => void }) {
             {locale === 'pl' ? 'Skróty klawiszowe' : 'Keyboard shortcuts'}
           </h2>
           <button
+            ref={closeButtonRef}
             onClick={onClose}
             aria-label={locale === 'pl' ? 'Zamknij' : 'Close'}
             className="text-brand-muted hover:text-brand-dark dark:text-zinc-400 dark:hover:text-zinc-100"
