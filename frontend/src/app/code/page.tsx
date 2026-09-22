@@ -46,10 +46,10 @@ export default function CodePage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          {files === null && !error && <p className="text-sm text-brand-dark/60">Wczytywanie…</p>}
+          {files === null && !error && <p className="text-sm text-brand-muted">Wczytywanie…</p>}
 
           {files !== null && files.length === 0 && (
-            <p className="text-sm text-brand-dark/60">
+            <p className="text-sm text-brand-muted">
               Tu pojawią się pliki, które asystent wygeneruje dla Ciebie w czacie (np. przez uruchomienie kodu i eksport
               raportu do .csv/.xlsx).
             </p>

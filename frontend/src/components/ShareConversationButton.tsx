@@ -86,7 +86,7 @@ export function ShareConversationButton({
   if (isTemporary) {
     return (
       <span
-        className="flex items-center gap-1.5 text-brand-dark/30 dark:text-zinc-600"
+        className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-600"
         title={
           locale === 'pl'
             ? 'Rozmów incognito/tymczasowych nie można udostępniać publicznym linkiem.'
@@ -103,7 +103,7 @@ export function ShareConversationButton({
     <div className="relative">
       <button
         onClick={handleOpen}
-        className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
+        className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
       >
         <Share2 size={14} />
         {t('chat.share')}

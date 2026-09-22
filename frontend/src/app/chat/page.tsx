@@ -753,7 +753,7 @@ function ConversationSettingsBar({
         <button
           onClick={onOpenSidebar}
           aria-label="Otwórz listę rozmów"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 md:hidden"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 md:hidden"
         >
           <Menu size={18} />
         </button>
@@ -766,7 +766,7 @@ function ConversationSettingsBar({
             Incognito
           </span>
         )}
-        <div className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400">
+        <div className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400">
           Model:
           <select
             value={selectedModel}
@@ -783,11 +783,11 @@ function ConversationSettingsBar({
         </div>
         <button
           onClick={() => setShowPromptEditor((v) => !v)}
-          className="text-brand-dark/60 dark:text-zinc-400 underline decoration-dotted hover:text-brand-dark dark:hover:text-zinc-100"
+          className="text-brand-muted dark:text-zinc-400 underline decoration-dotted hover:text-brand-dark dark:hover:text-zinc-100"
         >
           {systemPrompt ? 'Edytuj prompt systemowy (tej rozmowy)' : 'Dodaj prompt systemowy (tej rozmowy)'}
         </button>
-        <div className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400">
+        <div className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400">
           <FolderKanban size={14} className="opacity-70" />
           <select
             value={selectedProjectId ?? ''}
@@ -803,7 +803,7 @@ function ConversationSettingsBar({
             ))}
           </select>
         </div>
-        <div className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400">
+        <div className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400">
           <Sparkles size={14} className="opacity-70" />
           <select
             value={selectedStyle ?? ''}
@@ -850,7 +850,7 @@ function ConversationSettingsBar({
         <div className="relative ml-auto">
           <button
             onClick={() => setExportOpen((v) => !v)}
-            className="flex items-center gap-1.5 text-brand-dark/60 dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
+            className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100"
           >
             <Download size={14} />
             {t('chat.export')}
@@ -892,7 +892,7 @@ function ConversationSettingsBar({
           <div className="mt-1 flex justify-end gap-2">
             <button
               onClick={() => setShowPromptEditor(false)}
-              className="rounded-md px-3 py-1 text-xs text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
+              className="rounded-md px-3 py-1 text-xs text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
             >
               Anuluj
             </button>
@@ -1014,22 +1014,30 @@ function ChatView() {
 
   useEffect(() => {
     (async () => {
-      const list = await api.listConversations();
-      if (list.length === 0) {
-        const conversation = await api.createConversation('Nowa rozmowa');
-        setConversations([{ ...conversation, created_at: new Date().toISOString() } as Conversation]);
-        setConversationId(conversation.id);
-        return;
-      }
-      setConversations(list);
+      try {
+        const list = await api.listConversations();
+        if (list.length === 0) {
+          const conversation = await api.createConversation('Nowa rozmowa');
+          setConversations([{ ...conversation, created_at: new Date().toISOString() } as Conversation]);
+          setConversationId(conversation.id);
+          return;
+        }
+        setConversations(list);
 
-      // Deep-link from outside the chat view (e.g. the "Kod" tab linking to
-      // the conversation a generated file came from) — falls back to the
-      // most recent conversation if the id is missing or not the user's own.
-      const requestedId = Number(new URLSearchParams(window.location.search).get('conversation'));
-      const initial = list.find((c) => c.id === requestedId) ?? list[0];
-      setConversationId(initial.id);
-      setMessages(await api.listMessages(initial.id));
+        // Deep-link from outside the chat view (e.g. the "Kod" tab linking to
+        // the conversation a generated file came from) — falls back to the
+        // most recent conversation if the id is missing or not the user's own.
+        const requestedId = Number(new URLSearchParams(window.location.search).get('conversation'));
+        const initial = list.find((c) => c.id === requestedId) ?? list[0];
+        setConversationId(initial.id);
+        setMessages(await api.listMessages(initial.id));
+      } catch (err) {
+        setErrorMessage(
+          err instanceof ApiError
+            ? friendlyErrorMessage(err.message)
+            : 'Nie udało się wczytać rozmów. Sprawdź połączenie z internetem i odśwież stronę.',
+        );
+      }
     })();
     api.availableModels().then(({ models }) => setAvailableModels(models));
     api.availableStyles().then(({ styles }) => setAvailableStyles(styles));
@@ -1552,7 +1560,7 @@ function ChatView() {
                       Nowa rozmowa. Napisz wiadomość, wybierz przykładowy prompt
                       albo spróbuj <span className="font-mono">/pomoc</span>.
                     </p>
-                    <p className="mt-1 text-sm text-brand-dark/45 dark:text-zinc-500">
+                    <p className="mt-1 text-sm text-brand-muted dark:text-zinc-500">
                       Możesz też załączyć plik (📎), poprosić o gotowy dokument
                       (artefakt otworzy się w panelu obok) albo użyć gotowej
                       slash-komendy, np. <span className="font-mono">/brief-kreatywny</span>.
@@ -1599,7 +1607,7 @@ function ChatView() {
                         <div className="mt-2 flex justify-end gap-2">
                           <button
                             onClick={handleCancelEdit}
-                            className="rounded-md px-3 py-1.5 text-sm text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
+                            className="rounded-md px-3 py-1.5 text-sm text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
                           >
                             Anuluj
                           </button>
@@ -1754,7 +1762,7 @@ function ChatView() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   aria-label="Załącz plik"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100"
                 >
                   <Paperclip size={18} />
                 </button>
@@ -1780,7 +1788,7 @@ function ChatView() {
                     className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
                       listening
                         ? 'animate-pulse bg-red-500 text-white hover:brightness-95'
-                        : 'text-brand-dark/60 dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100'
+                        : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800 hover:text-brand-dark dark:hover:text-zinc-100'
                     }`}
                   >
                     {listening ? <MicOff size={18} /> : <Mic size={18} />}

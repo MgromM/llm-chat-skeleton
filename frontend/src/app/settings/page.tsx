@@ -20,7 +20,7 @@ function ThemeSection() {
         <SunMoon size={18} className="text-brand-orange" />
         {t('settings.theme.title')}
       </div>
-      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">{t('settings.theme.desc')}</p>
+      <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">{t('settings.theme.desc')}</p>
       <button
         onClick={toggleTheme}
         className="flex items-center gap-2 rounded-lg border border-brand-border px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800"
@@ -45,7 +45,7 @@ function LanguageSection() {
         <Languages size={18} className="text-brand-orange" />
         {t('settings.language.title')}
       </div>
-      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">{t('settings.language.desc')}</p>
+      <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">{t('settings.language.desc')}</p>
       <div className="flex gap-2">
         {LOCALE_OPTIONS.map((opt) => (
           <button
@@ -133,7 +133,7 @@ function MemorySection() {
           </button>
         )}
       </div>
-      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">
+      <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">
         Asystent może zapisywać sobie trwałe notatki (preferencje, ustalenia), które pamięta w kolejnych rozmowach.
         Widoczne są tylko dla Ciebie — możesz je w każdej chwili przejrzeć lub usunąć.
       </p>
@@ -206,7 +206,7 @@ function DefaultSystemPromptSection() {
         <MessageSquareText size={18} className="text-brand-orange" />
         Domyślny kontekst dla asystenta
       </div>
-      <p className="mb-4 text-sm text-brand-dark/60 dark:text-zinc-400">
+      <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">
         Opisz kim jesteś i jak asystent ma Ci odpowiadać (np. rola, branża, styl odpowiedzi). Ten kontekst będzie
         automatycznie dołączany do każdej Twojej rozmowy — a w danej rozmowie możesz go dodatkowo uzupełnić przez
         &quot;Dodaj prompt systemowy&quot;.
@@ -266,7 +266,7 @@ function SettingsView() {
       <BrandHeader />
       <div className="mx-auto w-full max-w-xl px-6 py-10">
         <h1 className="mb-1 text-xl font-bold text-brand-dark dark:text-zinc-100">{t('settings.title')}</h1>
-        <p className="mb-8 text-sm text-brand-dark/60 dark:text-zinc-400">
+        <p className="mb-8 text-sm text-brand-muted dark:text-zinc-400">
           {t('settings.loggedInAs')} {user?.email}
         </p>
 
