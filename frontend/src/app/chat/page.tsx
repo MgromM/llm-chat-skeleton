@@ -28,6 +28,8 @@ const EXAMPLE_PROMPTS: string[] = [
   'Przeanalizuj konkurencję w naszej branży',
   'Zaproponuj 5 pomysłów na posty w social mediach',
   'Napisz teksty reklamowe do kampanii Google Ads',
+  'Zbuduj szkielet planu kampanii z podziałem budżetu',
+  'Napisz e-mail ofertowy do nowego klienta',
 ];
 
 const ARTIFACT_COMMAND_TITLES: Record<string, string> = {
@@ -35,6 +37,8 @@ const ARTIFACT_COMMAND_TITLES: Record<string, string> = {
   '/tekst-reklamowy': 'Teksty reklamowe',
   '/pomysly-na-posty': 'Pomysły na posty',
   '/analiza-konkurencji': 'Analiza konkurencji',
+  '/plan-kampanii': 'Plan kampanii',
+  '/email-ofertowy': 'E-mail ofertowy',
 };
 
 function artifactFilename(title: string, type: string) {
