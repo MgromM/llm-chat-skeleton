@@ -33,6 +33,26 @@ const EXAMPLE_PROMPTS: string[] = [
   'Napisz e-mail ofertowy do nowego klienta',
 ];
 
+// Mirrors backend/src/services/chatCore/commands/pomoc.js's DESCRIPTIONS —
+// same reasoning as ARTIFACT_COMMAND_TITLES below: the frontend needs these
+// strings client-side (for autocomplete) rather than round-tripping to the
+// server just to list them. Plus /clear, which is handled entirely client-side.
+const SLASH_COMMANDS: { name: string; description: string }[] = [
+  { name: '/clear', description: 'Czyści bieżącą rozmowę i zaczyna nową.' },
+  { name: '/pomoc', description: 'Pokazuje listę dostępnych komend.' },
+  { name: '/koszt-dzisiaj', description: 'Podsumowanie kosztu i liczby zapytań do LLM za dziś.' },
+  { name: '/analiza-bigquery', description: 'Odpowiada na pytanie o dane firmowe z BigQuery.' },
+  { name: '/brief-kreatywny', description: 'Krótki brief kreatywny dla kampanii.' },
+  { name: '/tekst-reklamowy', description: '3 warianty tekstu reklamowego dopasowane do platformy.' },
+  { name: '/pomysly-na-posty', description: '5 pomysłów na posty social media.' },
+  { name: '/analiza-konkurencji', description: 'Szkielet analizy konkurencji.' },
+  { name: '/plan-kampanii', description: 'Szkielet planu kampanii z budżetem i harmonogramem.' },
+  { name: '/email-ofertowy', description: 'Gotowy e-mail ofertowy do klienta.' },
+  { name: '/podsumowanie-spotkania', description: 'Zamienia notatki ze spotkania w podsumowanie.' },
+  { name: '/persona-klienta', description: 'Szkielet persony klienta.' },
+  { name: '/prezentacja', description: 'Generuje plik .pptx na podstawie danych kampanii.' },
+];
+
 const ARTIFACT_COMMAND_TITLES: Record<string, string> = {
   '/brief-kreatywny': 'Brief kreatywny',
   '/tekst-reklamowy': 'Teksty reklamowe',
@@ -950,6 +970,15 @@ function ChatView() {
   const [draft, setDraft] = useState('');
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [commandMenuIndex, setCommandMenuIndex] = useState(0);
+  // Only offer autocomplete while the command name itself is being typed —
+  // once a space appears the rest is the command's argument, not something
+  // to match against SLASH_COMMANDS.
+  const commandMatches =
+    draft.startsWith('/') && !draft.includes(' ')
+      ? SLASH_COMMANDS.filter((c) => c.name.startsWith(draft.toLowerCase()))
+      : [];
+  const showCommandMenu = commandMatches.length > 0 && !(commandMatches.length === 1 && commandMatches[0].name === draft.toLowerCase());
   const [sending, setSending] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
@@ -1793,7 +1822,34 @@ function ChatView() {
                   ))}
                 </div>
               )}
-              <div className="flex items-end gap-2 rounded-3xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2.5 shadow-sm focus-within:border-brand-orange/60">
+              <div className="relative flex items-end gap-2 rounded-3xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2.5 shadow-sm focus-within:border-brand-orange/60">
+                {showCommandMenu && (
+                  <div
+                    role="listbox"
+                    className="absolute bottom-full left-0 right-0 z-10 mb-2 max-h-64 overflow-y-auto rounded-2xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 py-1.5 shadow-lg"
+                  >
+                    {commandMatches.map((c, i) => (
+                      <button
+                        key={c.name}
+                        role="option"
+                        aria-selected={i === commandMenuIndex}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setDraft(c.name + ' ');
+                          textareaRef.current?.focus();
+                        }}
+                        onMouseEnter={() => setCommandMenuIndex(i)}
+                        className={clsx(
+                          'flex w-full items-baseline gap-2 px-4 py-1.5 text-left text-sm',
+                          i === commandMenuIndex ? 'bg-brand-orange/10 text-brand-dark dark:text-zinc-100' : 'text-brand-dark dark:text-zinc-100',
+                        )}
+                      >
+                        <span className="shrink-0 font-mono font-medium">{c.name}</span>
+                        <span className="truncate text-xs text-brand-muted dark:text-zinc-400">{c.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1817,8 +1873,34 @@ function ChatView() {
                   disabled={conversationId === null}
                   className="max-h-[200px] flex-1 resize-none bg-transparent py-1.5 text-brand-dark dark:text-zinc-100 placeholder:text-brand-muted dark:placeholder:text-zinc-500 focus:outline-none disabled:opacity-50"
                   value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
+                  onChange={(e) => {
+                    setDraft(e.target.value);
+                    setCommandMenuIndex(0);
+                  }}
                   onKeyDown={(e) => {
+                    if (showCommandMenu) {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setCommandMenuIndex((i) => (i + 1) % commandMatches.length);
+                        return;
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setCommandMenuIndex((i) => (i - 1 + commandMatches.length) % commandMatches.length);
+                        return;
+                      }
+                      if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+                        e.preventDefault();
+                        const chosen = commandMatches[Math.min(commandMenuIndex, commandMatches.length - 1)];
+                        setDraft(chosen.name + ' ');
+                        return;
+                      }
+                      if (e.key === 'Escape') {
+                        e.preventDefault();
+                        setDraft('');
+                        return;
+                      }
+                    }
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
                       handleSend();
