@@ -1,6 +1,7 @@
 import { getAnthropicClient } from '../anthropicClient.js';
 import { query } from '../../config/db.js';
 import { logger } from '../../config/logger.js';
+import { sendNotificationEmail } from '../notifications/resendMailer.js';
 
 const LEAK_AGENT_MODEL = process.env.LEAK_AGENT_MODEL ?? 'claude-haiku-4-5-20251001';
 const DEFAULT_CONTEXT_MESSAGES = Number(process.env.LEAK_AGENT_DEFAULT_CONTEXT ?? 5);
@@ -37,8 +38,9 @@ async function loadRecentMessages(conversationId, limit) {
  */
 export async function detectUncertainLeak({ conversationId, userId, userMessage }) {
   try {
-    const { rows: userRows } = await query('SELECT leak_context_messages FROM users WHERE id = $1', [userId]);
+    const { rows: userRows } = await query('SELECT leak_context_messages, email FROM users WHERE id = $1', [userId]);
     const contextLimit = userRows[0]?.leak_context_messages ?? DEFAULT_CONTEXT_MESSAGES;
+    const reporterEmail = userRows[0]?.email ?? null;
 
     const context = await loadRecentMessages(conversationId, contextLimit);
     const transcript = context.map((m) => `${m.role}: ${m.content}`).join('\n');
@@ -78,6 +80,28 @@ export async function detectUncertainLeak({ conversationId, userId, userMessage 
       category: verdict.category,
       confidence: verdict.confidence,
     });
+
+    // Fire-and-forget, same as the rest of this function: the alert is
+    // already durably saved above (visible in GET /metrics/leak-alerts
+    // regardless of email delivery), this is just so a reviewer doesn't
+    // have to keep polling that dashboard to notice a new one.
+    const notifyTo = process.env.LEAK_ALERT_NOTIFY_EMAIL || process.env.SUPPORT_NOTIFY_EMAIL;
+    if (notifyTo) {
+      sendNotificationEmail({
+        to: notifyTo,
+        subject: `[Sales&More LLM] Możliwy wyciek danych (${verdict.category ?? 'brak kategorii'})`,
+        text: [
+          `Zgłaszający: ${reporterEmail ?? `user #${userId}`}`,
+          `Rozmowa: ${conversationId}`,
+          `Kategoria: ${verdict.category ?? '—'}`,
+          `Pewność: ${verdict.confidence ?? '—'}`,
+          `Uzasadnienie: ${verdict.rationale ?? '—'}`,
+          '',
+          `Przejrzyj w panelu: GET /metrics/leak-alerts`,
+        ].join('\n'),
+        context: 'leak-alert',
+      }).catch(() => {});
+    }
 
     return { suspicious: true, category: verdict.category, rationale: verdict.rationale };
   } catch (err) {
