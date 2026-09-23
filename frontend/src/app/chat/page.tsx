@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, EyeOff, Code2, Loader2, Copy, FolderKanban, Sparkles, Mic, MicOff, Gauge, Brain, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2, Loader2, Copy, FolderKanban, Sparkles, Mic, MicOff, Gauge, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -267,7 +267,6 @@ function ConversationSidebar({
   activeId,
   onSelect,
   onNew,
-  onNewTemporary,
   onRename,
   onDelete,
   open,
@@ -282,7 +281,6 @@ function ConversationSidebar({
   activeId: number | null;
   onSelect: (id: number) => void;
   onNew: () => void;
-  onNewTemporary: () => void;
   onRename: (id: number, title: string) => void;
   onDelete: (id: number) => void;
   open: boolean;
@@ -363,17 +361,6 @@ function ConversationSidebar({
         >
           <Plus size={16} />
           Nowa rozmowa
-        </button>
-        <button
-          onClick={() => {
-            onNewTemporary();
-            onClose();
-          }}
-          title="Rozmowa tymczasowa/incognito — nie pojawia się na tej liście"
-          className="mt-1.5 flex w-full items-center gap-2 rounded-lg border border-brand-dark/15 dark:border-brand-white/20 px-3 py-2 text-sm font-medium text-brand-dark/70 dark:text-brand-white/80 hover:bg-brand-dark/5 dark:hover:bg-brand-white/10"
-        >
-          <EyeOff size={16} />
-          Nowa incognito
         </button>
       </div>
       <div className="px-3 pb-2">
@@ -752,7 +739,6 @@ function ConversationSettingsBar({
   onChangeStyle,
   extendedThinking,
   onChangeExtendedThinking,
-  isTemporary,
   onExportPdf,
   conversationId,
 }: {
@@ -772,7 +758,6 @@ function ConversationSettingsBar({
   onChangeStyle: (style: string | null) => void;
   extendedThinking?: boolean;
   onChangeExtendedThinking: (enabled: boolean) => void;
-  isTemporary?: boolean;
   onExportPdf: () => void;
   conversationId: number | null;
 }) {
@@ -810,15 +795,6 @@ function ConversationSettingsBar({
         >
           <Menu size={18} />
         </button>
-        {isTemporary && (
-          <span
-            title="Rozmowa tymczasowa/incognito — nie pojawia się na liście rozmów. Nadal podlega tej samej klasyfikacji danych wrażliwych i retencji co inne rozmowy."
-            className="flex items-center gap-1 rounded-md bg-brand-dark/10 px-2 py-0.5 text-xs font-medium text-brand-dark/70 dark:bg-zinc-100/10 dark:text-zinc-300"
-          >
-            <EyeOff size={12} />
-            Incognito
-          </span>
-        )}
         <div className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400">
           Model:
           <select
@@ -933,7 +909,7 @@ function ConversationSettingsBar({
             </div>
           )}
         </div>
-        <ShareConversationButton conversationId={conversationId} isTemporary={isTemporary} />
+        <ShareConversationButton conversationId={conversationId} />
       </div>
       {showPromptEditor && (
         <div className="mx-auto mt-2 max-w-3xl">
@@ -1193,19 +1169,6 @@ function ChatView() {
   async function handleNewConversation() {
     const conversation = await api.createConversation();
     setConversations((prev) => [{ ...conversation, created_at: new Date().toISOString() } as Conversation, ...prev]);
-    setConversationId(conversation.id);
-    setMessages([]);
-  }
-
-  // Item 17: temporary/incognito conversation — fully usable for chat within
-  // this session, but excluded from `GET /chat/conversations` by default
-  // (see chat.routes.js), so it's kept only in this local `conversations`
-  // state (added directly here, same as handleNewConversation does) rather
-  // than re-fetched from the server — a plain refetch would drop it from the
-  // sidebar the moment it's created.
-  async function handleNewTemporaryConversation() {
-    const conversation = await api.createConversation('Rozmowa tymczasowa', true);
-    setConversations((prev) => [{ ...conversation, created_at: new Date().toISOString(), isTemporary: true } as Conversation, ...prev]);
     setConversationId(conversation.id);
     setMessages([]);
   }
@@ -1602,7 +1565,6 @@ function ChatView() {
           activeId={conversationId}
           onSelect={handleSelectConversation}
           onNew={handleNewConversation}
-          onNewTemporary={handleNewTemporaryConversation}
           onRename={handleRenameConversation}
           onDelete={handleDeleteConversation}
           open={sidebarOpen}
@@ -1631,7 +1593,6 @@ function ChatView() {
             onChangeStyle={handleChangeStyle}
             extendedThinking={!!conversations.find((c) => c.id === conversationId)?.extendedThinking}
             onChangeExtendedThinking={handleChangeExtendedThinking}
-            isTemporary={!!conversations.find((c) => c.id === conversationId)?.isTemporary}
             onExportPdf={handleExportConversationPdf}
             conversationId={conversationId}
           />
