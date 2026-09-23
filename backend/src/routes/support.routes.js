@@ -17,19 +17,26 @@ supportRouter.post('/', requireAuth, async (req, res, next) => {
       return res.status(400).json({ error: `message must be at most ${MAX_MESSAGE_LENGTH} characters` });
     }
 
-    const emailSent = await notifySupportByEmail({
+    const { rows } = await query(
+      `INSERT INTO support_messages (user_id, message, conversation_id, email_sent)
+       VALUES ($1, $2, $3, false)
+       RETURNING id, created_at`,
+      [req.user.sub, message.trim(), conversationId || null],
+    );
+    res.status(201).json(rows[0]);
+
+    // Fire-and-forget: the message is already durably saved above, so a slow
+    // or unreachable SMTP host (common on PaaS egress) must never make the
+    // user wait on it or see a failure for something that already succeeded.
+    notifySupportByEmail({
       message: message.trim(),
       fromEmail: req.user.email,
       conversationId: conversationId || null,
-    });
-
-    const { rows } = await query(
-      `INSERT INTO support_messages (user_id, message, conversation_id, email_sent)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, created_at`,
-      [req.user.sub, message.trim(), conversationId || null, emailSent],
-    );
-    res.status(201).json(rows[0]);
+    })
+      .then((emailSent) => {
+        if (emailSent) return query('UPDATE support_messages SET email_sent = true WHERE id = $1', [rows[0].id]);
+      })
+      .catch(() => {});
   } catch (err) {
     next(err);
   }

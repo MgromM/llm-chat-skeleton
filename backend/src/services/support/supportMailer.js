@@ -11,6 +11,12 @@ function getTransporter() {
     port: Number(process.env.SMTP_PORT) || 587,
     secure: Number(process.env.SMTP_PORT) === 465,
     auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD } : undefined,
+    // Some PaaS hosts block outbound SMTP ports entirely, which otherwise
+    // hangs the connection for nodemailer's ~2min default timeouts -- fail
+    // fast instead, since this is best-effort on top of the DB write anyway.
+    connectionTimeout: 8_000,
+    greetingTimeout: 8_000,
+    socketTimeout: 8_000,
   });
   return transporter;
 }
