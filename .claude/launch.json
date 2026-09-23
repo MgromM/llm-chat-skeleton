@@ -4,14 +4,21 @@
     {
       "name": "backend",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "PORT=8095 npm --prefix backend run dev"],
-      "port": 8095
+      "runtimeArgs": ["-c", "PORT=8092 npm --prefix backend run dev"],
+      "port": 8092
     },
     {
       "name": "frontend",
       "runtimeExecutable": "bash",
-      "runtimeArgs": ["-c", "BACKEND_URL=http://localhost:8095 npm --prefix frontend run dev"],
+      "runtimeArgs": ["-c", "BACKEND_URL=http://localhost:8092 npm --prefix frontend run dev"],
       "port": 3000,
+      "autoPort": true
+    },
+    {
+      "name": "cost-calculator",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "python3 -m http.server $PORT --directory tools/cost-calculator --bind 127.0.0.1"],
+      "port": 4321,
       "autoPort": true
     }
   ]

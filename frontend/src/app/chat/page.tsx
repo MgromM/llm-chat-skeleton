@@ -626,6 +626,9 @@ function friendlyErrorMessage(raw: string): string {
   if (/^Request failed: 5\d\d/.test(raw) || /500/.test(raw)) {
     return 'Wystąpił błąd serwera. Spróbuj ponownie za chwilę.';
   }
+  if (/Conversation not found/i.test(raw)) {
+    return 'Ta rozmowa nie istnieje lub została usunięta. Wybierz inną z listy albo zacznij nową.';
+  }
   return raw || 'Coś poszło nie tak. Spróbuj ponownie.';
 }
 

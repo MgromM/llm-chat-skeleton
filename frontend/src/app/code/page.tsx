@@ -44,15 +44,27 @@ export default function CodePage() {
             Kod i wygenerowane pliki
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</div>
+          )}
 
-          {files === null && !error && <p className="text-sm text-brand-muted">Wczytywanie…</p>}
+          {files === null && !error && (
+            <div className="flex flex-col items-center gap-3 py-16 text-brand-muted">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-border border-t-brand-orange" />
+              <p className="text-sm">Wczytywanie…</p>
+            </div>
+          )}
 
           {files !== null && files.length === 0 && (
-            <p className="text-sm text-brand-muted">
-              Tu pojawią się pliki, które asystent wygeneruje dla Ciebie w czacie (np. przez uruchomienie kodu i eksport
-              raportu do .csv/.xlsx).
-            </p>
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-orange/10">
+                <FileCode2 size={26} className="text-brand-orange" />
+              </div>
+              <p className="max-w-sm text-sm text-brand-muted">
+                Tu pojawią się pliki, które asystent wygeneruje dla Ciebie w czacie (np. przez uruchomienie kodu i
+                eksport raportu do .csv/.xlsx).
+              </p>
+            </div>
           )}
 
           {files !== null && files.length > 0 && (

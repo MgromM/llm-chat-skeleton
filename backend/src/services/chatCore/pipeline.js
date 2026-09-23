@@ -70,12 +70,24 @@ function withHistoryCacheBreakpoint(messages) {
   if (messages.length === 0) return messages;
   const lastIndex = messages.length - 1;
   const last = messages[lastIndex];
-  const content =
-    typeof last.content === 'string'
-      ? [{ type: 'text', text: last.content, cache_control: { type: 'ephemeral' } }]
-      : last.content.map((block, i, arr) =>
-          i === arr.length - 1 ? { ...block, cache_control: { type: 'ephemeral' } } : block,
-        );
+
+  if (typeof last.content === 'string') {
+    if (!last.content) return messages;
+    const content = [{ type: 'text', text: last.content, cache_control: { type: 'ephemeral' } }];
+    return [...messages.slice(0, lastIndex), { ...last, content }];
+  }
+
+  // Anthropic rejects cache_control on an empty text block, which can occur
+  // as the trailing block of a message (e.g. after stripping thinking blocks).
+  // Find the last block that's actually cacheable instead of always the last index.
+  const cacheableIndex = [...last.content]
+    .reverse()
+    .findIndex((block) => block.type !== 'text' || block.text.length > 0);
+  if (cacheableIndex === -1) return messages;
+  const targetIndex = last.content.length - 1 - cacheableIndex;
+  const content = last.content.map((block, i) =>
+    i === targetIndex ? { ...block, cache_control: { type: 'ephemeral' } } : block,
+  );
   return [...messages.slice(0, lastIndex), { ...last, content }];
 }
 
