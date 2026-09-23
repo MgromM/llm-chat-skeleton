@@ -14,6 +14,7 @@ export type Locale = 'pl' | 'en';
 const dict = {
   pl: {
     'header.settings': 'Ustawienia konta',
+    'header.admin': 'Panel administratora',
     'header.code': 'Kod i wygenerowane pliki',
     'header.incident': 'Zgłoś incydent',
     'header.support': 'Kontakt z supportem',
@@ -52,6 +53,7 @@ const dict = {
   },
   en: {
     'header.settings': 'Account settings',
+    'header.admin': 'Admin panel',
     'header.code': 'Code and generated files',
     'header.incident': 'Report incident',
     'header.support': 'Contact support',

@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard, LifeBuoy } from 'lucide-react';
+import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard, LifeBuoy, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocale } from '@/lib/LocaleContext';
 import { ShortcutsModal } from './ShortcutsModal';
@@ -79,6 +79,16 @@ export function BrandHeader() {
           >
             <FileCode2 size={15} />
           </Link>
+          {user.role === 'admin' && (
+            <Link
+              href="/admin"
+              aria-label={t('header.admin')}
+              title={t('header.admin')}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+            >
+              <ShieldCheck size={15} />
+            </Link>
+          )}
           <Link
             href="/settings"
             aria-label={t('header.settings')}
