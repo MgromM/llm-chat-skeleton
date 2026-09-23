@@ -3,10 +3,11 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard } from 'lucide-react';
+import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard, LifeBuoy } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocale } from '@/lib/LocaleContext';
 import { ShortcutsModal } from './ShortcutsModal';
+import { SupportContactModal } from './SupportContactModal';
 
 // External incident-reporting tool (AI Policy Gate) — replaced the in-app
 // modal so incidents land in the org's shared triage queue instead of this
@@ -17,6 +18,7 @@ export function BrandHeader() {
   const { user, logout } = useAuth();
   const { t } = useLocale();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -51,6 +53,14 @@ export function BrandHeader() {
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
           >
             <Keyboard size={15} />
+          </button>
+          <button
+            onClick={() => setSupportOpen(true)}
+            aria-label={t('header.support')}
+            title={t('header.support')}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+          >
+            <LifeBuoy size={15} />
           </button>
           <a
             href={INCIDENT_REPORT_URL}
@@ -88,6 +98,7 @@ export function BrandHeader() {
         </div>
       )}
       {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
+      {supportOpen && <SupportContactModal onClose={() => setSupportOpen(false)} />}
     </header>
   );
 }

@@ -700,11 +700,24 @@ function UsageBadge() {
 
   if (!usage) return null;
 
-  const { orgBudget, mine } = usage;
-  const pct = orgBudget && orgBudget.limitUsd > 0 ? Math.min(100, (orgBudget.spentUsd / orgBudget.limitUsd) * 100) : null;
-  const title = orgBudget
-    ? `Wspólny budżet miesięczny pilotażu: $${orgBudget.spentUsd.toFixed(2)} / $${orgBudget.limitUsd.toFixed(2)} wykorzystane przez wszystkich użytkowników. Twój udział w tym miesiącu: ${mine.messages} wiadomości, $${mine.costUsd.toFixed(2)}.`
-    : `Brak skonfigurowanego limitu budżetu. Twoje zużycie w tym miesiącu: ${mine.messages} wiadomości, $${mine.costUsd.toFixed(2)}.`;
+  const { orgBudget, userBudget, mine } = usage;
+  // The per-user cap is the more relevant number to show a single user, so
+  // it takes priority over the org-wide one when both are configured.
+  const primaryBudget = userBudget ?? orgBudget;
+  const pct =
+    primaryBudget && primaryBudget.limitUsd > 0
+      ? Math.min(100, (primaryBudget.spentUsd / primaryBudget.limitUsd) * 100)
+      : null;
+  const titleParts = [
+    userBudget
+      ? `Twój miesięczny limit: $${userBudget.spentUsd.toFixed(2)} / $${userBudget.limitUsd.toFixed(2)}.`
+      : null,
+    orgBudget
+      ? `Wspólny budżet pilotażu: $${orgBudget.spentUsd.toFixed(2)} / $${orgBudget.limitUsd.toFixed(2)} wykorzystane przez wszystkich użytkowników.`
+      : null,
+    `Twoje zużycie w tym miesiącu: ${mine.messages} wiadomości, $${mine.costUsd.toFixed(2)}.`,
+  ].filter(Boolean);
+  const title = titleParts.length > 1 ? titleParts.join(' ') : `Brak skonfigurowanego limitu budżetu. ${titleParts[0]}`;
 
   return (
     <span
@@ -717,7 +730,7 @@ function UsageBadge() {
       )}
     >
       <Gauge size={12} />
-      {orgBudget ? `Budżet: ${pct!.toFixed(0)}%` : `Ty: ${mine.messages} wiad.`}
+      {primaryBudget ? `Budżet: ${pct!.toFixed(0)}%` : `Ty: ${mine.messages} wiad.`}
     </span>
   );
 }
@@ -1438,6 +1451,13 @@ function ChatView() {
    */
   async function handleSend() {
     if ((!draft.trim() && pendingFiles.length === 0) || conversationId === null) return;
+
+    if (draft.trim() === '/clear') {
+      setDraft('');
+      await handleNewConversation();
+      return;
+    }
+
     const filesToSend = pendingFiles;
     const content = draft;
     setDraft('');

@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kalkulator kosztów: Nasz LLM vs Team vs Enterprise</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --border: #e2e0da;
+    --text: #1c1a17;
+    --muted: #6b675f;
+    --orange: #e8622c;
+    --green: #1e7d4a;
+    --green-bg: #e8f5ee;
+    --red: #b3261e;
+    --red-bg: #fbeae9;
+    --accent-bg: #fff3ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 32px 20px 80px;
+  }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 4px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+  .layout {
+    max-width: 1180px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 24px;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+  }
+  .panel h2 {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin: 0 0 16px;
+  }
+  .field {
+    margin-bottom: 20px;
+  }
+  .field:last-child { margin-bottom: 0; }
+  .field label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .field label span.val {
+    color: var(--orange);
+    font-variant-numeric: tabular-nums;
+  }
+  .field label span.val.fixed {
+    color: var(--muted);
+    font-weight: 500;
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--orange);
+  }
+  .group-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+    margin: 22px 0 10px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .group-title:first-of-type { border-top: none; margin-top: 0; padding-top: 0; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 720px) {
+    .cards { grid-template-columns: 1fr; }
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+  }
+  .card.best {
+    border-color: var(--green);
+    box-shadow: 0 0 0 1px var(--green);
+  }
+  .card h3 {
+    margin: 0 0 2px;
+    font-size: 15px;
+  }
+  .card .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--green);
+    background: var(--green-bg);
+    border-radius: 999px;
+    padding: 2px 8px;
+    margin-bottom: 8px;
+  }
+  .card .big {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 8px 0 2px;
+  }
+  .card .small {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .card .row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    padding: 5px 0;
+    border-top: 1px solid var(--border);
+  }
+  .card .row:first-of-type { margin-top: 10px; }
+  .card .row b { font-weight: 600; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  th {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 11.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .table-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px 16px;
+    margin-bottom: 20px;
+    overflow-x: auto;
+  }
+  .savings-box {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+  @media (max-width: 720px) {
+    .savings-box { grid-template-columns: 1fr; }
+  }
+  .savings-box .card .big { color: var(--green); }
+  .note {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    margin-top: 4px;
+  }
+  .reset-btn {
+    width: 100%;
+    margin-top: 24px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .reset-btn:hover { background: var(--accent-bg); border-color: var(--orange); }
+</style>
+</head>
+<body>
+  <h1>Kalkulator kosztów LLM: Nasz LLM vs Claude Team vs Claude Enterprise</h1>
+  <p class="subtitle">Interaktywne porównanie na podstawie ustaleń z audytu budżetu — przesuwaj suwaki, żeby przeliczyć wszystko na żywo.</p>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Parametry</h2>
+
+      <div class="group-title">Skala</div>
+      <div class="field">
+        <label>Liczba userów <span class="val" id="v-users">50</span></label>
+        <input type="range" id="users" min="1" max="300" step="1" value="50" />
+      </div>
+
+      <div class="group-title">Nasz LLM</div>
+      <div class="field">
+        <label>Budżet/user/mies. (hard cap, 1:1 z tokenami) <span class="val" id="v-ourBudget">$20</span></label>
+        <input type="range" id="ourBudget" min="1" max="60" step="1" value="20" />
+      </div>
+      <div class="field">
+        <label>Hosting/infra total/mies. <span class="val" id="v-hosting">$25</span></label>
+        <input type="range" id="hosting" min="0" max="150" step="5" value="25" />
+      </div>
+      <div class="field">
+        <label>Narzut guardraili (precheck/leak/judge) <span class="val" id="v-overhead">27%</span></label>
+        <input type="range" id="overhead" min="0" max="60" step="1" value="27" />
+      </div>
+
+      <div class="group-title">Claude Team</div>
+      <div class="field">
+        <label>Cena seata/user/mies. <span class="val fixed">$20 (na stałe)</span></label>
+      </div>
+      <div class="field">
+        <label>Extra usage/user/mies. (flat, ponad bazę) <span class="val" id="v-teamExtra">$20</span></label>
+        <input type="range" id="teamExtra" min="0" max="80" step="1" value="20" />
+      </div>
+
+      <div class="group-title">Claude Enterprise</div>
+      <div class="field">
+        <label>Cena seata/user/mies. (dostęp, bez bazy tokenów) <span class="val fixed">$20 (na stałe)</span></label>
+      </div>
+      <div class="field">
+        <label>Zużycie zmienne/user/mies. (metered, jak API) <span class="val" id="v-entVar">$20</span></label>
+        <input type="range" id="entVar" min="0" max="60" step="1" value="20" />
+      </div>
+
+      <button class="reset-btn" id="reset">Przywróć wartości domyślne</button>
+    </div>
+
+    <div>
+      <div class="cards" id="cards"></div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Metryka</th>
+              <th class="num">Nasz LLM</th>
+              <th class="num">Team</th>
+              <th class="num">Enterprise</th>
+            </tr>
+          </thead>
+          <tbody id="table-body"></tbody>
+        </table>
+      </div>
+
+      <div class="savings-box" id="savings"></div>
+      <p class="note">
+        Tokeny liczone dla Sonnet 5 ($2/M input, $10/M output), stosunek 3:1 input:output. Dla Team/Enterprise pokazana
+        wartość to <b>równowartość</b> tokenów, jaką dana kwota kupiłaby przy rozliczeniu per-token — Team faktycznie
+        rozlicza się flat-fee (fair use), więc realny limit może być inny. "Wiadomości/mies." liczone jako ~5000 input +
+        750 output tokenów na wiadomość, z narzutem guardraili tam gdzie dotyczy (tylko Nasz LLM ma wbudowane guardraile
+        w tej cenie).
+      </p>
+    </div>
+  </div>
+
+<script>
+  // Seat cost is hardcoded for both Team and Enterprise -- not a slider, per explicit
+  // instruction: both plans are pinned to the same $20/user seat price.
+  const FIXED_SEAT_COST = 20;
+
+  const ids = ['users','ourBudget','hosting','overhead','teamExtra','entVar'];
+  const defaults = { users:50, ourBudget:20, hosting:25, overhead:27, teamExtra:20, entVar:20 };
+  const els = {};
+  ids.forEach(id => { els[id] = document.getElementById(id); });
+
+  const SONNET_IN = 2;   // $ per M input tokens
+  const SONNET_OUT = 10; // $ per M output tokens
+  const MSG_INPUT_TOKENS = 5000;
+  const MSG_OUTPUT_TOKENS = 750;
+
+  function fmtUSD(n, decimals = 0) {
+    return '$' + n.toLocaleString('en-US', { maximumFractionDigits: decimals, minimumFractionDigits: decimals });
+  }
+  function fmtNum(n) {
+    return n.toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }
+  function fmtTokens(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(0) + 'k';
+    return String(Math.round(n));
+  }
+
+  // Given a $ budget, split into input/output token equivalents at a fixed 3:1 ratio.
+  function budgetToTokens(usd) {
+    const perOutputToken = (3 * SONNET_IN + SONNET_OUT) / 1e6; // cost of 1 "unit" (3 in + 1 out)
+    const units = usd / perOutputToken;
+    const outputTokens = units;
+    const inputTokens = units * 3;
+    return { inputTokens, outputTokens };
+  }
+
+  function messagesFromBudget(usd, overheadPct) {
+    const baseMsgCost = (MSG_INPUT_TOKENS * SONNET_IN + MSG_OUTPUT_TOKENS * SONNET_OUT) / 1e6;
+    const msgCost = baseMsgCost * (1 + overheadPct / 100);
+    return usd / msgCost;
+  }
+
+  function render() {
+    const v = {};
+    ids.forEach(id => { v[id] = Number(els[id].value); });
+    ids.forEach(id => { document.getElementById('v-' + id).textContent =
+      (id === 'overhead' ? v[id] + '%' : fmtUSD(v[id])); });
+    document.getElementById('v-users').textContent = v.users;
+
+    const users = v.users;
+
+    // Per-user totals
+    const ourPerUser = v.ourBudget;
+    const teamPerUser = FIXED_SEAT_COST + v.teamExtra;
+    const entPerUser = FIXED_SEAT_COST + v.entVar;
+
+    const ourMonthly = ourPerUser * users + v.hosting;
+    const teamMonthly = teamPerUser * users;
+    const entMonthly = entPerUser * users;
+
+    const ourYearly = ourMonthly * 12;
+    const teamYearly = teamMonthly * 12;
+    const entYearly = entMonthly * 12;
+
+    // Tokens & messages per user per month
+    const ourTokens = budgetToTokens(ourPerUser);
+    const teamTokens = budgetToTokens(teamPerUser);
+    const entTokens = budgetToTokens(entPerUser);
+
+    const ourMsgs = messagesFromBudget(ourPerUser, v.overhead);
+    const teamMsgs = messagesFromBudget(teamPerUser, 0);
+    const entMsgs = messagesFromBudget(entPerUser, 0);
+
+    // Cards
+    const options = [
+      { key: 'our', label: 'Nasz LLM', monthly: ourMonthly, yearly: ourYearly, perUser: ourPerUser },
+      { key: 'team', label: 'Claude Team', monthly: teamMonthly, yearly: teamYearly, perUser: teamPerUser },
+      { key: 'ent', label: 'Claude Enterprise', monthly: entMonthly, yearly: entYearly, perUser: entPerUser },
+    ];
+    const cheapest = options.reduce((a, b) => (b.yearly < a.yearly ? b : a));
+
+    const cardsEl = document.getElementById('cards');
+    cardsEl.innerHTML = options.map(o => `
+      <div class="card ${o.key === cheapest.key ? 'best' : ''}">
+        ${o.key === cheapest.key ? '<div class="badge">Najtaniej</div>' : ''}
+        <h3>${o.label}</h3>
+        <div class="small">$${o.perUser.toFixed(0)}/user/mies.</div>
+        <div class="big">${fmtUSD(o.monthly)}<span style="font-size:13px;color:var(--muted);font-weight:500;">/mies.</span></div>
+        <div class="row"><span>Rocznie</span><b>${fmtUSD(o.yearly)}</b></div>
+      </div>
+    `).join('');
+
+    // Table
+    const rows = [
+      ['Cena/user/mies.', fmtUSD(ourPerUser), fmtUSD(teamPerUser), fmtUSD(entPerUser)],
+      [`Suma / ${users} userów / mies.`, fmtUSD(ourMonthly), fmtUSD(teamMonthly), fmtUSD(entMonthly)],
+      [`Suma / ${users} userów / rok`, fmtUSD(ourYearly), fmtUSD(teamYearly), fmtUSD(entYearly)],
+      ['Input tokenów/user/mies. (równowartość)', fmtTokens(ourTokens.inputTokens), fmtTokens(teamTokens.inputTokens), fmtTokens(entTokens.inputTokens)],
+      ['Output tokenów/user/mies. (równowartość)', fmtTokens(ourTokens.outputTokens), fmtTokens(teamTokens.outputTokens), fmtTokens(entTokens.outputTokens)],
+      ['Wiadomości/user/mies. (~5k in / 750 out)', fmtNum(ourMsgs), fmtNum(teamMsgs), fmtNum(entMsgs)],
+      ['Cena ↔ tokeny 1:1?', 'Tak (pełny pass-through)', 'Nie (flat fee)', 'Częściowo (baza sztywna + reszta metered)'],
+    ];
+    document.getElementById('table-body').innerHTML = rows.map(r => `
+      <tr><td>${r[0]}</td><td class="num">${r[1]}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td></tr>
+    `).join('');
+
+    // Savings
+    const savingsTeam = teamYearly - ourYearly;
+    const savingsEnt = entYearly - ourYearly;
+    document.getElementById('savings').innerHTML = `
+      <div class="card">
+        <div class="small">Oszczędność rocznie vs Team</div>
+        <div class="big" style="color:${savingsTeam >= 0 ? 'var(--green)' : 'var(--red)'}">${savingsTeam >= 0 ? '+' : ''}${fmtUSD(savingsTeam)}</div>
+        <div class="small">${users} userów × (${fmtUSD(teamPerUser)} − ${fmtUSD(ourPerUser)}) × 12 mies. − hosting</div>
+      </div>
+      <div class="card">
+        <div class="small">Oszczędność rocznie vs Enterprise</div>
+        <div class="big" style="color:${savingsEnt >= 0 ? 'var(--green)' : 'var(--red)'}">${savingsEnt >= 0 ? '+' : ''}${fmtUSD(savingsEnt)}</div>
+        <div class="small">${users} userów × (${fmtUSD(entPerUser)} − ${fmtUSD(ourPerUser)}) × 12 mies. − hosting</div>
+      </div>
+    `;
+  }
+
+  ids.forEach(id => els[id].addEventListener('input', render));
+  document.getElementById('reset').addEventListener('click', () => {
+    ids.forEach(id => { els[id].value = defaults[id]; });
+    render();
+  });
+
+  render();
+</script>
+</body>
+</html>

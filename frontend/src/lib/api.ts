@@ -40,6 +40,7 @@ export interface StylePreset {
 export interface UsageInfo {
   periodStart: string;
   orgBudget: { limitUsd: number; spentUsd: number } | null;
+  userBudget: { limitUsd: number; spentUsd: number } | null;
   mine: { messages: number; costUsd: number };
 }
 
@@ -168,6 +169,19 @@ export interface ClientConsentHistoryEntry {
   new_value: boolean;
   changed_at: string;
   changed_by: string | null;
+}
+
+export interface AiAuditLogEntry {
+  id: number;
+  conversation_id: number;
+  user_id: number;
+  email: string;
+  data_categories_sent: string[];
+  redaction_applied: boolean;
+  precheck_level: string | null;
+  model: string;
+  purpose: string | null;
+  created_at: string;
 }
 
 export interface RetentionStatus {
@@ -331,6 +345,11 @@ export const api = {
     apiFetch<{ defaultSystemPrompt: string | null }>('/auth/me/default-system-prompt', {
       method: 'PATCH',
       body: JSON.stringify({ defaultSystemPrompt }),
+    }),
+  sendSupportMessage: (message: string, conversationId?: string | null) =>
+    apiFetch<{ id: number; created_at: string }>('/support', {
+      method: 'POST',
+      body: JSON.stringify({ message, conversationId: conversationId ?? null }),
     }),
   listMemoryFiles: () => apiFetch<MemoryFile[]>('/memory'),
   deleteMemoryFile: (id: number) => apiFetch<{ ok: true }>(`/memory/${id}`, { method: 'DELETE' }),
@@ -533,6 +552,16 @@ export const api = {
   unassignClientTeamMember: (id: number, userId: number) =>
     apiFetch<{ ok: true }>(`/clients/${id}/team/${userId}`, { method: 'DELETE' }),
   clientAccessAudit: () => apiFetch<ClientAccessAuditRow[]>('/clients/access-audit'),
+  aiAuditLog: (params: { from?: string; to?: string; userId?: number; limit?: number; offset?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.from) qs.set('from', params.from);
+    if (params.to) qs.set('to', params.to);
+    if (params.userId) qs.set('userId', String(params.userId));
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
+    const query = qs.toString();
+    return apiFetch<AiAuditLogEntry[]>(`/metrics/ai-audit-log${query ? `?${query}` : ''}`);
+  },
   retentionStatus: () => apiFetch<RetentionStatus>('/metrics/retention'),
   runRetentionCleanup: (dryRun: boolean) =>
     apiFetch<RetentionRunResult>('/metrics/retention/run', { method: 'POST', body: JSON.stringify({ dryRun }) }),

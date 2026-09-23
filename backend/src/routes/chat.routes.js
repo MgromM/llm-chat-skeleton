@@ -97,25 +97,26 @@ chatRouter.get('/conversations', async (req, res, next) => {
 });
 
 // Item 19 (UI/UX audit): a usage indicator for regular users, not just the
-// admin metrics panel. There is no per-user quota in this system -- the
-// only real limit is the org-wide soft monthly cost cap (MONTHLY_BUDGET_USD,
-// see config/budget.js), checked before every LLM call and shared by every
-// user. So this returns that same global budget status (spent/limit for the
-// current calendar month, same query checkMonthlyBudget() uses) plus the
-// caller's own cost/message count contribution to it this month, scoped by
-// RLS to their own conversations/messages. No new table or migration --
-// usage_metrics already has everything needed.
+// admin metrics panel. There's an org-wide soft monthly cost cap
+// (MONTHLY_BUDGET_USD) and an optional per-user cap (MONTHLY_BUDGET_PER_USER_USD)
+// -- both checked before every LLM call, see config/budget.js. This returns
+// both budget statuses (spent/limit for the current calendar month) plus the
+// caller's own cost/message count contribution this month, scoped by RLS to
+// their own conversations/messages. No new table or migration -- usage_metrics
+// already has everything needed.
 chatRouter.get('/me/usage', async (req, res, next) => {
   try {
-    const limit = Number(process.env.MONTHLY_BUDGET_USD);
-    const hasLimit = Boolean(limit) && !Number.isNaN(limit);
+    const orgLimit = Number(process.env.MONTHLY_BUDGET_USD);
+    const hasOrgLimit = Boolean(orgLimit) && !Number.isNaN(orgLimit);
+    const perUserLimit = Number(process.env.MONTHLY_BUDGET_PER_USER_USD);
+    const hasPerUserLimit = Boolean(perUserLimit) && !Number.isNaN(perUserLimit);
 
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
 
     const [{ rows: totalRows }, { rows: mineRows }] = await Promise.all([
-      hasLimit
+      hasOrgLimit
         ? query('SELECT COALESCE(SUM(cost_usd), 0) AS total FROM usage_metrics WHERE created_at >= $1', [
             startOfMonth.toISOString(),
           ])
@@ -130,14 +131,17 @@ chatRouter.get('/me/usage', async (req, res, next) => {
       ),
     ]);
 
+    const mineCostUsd = Number(mineRows[0].cost_usd);
+
     res.json({
       periodStart: startOfMonth.toISOString(),
-      orgBudget: hasLimit
-        ? { limitUsd: limit, spentUsd: Number(totalRows[0].total) }
+      orgBudget: hasOrgLimit
+        ? { limitUsd: orgLimit, spentUsd: Number(totalRows[0].total) }
         : null,
+      userBudget: hasPerUserLimit ? { limitUsd: perUserLimit, spentUsd: mineCostUsd } : null,
       mine: {
         messages: Number(mineRows[0].messages),
-        costUsd: Number(mineRows[0].cost_usd),
+        costUsd: mineCostUsd,
       },
     });
   } catch (err) {

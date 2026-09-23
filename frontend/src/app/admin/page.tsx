@@ -19,6 +19,7 @@ import {
   type ClientAccessAuditRow,
   type RetentionStatus,
   type LeakAlert,
+  type AiAuditLogEntry,
   type CostByUserRow,
 } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
@@ -911,8 +912,88 @@ function ComplianceTab() {
       <LeakAlertsSection />
       <ClientsSection />
       <ClientAccessAuditSection />
+      <AiAuditLogSection />
       <RetentionSection />
     </>
+  );
+}
+
+const AUDIT_LOG_PAGE_SIZE = 50;
+
+/**
+ * Read side of ai_audit_log (see migration 010) -- until now the table was
+ * write-only, recorded by logAiAudit() on every chat turn but with no way
+ * for an admin to actually look at it. Only PII *categories* are ever
+ * stored here, never the redacted values themselves.
+ */
+function AiAuditLogSection() {
+  const [page, setPage] = useState(0);
+  const { data: entries } = useSWR<AiAuditLogEntry[]>(
+    ['/metrics/ai-audit-log', page],
+    () => api.aiAuditLog({ limit: AUDIT_LOG_PAGE_SIZE, offset: page * AUDIT_LOG_PAGE_SIZE }),
+  );
+
+  return (
+    <section>
+      <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        Log audytowy AI — jakie kategorie danych wysłano do modelu
+      </h2>
+      <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
+        <table className="w-full min-w-[720px] text-left text-sm">
+          <thead className="border-b border-brand-border dark:border-zinc-700 text-xs uppercase text-brand-muted dark:text-zinc-500">
+            <tr>
+              <th className="px-4 py-2">Data</th>
+              <th className="px-4 py-2">Użytkownik</th>
+              <th className="px-4 py-2">Model</th>
+              <th className="px-4 py-2">Kategorie danych</th>
+              <th className="px-4 py-2">Redakcja</th>
+              <th className="px-4 py-2">Poziom precheck</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(entries ?? []).map((entry) => (
+              <tr key={entry.id} className="border-b border-brand-border/50 dark:border-zinc-800 text-brand-dark dark:text-zinc-100">
+                <td className="whitespace-nowrap px-4 py-2 text-xs text-brand-muted dark:text-zinc-400">
+                  {new Date(entry.created_at).toLocaleString('pl-PL')}
+                </td>
+                <td className="px-4 py-2">{entry.email}</td>
+                <td className="px-4 py-2 text-xs">{entry.model}</td>
+                <td className="px-4 py-2 text-xs">
+                  {entry.data_categories_sent.length > 0 ? entry.data_categories_sent.join(', ') : '—'}
+                </td>
+                <td className="px-4 py-2 text-xs">{entry.redaction_applied ? 'tak' : 'nie'}</td>
+                <td className="px-4 py-2 text-xs">{entry.precheck_level ?? '—'}</td>
+              </tr>
+            ))}
+            {(entries ?? []).length === 0 && (
+              <tr>
+                <td colSpan={6} className="px-4 py-4 text-center text-sm text-brand-muted dark:text-zinc-400">
+                  Brak wpisów w wybranym zakresie.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        <div className="flex items-center justify-between border-t border-brand-border dark:border-zinc-700 px-4 py-2">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1 text-xs font-semibold text-brand-dark dark:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Poprzednia strona
+          </button>
+          <span className="text-xs text-brand-muted dark:text-zinc-500">Strona {page + 1}</span>
+          <button
+            onClick={() => setPage((p) => p + 1)}
+            disabled={(entries ?? []).length < AUDIT_LOG_PAGE_SIZE}
+            className="rounded-md border border-brand-border dark:border-zinc-700 px-3 py-1 text-xs font-semibold text-brand-dark dark:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Następna strona
+          </button>
+        </div>
+      </div>
+    </section>
   );
 }
 

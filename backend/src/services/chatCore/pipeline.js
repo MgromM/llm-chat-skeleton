@@ -215,6 +215,14 @@ function buildBlockedReply(precheck) {
   return `Ta wiadomość została zablokowana przez automatyczną kontrolę bezpieczeństwa danych — sklasyfikowano ją jako ${levelLabel} (kategoria: ${precheck.category ?? 'nieokreślona'}).${reason} Zgodnie z polityką Agencji wiadomości z tej kategorii wymagają narzędzi z Listy Zatwierdzonej w wersji Enterprise/Pro i nie mogą być wysyłane tym kanałem. Jeśli to pomyłka, skontaktuj się z administratorem.`;
 }
 
+/** Builds the user-facing message when checkMonthlyBudget() blocks a turn, naming whichever cap (org or per-user) was hit. */
+function buildBudgetExceededReply(budget) {
+  if (budget.scope === 'user') {
+    return `Osiągnięto Twój miesięczny limit kosztów ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}). Wiadomość nie została wysłana do modelu — skontaktuj się z administratorem, jeśli potrzebujesz wyższego limitu.`;
+  }
+  return `Osiągnięto miesięczny budżet pilotażu ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}). Wiadomość nie została wysłana do modelu — skontaktuj się z administratorem.`;
+}
+
 /**
  * Guards every persistence entry point against writing on behalf of a
  * conversation that doesn't belong to `userId` — callers upstream (routes)
@@ -1111,9 +1119,9 @@ async function prepareNewTurn({ conversationId, userId, userMessage, attachments
   const userMessageId = await saveMessage(conversationId, 'user', safeMessage);
   await saveAttachments(userMessageId, attachments);
 
-  const budget = await checkMonthlyBudget();
+  const budget = await checkMonthlyBudget(userId);
   if (!budget.withinBudget) {
-    const reply = `Osiągnięto miesięczny budżet pilotażu ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}). Wiadomość nie została wysłana do modelu — skontaktuj się z administratorem.`;
+    const reply = buildBudgetExceededReply(budget);
     const assistantMessageId = await saveMessage(conversationId, 'assistant', reply, commandUsed);
     return { done: true, result: { reply, messageId: assistantMessageId, commandUsed } };
   }
@@ -1309,9 +1317,9 @@ async function continueFromUserMessageImpl({ conversationId, userId, userMessage
     promptForLlm = result.prompt;
   }
 
-  const budget = await checkMonthlyBudget();
+  const budget = await checkMonthlyBudget(userId);
   if (!budget.withinBudget) {
-    const reply = `Osiągnięto miesięczny budżet pilotażu ($${budget.spent.toFixed(2)} / $${budget.limit.toFixed(2)}). Wiadomość nie została wysłana do modelu — skontaktuj się z administratorem.`;
+    const reply = buildBudgetExceededReply(budget);
     const assistantMessageId = await saveMessage(conversationId, 'assistant', reply, commandUsed);
     return { reply, messageId: assistantMessageId, commandUsed };
   }

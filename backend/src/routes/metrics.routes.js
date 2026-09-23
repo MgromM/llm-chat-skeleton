@@ -43,6 +43,41 @@ metricsRouter.post('/retention/run', async (req, res, next) => {
   }
 });
 
+// ai_audit_log is write-only today (logAiAudit() records which PII
+// categories were involved in a turn, never the actual values) -- this is
+// the read side, so "what left the company, and to which model" can
+// actually be answered by an admin instead of only living in the DB.
+metricsRouter.get('/ai-audit-log', async (req, res, next) => {
+  try {
+    const limit = Math.min(Number(req.query.limit) || 100, 500);
+    const offset = Math.max(Number(req.query.offset) || 0, 0);
+    const userId = req.query.userId ? Number(req.query.userId) : null;
+    const { from, to } = parseRange(req);
+
+    const conditions = ['a.created_at BETWEEN $1 AND $2'];
+    const params = [from, to];
+    if (userId) {
+      params.push(userId);
+      conditions.push(`a.user_id = $${params.length}`);
+    }
+    params.push(limit, offset);
+
+    const { rows } = await query(
+      `SELECT a.id, a.conversation_id, a.user_id, u.email, a.data_categories_sent,
+              a.redaction_applied, a.precheck_level, a.model, a.purpose, a.created_at
+       FROM ai_audit_log a
+       JOIN users u ON u.id = a.user_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY a.created_at DESC
+       LIMIT $${params.length - 1} OFFSET $${params.length}`,
+      params,
+    );
+    res.json(rows);
+  } catch (err) {
+    next(err);
+  }
+});
+
 metricsRouter.get('/leak-alerts', async (req, res, next) => {
   try {
     const onlyUnreviewed = req.query.reviewed === 'false';
