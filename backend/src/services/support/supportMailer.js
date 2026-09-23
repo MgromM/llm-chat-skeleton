@@ -17,6 +17,10 @@ function getTransporter() {
     connectionTimeout: 8_000,
     greetingTimeout: 8_000,
     socketTimeout: 8_000,
+    // Railway containers resolve smtp.gmail.com's AAAA record but have no
+    // real IPv6 route, so Node's default (try IPv6 first) fails with
+    // ENETUNREACH before ever falling back to IPv4 -- force IPv4 directly.
+    family: 4,
   });
   return transporter;
 }
