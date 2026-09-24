@@ -74,6 +74,21 @@ test('an image attachment goes through OCR before classification', async () => {
   assert.equal(result.level, 'zielona');
 });
 
+test('a failed OCR read fails CLOSED — BŁĄD, not a silent PUSTY', async () => {
+  extractTextFromImages.mock.mockImplementation(async (images, { onFailure } = {}) => {
+    onFailure?.(images[0], new Error('Tesseract worker crashed'));
+    return '';
+  });
+  const buffer = Buffer.from('fake-corrupt-png-bytes');
+
+  const result = await checkDocument({ buffer, filename: 'uszkodzony.png', mimeType: 'image/png' });
+
+  assert.equal(result.level, 'BŁĄD');
+  assert.notEqual(result.level, 'PUSTY');
+  assert.match(result.error, /Tesseract worker crashed/);
+  assert.equal(getAnthropicClient.mock.callCount(), 0);
+});
+
 test('an unsupported mime type returns NIEOBSŁUGIWANY without calling the classifier', async () => {
   const buffer = Buffer.from('whatever');
   const result = await checkDocument({ buffer, filename: 'archiwum.zip', mimeType: 'application/zip' });

@@ -102,7 +102,19 @@ export async function checkDocument({ buffer, filename, mimeType }) {
 /** Returns extracted plain text, or `null` for a mime type this gate doesn't know how to read. */
 async function extractDocumentText({ buffer, filename, mimeType }) {
   if (isImageAttachment(mimeType)) {
-    return extractTextFromImages([{ buffer, filename }]);
+    // extractTextFromImages fails OPEN per-image by default (right for the
+    // chat: an unreadable attachment shouldn't swallow the rest of the
+    // message) — a silent '' would fall through to the PUSTY branch below
+    // and read as "checked, nothing here" instead of "couldn't check". Opt
+    // into onFailure so a broken OCR read surfaces as BŁĄD instead.
+    const failures = [];
+    const text = await extractTextFromImages([{ buffer, filename }], {
+      onFailure: (_file, err) => failures.push(err.message),
+    });
+    if (failures.length > 0) {
+      throw new Error(`OCR nie powiodło się: ${failures[0]}`);
+    }
+    return text;
   }
   if (SUPPORTED_KNOWLEDGE_MIME_TYPES.has(mimeType)) {
     return extractText(buffer, mimeType);
