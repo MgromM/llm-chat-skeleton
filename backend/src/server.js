@@ -66,6 +66,6 @@ app.use(sharingRouter);
 app.use(errorHandler);
 
 const port = process.env.PORT ?? 8080;
-app.listen(port, () => logger.info(`salesmore-llm backend listening on :${port}`));
+app.listen(port, () => logger.info(`llm-chat backend listening on :${port}`));
 
 scheduleRetentionCleanup();

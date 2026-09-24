@@ -15,7 +15,6 @@ const DESCRIPTIONS = {
   '/email-ofertowy': 'Gotowy do wysłania e-mail ofertowy do klienta na podstawie podanego kontekstu.',
   '/podsumowanie-spotkania': 'Zamienia wklejone notatki/transkrypt ze spotkania w podsumowanie z decyzjami i action items.',
   '/persona-klienta': 'Szkielet persony klienta: cele, bolączki, kanały, typowe zastrzeżenia zakupowe.',
-  '/prezentacja': 'Generuje gotowy do pobrania plik .pptx (branding Sales&More) na podstawie wklejonych danych kampanii.',
   '/kampanie-ads': 'Podsumowanie wyników kampanii Google Ads / Meta Ads z ostatnich 7 dni (wymaga skonfigurowanego dostępu).',
 };
 

@@ -9,10 +9,10 @@ import { useLocale } from '@/lib/LocaleContext';
 import { ShortcutsModal } from './ShortcutsModal';
 import { SupportContactModal } from './SupportContactModal';
 
-// External incident-reporting tool (AI Policy Gate) — replaced the in-app
-// modal so incidents land in the org's shared triage queue instead of this
-// app's own (unmonitored) database table.
-const INCIDENT_REPORT_URL = 'https://ai-policy-gate.vercel.app/incidents/new';
+// Optional external incident-reporting tool. When set, an incident-report
+// button links out to it instead of this app's own (unmonitored) table; when
+// unset, the button is hidden.
+const INCIDENT_REPORT_URL = process.env.NEXT_PUBLIC_INCIDENT_REPORT_URL || '';
 
 export function BrandHeader() {
   const { user, logout } = useAuth();
@@ -37,7 +37,7 @@ export function BrandHeader() {
     <header className="flex h-16 shrink-0 items-center justify-between rounded-2xl bg-brand-orange px-6 shadow-soft">
       <Link href="/chat" className="flex items-center gap-3">
         <div className="rounded-lg bg-brand-white px-3 py-1.5">
-          <Image src="/logo-salesmore.png" alt="Sales&More" width={140} height={23} priority className="h-5 w-auto" />
+          <Image src="/logo.png" alt="Logo" width={140} height={23} priority className="h-5 w-auto" />
         </div>
         <span className="hidden rounded-lg bg-brand-white/95 px-2 py-1 text-sm font-medium text-brand-dark sm:inline">LLM</span>
       </Link>
@@ -62,16 +62,18 @@ export function BrandHeader() {
           >
             <LifeBuoy size={15} />
           </button>
-          <a
-            href={INCIDENT_REPORT_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={t('header.incident')}
-            title={t('header.incident')}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
-          >
-            <AlertTriangle size={15} />
-          </a>
+          {INCIDENT_REPORT_URL && (
+            <a
+              href={INCIDENT_REPORT_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t('header.incident')}
+              title={t('header.incident')}
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+            >
+              <AlertTriangle size={15} />
+            </a>
+          )}
           <Link
             href="/code"
             aria-label={t('header.code')}

@@ -12,17 +12,19 @@ const inter = Inter({ subsets: ['latin', 'latin-ext'], variable: '--font-inter' 
 const anton = Anton({ subsets: ['latin', 'latin-ext'], weight: '400', variable: '--font-anton' });
 
 export const metadata: Metadata = {
-  title: 'Sales&More LLM',
-  description: 'Wewnętrzny asystent AI dla specjalistów Sales&More',
+  title: 'LLM Chat App',
+  description: 'AI chat assistant',
   manifest: '/manifest.json',
+  // TODO: add your own logo (e.g. frontend/public/logo.png) and set
+  // icons.icon accordingly — omitted here since the placeholder logo file
+  // was removed.
   icons: {
-    icon: '/logo-salesmore.png',
     apple: '/apple-touch-icon.png',
   },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'Sales&More LLM',
+    title: 'LLM Chat App',
   },
 };
 

@@ -1,6 +1,6 @@
 // One-off bootstrap: creates the first admin account so someone can log in
 // and start using POST /register for everyone else. Run with:
-//   SEED_ADMIN_EMAIL=you@salesmore.pl npm run seed:admin
+//   SEED_ADMIN_EMAIL=admin@example.com npm run seed:admin
 import 'dotenv/config';
 import crypto from 'node:crypto';
 import bcrypt from 'bcrypt';

@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { getCostAndQualitySummary } from '../services/metrics/usageTracker.js';
 import { buildCostQualityReportXlsx } from '../services/export/xlsxExport.js';
-import { buildCostQualityReportPptx } from '../services/export/pptxExport.js';
 
 export const exportRouter = Router();
 exportRouter.use(requireAuth, requireRole('manager', 'admin'));
@@ -26,17 +25,3 @@ exportRouter.get('/xlsx', async (req, res, next) => {
   }
 });
 
-exportRouter.get('/pptx', async (req, res, next) => {
-  try {
-    const { from, to } = parseRange(req);
-    const rows = await getCostAndQualitySummary({ from: from.toISOString(), to: to.toISOString() });
-    const buffer = await buildCostQualityReportPptx(rows, {
-      periodLabel: `${from.toLocaleDateString('pl-PL')} – ${to.toLocaleDateString('pl-PL')}`,
-    });
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
-    res.setHeader('Content-Disposition', 'attachment; filename="raport-koszty.pptx"');
-    res.send(buffer);
-  } catch (err) {
-    next(err);
-  }
-});

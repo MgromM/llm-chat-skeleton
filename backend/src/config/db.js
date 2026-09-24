@@ -3,7 +3,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 
 const { Pool } = pg;
 
-// Point 6 (compliance plan): the app connects as `salesmore_app`, a
+// Point 6 (compliance plan): the app connects as `app_role`, a
 // restricted role with RLS enforced on `conversations`/`messages` (see
 // migration 026) -- a second line of defense against a missing `WHERE
 // user_id = ...` in app code. Falls back to DATABASE_URL when

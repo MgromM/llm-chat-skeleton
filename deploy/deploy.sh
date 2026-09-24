@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Deploy salesmore-llm (backend + frontend) to Cloud Run.
+# Deploy this app (backend + frontend) to Cloud Run.
 #
-# Wymaga wcześniej ręcznie (patrz docs/deploy-gcp.md):
+# Customize SERVICE_NAME_BACKEND / SERVICE_NAME_FRONTEND and the Artifact
+# Registry repo name below for your own project before running this.
+#
+# Wymaga wcześniej ręcznie:
 #   - projektu GCP z włączonym billingiem i API: run, sqladmin, secretmanager,
 #     artifactregistry, cloudbuild
 #   - instancji Cloud SQL Postgres
@@ -18,14 +21,18 @@ set -euo pipefail
 : "${REGION:=europe-central2}"
 : "${CLOUDSQL_INSTANCE:?Ustaw CLOUDSQL_INSTANCE (format project:region:instance)}"
 
-BACKEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/salesmore-llm/backend"
-FRONTEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/salesmore-llm/frontend"
+# Placeholder names — customize to your own Cloud Run service names and
+# Artifact Registry repo.
+SERVICE_NAME_BACKEND="my-app-backend"
+SERVICE_NAME_FRONTEND="my-app-frontend"
+BACKEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/my-app/backend"
+FRONTEND_IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/my-app/frontend"
 
 echo "== Buduję i wypycham obraz backendu =="
 gcloud builds submit backend --tag "${BACKEND_IMAGE}" --project "${PROJECT_ID}"
 
 echo "== Wdrażam backend na Cloud Run =="
-gcloud run deploy salesmore-llm-backend \
+gcloud run deploy "${SERVICE_NAME_BACKEND}" \
   --image "${BACKEND_IMAGE}" \
   --project "${PROJECT_ID}" \
   --region "${REGION}" \
@@ -36,7 +43,7 @@ gcloud run deploy salesmore-llm-backend \
   --set-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,JWT_SECRET=jwt-secret:latest,DATABASE_URL=database-url:latest" \
   --allow-unauthenticated
 
-BACKEND_URL="$(gcloud run services describe salesmore-llm-backend \
+BACKEND_URL="$(gcloud run services describe "${SERVICE_NAME_BACKEND}" \
   --project "${PROJECT_ID}" --region "${REGION}" --format 'value(status.url)')"
 echo "Backend URL: ${BACKEND_URL}"
 
@@ -50,7 +57,7 @@ gcloud builds submit frontend \
   --project "${PROJECT_ID}"
 
 echo "== Wdrażam frontend na Cloud Run =="
-gcloud run deploy salesmore-llm-frontend \
+gcloud run deploy "${SERVICE_NAME_FRONTEND}" \
   --image "${FRONTEND_IMAGE}" \
   --project "${PROJECT_ID}" \
   --region "${REGION}" \

@@ -7,9 +7,9 @@ const RESEND_API_URL = 'https://api.resend.com/emails';
 
 // Resend's shared sending domain -- works with zero setup (no DNS records
 // to verify), at the cost of the "from" address being resend.dev instead of
-// salesmore.pl. Switch to a salesmore.pl address once that domain is
-// verified in the Resend dashboard.
-const FROM_ADDRESS = 'Sales&More LLM <onboarding@resend.dev>';
+// your own domain. Switch to your own address once that domain is verified
+// in the Resend dashboard.
+const FROM_ADDRESS = 'LLM App <onboarding@resend.dev>';
 
 /**
  * Shared best-effort mail sender for every internal notification (support

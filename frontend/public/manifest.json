@@ -1,7 +1,7 @@
 {
-  "name": "Sales&More LLM",
-  "short_name": "S&M LLM",
-  "description": "Wewnętrzny asystent AI dla specjalistów Sales&More",
+  "name": "LLM Chat App",
+  "short_name": "LLM Chat",
+  "description": "AI chat assistant",
   "start_url": "/chat",
   "scope": "/",
   "display": "standalone",
