@@ -47,6 +47,31 @@ w `.env.local`) — patrz `next.config.mjs` (`rewrites`).
 - `/koszt-dzisiaj` — dzienne podsumowanie kosztu (bypass, koszt = 0).
 - `/analiza-bigquery <pytanie>` — pyta Claude z narzędziem BigQuery (continue → LLM).
 
+## Bramka dokumentów (standalone, poza czatem)
+
+Sprawdza plik pod kątem danych wrażliwych (zielona/żółta/czerwona, ta sama
+polityka co precheck czatu) i redaguje PII, **zanim** dokument trafi do
+jakiegokolwiek LLM — nie tylko tego czatu. Dwa punkty wejścia, jeden wspólny
+silnik (`backend/src/services/gateway/documentGateway.js`):
+
+```bash
+cd backend
+node scripts/check-document.mjs sciezka/do/pliku.pdf
+```
+
+Kod wyjścia jako uniwersalny interfejs bramki (do wpięcia w dowolny
+skrypt/hook, niekoniecznie z tego repo): `0` zielona, `1` żółta (do
+przeglądu), `2` czerwona, `3` błąd klasyfikacji/nieobsługiwany typ pliku —
+nigdy nie traktuj `3` jako "bezpieczne", to znaczy "nie udało się sprawdzić".
+
+Obsługiwane typy: obrazy (OCR, Tesseract), PDF, DOCX, XLSX, PPTX,
+TXT/CSV/MD/JSON — ekstrakcja w `knowledge/textExtraction.js`, współdzielona
+z uploadem do bazy wiedzy (`POST /knowledge/documents`).
+
+Ten sam silnik jako endpoint HTTP: `POST /document-gateway` (multipart
+`file`, wymaga `Authorization: Bearer <JWT>`, dowolny zalogowany
+specjalista) — do integracji z innym UI/narzędziem niż ten czat.
+
 ## Deploy (docelowo, GCP)
 
 Cloud Run (backend + frontend), Cloud SQL Postgres, sekrety w Secret Manager

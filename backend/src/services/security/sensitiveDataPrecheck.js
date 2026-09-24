@@ -49,6 +49,40 @@ async function checkClientConsent(conversationId) {
 }
 
 /**
+ * Pure classification call — no DB, no consent check, no fail-open/closed
+ * decision. Runs PRECHECK_PROMPT against PRECHECK_MODEL and parses the
+ * verdict. Throws on any failure (bad response, unparseable JSON, network
+ * error); it is the caller's job to decide what "the classifier is down"
+ * means for them — `precheckMessage` below fails open (a chat outage is
+ * worse than an unclassified message getting through), while a hard gate
+ * like the document gateway (`services/gateway/documentGateway.js`) should
+ * fail closed instead. Shared by both so the classification policy itself
+ * — the prompt, the model, what counts as ZIELONA/ZOLTA/CZERWONA — never
+ * drifts between the two call sites.
+ */
+export async function classifyContent(text) {
+  const client = await getAnthropicClient();
+  const response = await client.messages.create({
+    model: PRECHECK_MODEL,
+    max_tokens: 200,
+    system: PRECHECK_PROMPT,
+    messages: [{ role: 'user', content: text }],
+  });
+
+  const responseText = response.content.find((b) => b.type === 'text')?.text ?? '{}';
+  const jsonText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  const verdict = JSON.parse(jsonText);
+
+  const rawLevel = String(verdict.level ?? 'ZIELONA').toUpperCase();
+  return {
+    level: LEVEL_LABELS[rawLevel] ?? 'zielona',
+    category: verdict.category ?? null,
+    confidence: typeof verdict.confidence === 'number' ? verdict.confidence : Number(verdict.confidence),
+    rationale: verdict.rationale ?? null,
+  };
+}
+
+/**
  * Classification pre-check run BEFORE every message reaches the Anthropic
  * API. Classifies into the company's zielona/żółta/czerwona data policy —
  * żółta and czerwona are hard-blocked immediately when the classifier is
@@ -79,26 +113,15 @@ export async function precheckMessage({ conversationId, userMessage }) {
 
   let verdict;
   try {
-    const client = await getAnthropicClient();
-    const response = await client.messages.create({
-      model: PRECHECK_MODEL,
-      max_tokens: 200,
-      system: PRECHECK_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    });
-
-    const text = response.content.find((b) => b.type === 'text')?.text ?? '{}';
-    const jsonText = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
-    verdict = JSON.parse(jsonText);
+    verdict = await classifyContent(userMessage);
   } catch (err) {
     logger.error('Sensitive data pre-check failed, failing open', { conversationId, error: err.message });
     return { blocked: false, level: 'zielona' };
   }
 
-  const rawLevel = String(verdict.level ?? 'ZIELONA').toUpperCase();
-  const level = LEVEL_LABELS[rawLevel] ?? 'zielona';
+  const level = verdict.level;
   const isRisky = level === 'żółta' || level === 'czerwona';
-  const confidence = typeof verdict.confidence === 'number' ? verdict.confidence : Number(verdict.confidence);
+  const confidence = verdict.confidence;
   // Below threshold (or confidence missing/unparseable), don't hard-block —
   // flag for manager review instead, since an uncertain call shouldn't stop
   // legitimate traffic.
