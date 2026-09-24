@@ -19,7 +19,7 @@ ALTER TABLE conversations
 
 CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id);
 
--- Same RLS pattern as 026/027: the restricted `salesmore_app` role only
+-- Same RLS pattern as 026/027: the restricted `app_role` role only
 -- sees its own rows unless the request context is marked admin.
 ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
 ALTER TABLE projects FORCE ROW LEVEL SECURITY;

@@ -50,7 +50,6 @@ const SLASH_COMMANDS: { name: string; description: string }[] = [
   { name: '/email-ofertowy', description: 'Gotowy e-mail ofertowy do klienta.' },
   { name: '/podsumowanie-spotkania', description: 'Zamienia notatki ze spotkania w podsumowanie.' },
   { name: '/persona-klienta', description: 'Szkielet persony klienta.' },
-  { name: '/prezentacja', description: 'Generuje plik .pptx na podstawie danych kampanii.' },
 ];
 
 const ARTIFACT_COMMAND_TITLES: Record<string, string> = {

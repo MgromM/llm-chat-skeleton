@@ -61,9 +61,10 @@ authRouter.get('/google/login-url', async (req, res, next) => {
   }
 });
 
-// Google OAuth callback: any @salesmore.pl account self-provisions on first
-// login (as 'specialist' — /register stays the way to grant 'admin'), since
-// the Google domain check is already the access gate.
+// Google OAuth callback: an account self-provisions on first login (as
+// 'specialist' — /register stays the way to grant 'admin'). If
+// ALLOWED_EMAIL_DOMAIN is set, it acts as the access gate and only that
+// domain may self-provision; if unset, any Google account is allowed.
 authRouter.get('/google/callback', async (req, res, next) => {
   const frontendUrl = await getSecret('FRONTEND_URL');
   try {
@@ -75,7 +76,10 @@ authRouter.get('/google/callback', async (req, res, next) => {
     const credentials = await googleExchangeCode(code);
     const payload = await googleValidateIdToken(credentials.id_token);
 
-    if (!payload.email || !payload.email.toLowerCase().endsWith('@salesmore.pl')) {
+    const allowedDomain = (process.env.ALLOWED_EMAIL_DOMAIN || '').trim().toLowerCase();
+    const emailDomainOk =
+      !allowedDomain || (payload.email && payload.email.toLowerCase().endsWith(`@${allowedDomain}`));
+    if (!payload.email || !emailDomainOk) {
       return res.redirect(`${frontendUrl}/auth/callback?error=no_access`);
     }
 

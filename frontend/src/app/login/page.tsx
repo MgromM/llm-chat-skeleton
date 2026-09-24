@@ -22,7 +22,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-brand-border bg-brand-white shadow-soft">
         <div className="h-1.5 bg-brand-orange" />
         <div className="p-8">
-        <Image src="/logo-salesmore.png" alt="Sales&More" width={168} height={27} priority className="mb-8 h-6 w-auto" />
+        <Image src="/logo.png" alt="Logo" width={168} height={27} priority className="mb-8 h-6 w-auto" />
         <h1 className="mb-1 text-xl font-bold text-brand-dark">Zaloguj się</h1>
         <p className="mb-6 text-sm text-brand-muted">Wewnętrzny asystent AI dla zespołu Sales&amp;More.</p>
 

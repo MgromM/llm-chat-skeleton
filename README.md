@@ -1,18 +1,16 @@
-# salesmore-llm
+# LLM Chat App
 
-Wewnętrzny MVP LLM dla Sales&More — czat na Anthropic Claude z automatycznym
-trackingiem kosztu (usage tokenów) i jakości odpowiedzi (LLM-as-judge), do
-porównania z subskrypcją enterprise. Zobacz pełny plan w
-[`docs/plan-mvp.md`](docs/plan-mvp.md) dla kontekstu i decyzji.
+Czat oparty na Anthropic Claude z automatycznym trackingiem kosztu (usage
+tokenów) i jakości odpowiedzi (LLM-as-judge).
 
 ## Struktura
 
 - `backend/` — Express + PostgreSQL + `@anthropic-ai/sdk`, JWT auth, jeden MCP
-  tool (BigQuery), system slash-komend, eksporty pptx/xlsx.
+  tool (BigQuery), system slash-komend, eksport xlsx.
 - `frontend/` — Next.js 15 (App Router) + React 18 + TS, Tailwind CSS 3
   (`@tailwindcss/typography`), `lucide-react`, `react-markdown` + `remark-gfm`
   do renderowania odpowiedzi czatu, `swr` do fetchowania metryk w panelu
-  admina. Branding Sales&More (`BrandGuidelines-Sales&More v3-kopia.pdf`).
+  admina.
 
 ## Uruchomienie lokalne
 
@@ -23,7 +21,7 @@ cd backend
 cp .env.example .env
 npm install
 npm run migrate
-node src/db/seedAdmin.js admin@salesmore.pl haslo123
+node src/db/seedAdmin.js admin@example.com haslo123
 npm run dev
 ```
 
@@ -52,5 +50,4 @@ w `.env.local`) — patrz `next.config.mjs` (`rewrites`).
 ## Deploy (docelowo, GCP)
 
 Cloud Run (backend + frontend), Cloud SQL Postgres, sekrety w Secret Manager
-(`ANTHROPIC_API_KEY`, `JWT_SECRET`, connection string) — patrz plan
-implementacji dla szczegółów.
+(`ANTHROPIC_API_KEY`, `JWT_SECRET`, connection string).

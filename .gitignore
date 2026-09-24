@@ -6,5 +6,6 @@ build/
 .env.local
 *.log
 .DS_Store
-backend/uploads/
+backend/uploads/*
+!backend/uploads/.gitkeep
 backend/*.traineddata

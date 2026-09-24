@@ -3,7 +3,7 @@ import { query } from '../../config/db.js';
 
 const COMPLIANCE_AGENT_MODEL = process.env.COMPLIANCE_AGENT_MODEL ?? 'claude-haiku-4-5-20251001';
 
-const COMPLIANCE_AGENT_PROMPT = `Oceniasz, czy fragment tekstu przeznaczony do wysłania do zewnętrznego modelu AI jest zgodny z zasadami compliance Sales&More.
+const COMPLIANCE_AGENT_PROMPT = `Oceniasz, czy fragment tekstu przeznaczony do wysłania do zewnętrznego modelu AI jest zgodny z firmowymi zasadami compliance.
 Szukaj: danych osobowych (PII) klienta końcowego, danych finansowych/umownych oznaczonych jako poufne, oraz treści które mogłyby zidentyfikować konkretną osobę fizyczną spoza kontekstu biznesowego.
 Zwykłe pytania marketingowe/kampanijne, nawet ze szczegółami kampanii, NIE są problemem.
 Odpowiedz WYŁĄCZNIE w formacie JSON: {"flagged": <true|false>, "reason": "<jedno zdanie po polsku, albo pusty string>"}.`;

@@ -1,7 +1,7 @@
 import type { Config } from 'tailwindcss';
 import typography from '@tailwindcss/typography';
 
-// Sales&More brand palette — verified against BrandGuidelines-Sales&More v3.pdf
+// Brand palette — customize for your project
 // and the shared brand-book (colors confirmed on real reference files).
 // Orange is the ONLY strong accent; use it sparingly, not everywhere.
 const config: Config = {

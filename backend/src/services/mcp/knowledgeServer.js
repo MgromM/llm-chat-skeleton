@@ -4,7 +4,7 @@ import { searchKnowledge } from '../knowledge/knowledgeStore.js';
 export const knowledgeSearchTool = {
   name: 'search_knowledge_base',
   description:
-    'Szukaj w bazie wiedzy firmowej Sales&More (wytyczne brandowe, procedury, dokumenty wewnętrzne). Użyj gdy pytanie może być odpowiedziane treścią wgranych dokumentów firmowych.',
+    'Szukaj w firmowej bazie wiedzy (wytyczne brandowe, procedury, dokumenty wewnętrzne). Użyj gdy pytanie może być odpowiedziane treścią wgranych dokumentów firmowych.',
   input_schema: {
     type: 'object',
     properties: {

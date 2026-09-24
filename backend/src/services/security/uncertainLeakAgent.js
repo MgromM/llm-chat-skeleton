@@ -6,7 +6,7 @@ import { sendNotificationEmail } from '../notifications/resendMailer.js';
 const LEAK_AGENT_MODEL = process.env.LEAK_AGENT_MODEL ?? 'claude-haiku-4-5-20251001';
 const DEFAULT_CONTEXT_MESSAGES = Number(process.env.LEAK_AGENT_DEFAULT_CONTEXT ?? 5);
 
-const LEAK_AGENT_PROMPT = `Analizujesz fragment rozmowy specjalisty Sales&More z asystentem AI pod kątem NIEJEDNOZNACZNYCH, niepewnych sygnałów wycieku danych — przypadków, które NIE są na tyle oczywiste, by je twardo zablokować (to robi osobny, bardziej rygorystyczny pre-check), ale mimo to mogą oznaczać, że dane wrażliwe lub poufne firmowe wypłynęły albo są na granicy wypłynięcia.
+const LEAK_AGENT_PROMPT = `Analizujesz fragment rozmowy pracownika firmy z asystentem AI pod kątem NIEJEDNOZNACZNYCH, niepewnych sygnałów wycieku danych — przypadków, które NIE są na tyle oczywiste, by je twardo zablokować (to robi osobny, bardziej rygorystyczny pre-check), ale mimo to mogą oznaczać, że dane wrażliwe lub poufne firmowe wypłynęły albo są na granicy wypłynięcia.
 Przykłady niepewnych sygnałów: aluzyjne odniesienia do konkretnych osób/kwot bez wprost podanych danych, fragmentaryczne dane, które w połączeniu z kontekstem mogłyby zidentyfikować osobę, niejasne pytania o obejście zasad, podejrzanie szczegółowe dane wewnętrzne bez oczywistego uzasadnienia biznesowego.
 Zwykłe pytania biznesowe/marketingowe, nawet dotyczące konkretnych kampanii czy klientów w sposób ogólny, NIE są podejrzane.
 Odpowiedz WYŁĄCZNIE w formacie JSON: {"suspicious": <true|false>, "category": "<PII|DANE_FIRMOWE|AI_ACT|INNE|BRAK>", "confidence": <0-1>, "rationale": "<jedno zdanie po polsku>"}.`;
@@ -89,7 +89,7 @@ export async function detectUncertainLeak({ conversationId, userId, userMessage 
     if (notifyTo) {
       sendNotificationEmail({
         to: notifyTo,
-        subject: `[Sales&More LLM] Możliwy wyciek danych (${verdict.category ?? 'brak kategorii'})`,
+        subject: `[LLM App] Możliwy wyciek danych (${verdict.category ?? 'brak kategorii'})`,
         text: [
           `Zgłaszający: ${reporterEmail ?? `user #${userId}`}`,
           `Rozmowa: ${conversationId}`,

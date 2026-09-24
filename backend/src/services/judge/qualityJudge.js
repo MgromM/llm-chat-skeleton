@@ -4,7 +4,7 @@ import { logger } from '../../config/logger.js';
 
 const JUDGE_MODEL = process.env.JUDGE_MODEL ?? 'claude-haiku-4-5-20251001';
 
-const JUDGE_PROMPT = `Oceniasz jakość jednej odpowiedzi asystenta AI dla specjalisty Sales&More.
+const JUDGE_PROMPT = `Oceniasz jakość jednej odpowiedzi asystenta AI dla pracownika firmy.
 Odpowiedz WYŁĄCZNIE w formacie JSON: {"score": <1-5>, "rationale": "<jedno zdanie po polsku>"}.
 1 = bezużyteczna/błędna, 5 = trafna, konkretna i kompletna.`;
 
