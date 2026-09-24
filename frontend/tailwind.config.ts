@@ -1,9 +1,10 @@
 import type { Config } from 'tailwindcss';
 import typography from '@tailwindcss/typography';
 
-// Brand palette — customize for your project
-// and the shared brand-book (colors confirmed on real reference files).
-// Orange is the ONLY strong accent; use it sparingly, not everywhere.
+// Brand palette — customize for your project.
+// `orange` is the ONLY strong accent token; use it sparingly, not
+// everywhere. Kept named "orange" even though it now points at an indigo
+// hex — renaming the token would mean touching every className using it.
 const config: Config = {
   darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
@@ -13,7 +14,7 @@ const config: Config = {
         brand: {
           dark: '#29272E', // primary text, headings
           muted: '#636372', // secondary text, labels, captions
-          orange: '#F8502C', // the single strong accent color
+          orange: '#4F46E5', // the single strong accent color (indigo)
           white: '#FFFFFF', // page background — always white
           surface: '#F5F5FA', // non-highlighted card background
           border: '#EDEDF1', // hairline separators
