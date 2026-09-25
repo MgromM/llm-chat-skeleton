@@ -1,3 +1,15 @@
+export interface LocalCheckFileResult {
+  filename: string;
+  level: 'zielona' | 'żółta' | 'czerwona';
+  rationale: string;
+  hits: { category: string; count: number }[];
+}
+
+export interface LocalCheckResponse {
+  overallLevel: 'zielona' | 'żółta' | 'czerwona';
+  results: LocalCheckFileResult[];
+}
+
 export interface MeResponse {
   id: number;
   email: string;
@@ -451,6 +463,21 @@ export const api = {
     const match = /filename="([^"]+)"/.exec(disposition);
     const filename = match ? decodeURIComponent(match[1]) : `rozmowa-${conversationId}.md`;
     return { blob: await res.blob(), filename };
+  },
+  localCheckScan: async (files: File[]): Promise<LocalCheckResponse> => {
+    const form = new FormData();
+    for (const file of files) form.append('files', file);
+    const res = await fetch(`${BACKEND_URL}/local-check/scan`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form,
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(body.error ?? `Request failed: ${res.status}`);
+    }
+    return res.json();
   },
   classifyMessage: (conversationId: number, message: string) =>
     apiFetch<{ blocked: boolean; level: 'zielona' | 'żółta' | 'czerwona'; category: string | null; reply: string | null }>(

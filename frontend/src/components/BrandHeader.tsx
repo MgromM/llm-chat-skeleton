@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard, LifeBuoy, ShieldCheck } from 'lucide-react';
+import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard, LifeBuoy, ShieldCheck, FileSearch } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocale } from '@/lib/LocaleContext';
 import { ShortcutsModal } from './ShortcutsModal';
@@ -80,6 +80,14 @@ export function BrandHeader() {
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
           >
             <FileCode2 size={15} />
+          </Link>
+          <Link
+            href="/sprawdz-plik"
+            aria-label="Sprawdź plik przed wklejeniem do Claude"
+            title="Sprawdź plik przed wklejeniem do Claude"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+          >
+            <FileSearch size={15} />
           </Link>
           {user.role === 'admin' && (
             <Link

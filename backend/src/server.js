@@ -18,6 +18,7 @@ import { documentGatewayRouter } from './routes/documentGateway.routes.js';
 import { projectsRouter } from './routes/projects.routes.js';
 import { sharingRouter } from './routes/sharing.routes.js';
 import { supportRouter } from './routes/support.routes.js';
+import { localCheckRouter } from './routes/localCheck.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logger } from './config/logger.js';
 import { scheduleRetentionCleanup } from './services/retention/retentionCleanup.js';
@@ -62,6 +63,7 @@ app.use('/incidents', incidentsRouter);
 app.use('/document-gateway', documentGatewayRouter);
 app.use('/projects', projectsRouter);
 app.use('/support', supportRouter);
+app.use('/local-check', localCheckRouter);
 app.use(artifactsRouter);
 app.use(sharingRouter);
 
