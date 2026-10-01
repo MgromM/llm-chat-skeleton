@@ -1,8 +1,12 @@
 import ExcelJS from 'exceljs';
 
-export async function buildCostQualityReportXlsx(rows) {
+// "Quality" columns (an LLM-as-judge score from a second model call) and
+// cost (USD) were dropped along with the judge/Anthropic-pricing features
+// when this app moved to a local Ollama model — this report is now
+// usage/latency only.
+export async function buildUsageReportXlsx(rows) {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Koszty i jakość');
+  const sheet = workbook.addWorksheet('Użycie');
 
   sheet.columns = [
     { header: 'Model', key: 'model', width: 28 },
@@ -10,10 +14,7 @@ export async function buildCostQualityReportXlsx(rows) {
     { header: 'Zapytania', key: 'requests', width: 12 },
     { header: 'Tokeny wej.', key: 'input_tokens', width: 14 },
     { header: 'Tokeny wyj.', key: 'output_tokens', width: 14 },
-    { header: 'Koszt (USD)', key: 'cost_usd', width: 14 },
     { header: 'Śr. czas (ms)', key: 'avg_latency_ms', width: 14 },
-    { header: 'Śr. ocena jakości (1-5)', key: 'avg_quality_score', width: 20 },
-    { header: 'Ocenione wiadomości', key: 'scored_messages', width: 18 },
   ];
   sheet.getRow(1).font = { bold: true };
   rows.forEach((row) => sheet.addRow(row));

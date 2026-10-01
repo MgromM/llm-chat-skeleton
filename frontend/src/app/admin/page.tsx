@@ -8,10 +8,8 @@ import {
   api,
   apiFetch,
   type CostRow,
-  type QualityRow,
   type EnterpriseComparison,
   type KnowledgeDocument,
-  type McpConnector,
   type AdminUser,
   type Client,
   type ClientConsentHistoryEntry,
@@ -120,159 +118,6 @@ function KnowledgeBaseSection() {
   );
 }
 
-/**
- * Manages remote MCP servers wired into every chat turn via Anthropic's
- * native MCP connector — Claude calls these directly, server-side, the same
- * way it calls web_search. A bearer token is optional and, once saved, is
- * never sent back to the browser (the list only shows whether one is set).
- */
-function McpConnectorsSection() {
-  const { data: connectors, mutate } = useSWR<McpConnector[]>('/metrics/mcp-connectors', apiFetch);
-  const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState('');
-  const [url, setUrl] = useState('');
-  const [authToken, setAuthToken] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleAdd() {
-    setSaving(true);
-    setError(null);
-    try {
-      await api.addMcpConnector({ name: name.trim(), url: url.trim(), authToken: authToken.trim() || undefined });
-      setName('');
-      setUrl('');
-      setAuthToken('');
-      setShowForm(false);
-      await mutate();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nie udało się dodać konektora');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleToggle(id: number, enabled: boolean) {
-    setError(null);
-    try {
-      await api.setMcpConnectorEnabled(id, enabled);
-      await mutate();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nie udało się zmienić stanu konektora');
-    }
-  }
-
-  async function handleDelete(id: number) {
-    setError(null);
-    try {
-      await api.deleteMcpConnector(id);
-      await mutate();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Nie udało się usunąć konektora');
-    }
-  }
-
-  return (
-    <section>
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
-          Konektory MCP
-        </h2>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="flex items-center gap-1 rounded-md bg-brand-orange px-4 py-2 font-bold text-brand-white hover:brightness-95"
-        >
-          <Plus size={16} />
-          Dodaj konektor
-        </button>
-      </div>
-      {showForm && (
-        <div className="mb-3 flex flex-wrap items-end gap-2 rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
-          <div className="flex-1 min-w-[160px]">
-            <label className="mb-1 block text-xs font-semibold text-brand-muted dark:text-zinc-400">Nazwa</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="np. google-drive"
-              className="w-full rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
-            />
-          </div>
-          <div className="flex-[2] min-w-[240px]">
-            <label className="mb-1 block text-xs font-semibold text-brand-muted dark:text-zinc-400">URL (https)</label>
-            <input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://…/mcp"
-              className="w-full rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
-            />
-          </div>
-          <div className="flex-1 min-w-[160px]">
-            <label className="mb-1 block text-xs font-semibold text-brand-muted dark:text-zinc-400">Token (opcjonalnie)</label>
-            <input
-              type="password"
-              value={authToken}
-              onChange={(e) => setAuthToken(e.target.value)}
-              className="w-full rounded-md border border-brand-border dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-1.5 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
-            />
-          </div>
-          <button
-            onClick={handleAdd}
-            disabled={saving || !name.trim() || !url.trim()}
-            className="rounded-md bg-brand-dark px-4 py-1.5 text-sm font-bold text-brand-white disabled:opacity-40"
-          >
-            {saving ? 'Zapisywanie…' : 'Zapisz'}
-          </button>
-        </div>
-      )}
-      {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
-      <TableCard>
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-brand-border dark:border-zinc-700 bg-brand-surface dark:bg-zinc-800 text-left text-xs font-semibold uppercase tracking-wide text-brand-muted dark:text-zinc-400">
-              <th className="p-3">Nazwa</th>
-              <th className="p-3">URL</th>
-              <th className="p-3">Token</th>
-              <th className="p-3">Aktywny</th>
-              <th className="p-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(connectors ?? []).map((c) => (
-              <tr key={c.id} className="border-b border-brand-border/60 dark:border-zinc-700/60 text-brand-dark dark:text-zinc-100 last:border-0 hover:bg-brand-surface/50 dark:bg-zinc-800/50">
-                <td className="p-3 font-medium">
-                  <span className="flex items-center gap-1.5">
-                    <Plug size={14} className="text-brand-orange" />
-                    {c.name}
-                  </span>
-                </td>
-                <td className="max-w-[280px] truncate p-3 text-brand-muted dark:text-zinc-400" title={c.url}>{c.url}</td>
-                <td className="p-3 text-brand-muted dark:text-zinc-400">{c.has_token ? 'ustawiony' : '—'}</td>
-                <td className="p-3">
-                  <button
-                    onClick={() => handleToggle(c.id, !c.enabled)}
-                    className={clsx(
-                      'rounded-full px-3 py-1 text-xs font-semibold',
-                      c.enabled ? 'bg-brand-positive/15 text-brand-positive' : 'bg-brand-surface dark:bg-zinc-800 text-brand-muted dark:text-zinc-400',
-                    )}
-                  >
-                    {c.enabled ? 'włączony' : 'wyłączony'}
-                  </button>
-                </td>
-                <td className="p-3 text-right">
-                  <button onClick={() => handleDelete(c.id)} aria-label={`Usuń konektor ${c.name}`} className="text-brand-muted dark:text-zinc-400 hover:text-red-600 dark:hover:text-red-400" title="Usuń">
-                    <Trash2 size={16} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {(connectors ?? []).length === 0 && <p className="p-4 text-sm text-brand-muted dark:text-zinc-400">Brak skonfigurowanych konektorów MCP.</p>}
-      </TableCard>
-    </section>
-  );
-}
 
 /**
  * Lets an admin promote/demote another already-provisioned account (accounts
@@ -748,7 +593,6 @@ function UsersSection() {
 function UsageMetricsTab() {
   const { data: costs } = useSWR<CostRow[]>('/metrics/costs', apiFetch);
   const { data: costsByUser } = useSWR<CostByUserRow[]>('/metrics/costs-by-user', apiFetch);
-  const { data: quality } = useSWR<QualityRow[]>('/metrics/quality', apiFetch);
   const { data: comparison } = useSWR<EnterpriseComparison>('/metrics/enterprise-comparison', apiFetch);
 
   const totalCost = (costs ?? []).reduce((sum, row) => sum + Number(row.cost_usd), 0);
@@ -864,23 +708,9 @@ function UsageMetricsTab() {
         </TableCard>
       </section>
 
-      <section>
-        <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
-          Jakość odpowiedzi (LLM-judge)
-        </h2>
-        <div className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
-          <ul className="list-none space-y-1.5 pl-0">
-            {(quality ?? []).map((row, i) => (
-              <li key={i} className="flex items-baseline gap-2 text-brand-dark dark:text-zinc-100">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-orange" />
-                <span>{row.judge_model}: średnia {row.avg_score}/5 ({row.scored_messages} ocenionych odpowiedzi)</span>
-              </li>
-            ))}
-            {(quality ?? []).length === 0 && <p className="text-sm text-brand-muted dark:text-zinc-400">Brak danych.</p>}
-          </ul>
-        </div>
-      </section>
+      {/* The "LLM-as-judge" quality score section was removed along with the
+          judge feature — a local Ollama model has no second cheap model to
+          score it with, and cost (USD) similarly no longer applies. */}
 
       <div className="flex gap-3">
         <a
@@ -1029,7 +859,6 @@ function AdminView() {
         {activeTab === 'integrations' && (
           <>
             <KnowledgeBaseSection />
-            <McpConnectorsSection />
           </>
         )}
       </div>

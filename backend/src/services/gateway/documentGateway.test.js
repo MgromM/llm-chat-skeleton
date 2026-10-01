@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 // Mocked BEFORE importing the module under test, same reasoning as
 // sensitiveDataPrecheck.test.js: `classifyContent` (called via
-// sensitiveDataPrecheck.js) hits the real Anthropic client. `getRedactionTerms`
+// sensitiveDataPrecheck.js) hits the real Ollama server. `getRedactionTerms`
 // is mocked directly (not via db.js) because it caches its result in-process
 // for 30s — mocking the DB layer underneath it would make cache hits/misses
 // depend on test execution order. `ocrExtraction.js` is mocked so the
@@ -11,34 +11,29 @@ import assert from 'node:assert/strict';
 const redactionTermsMock = mock.module('../security/redactionTerms.js', {
   exports: { getRedactionTerms: mock.fn() },
 });
-const anthropicMock = mock.module('../anthropicClient.js', { exports: { getAnthropicClient: mock.fn() } });
+const ollamaMock = mock.module('../ollamaClient.js', { exports: { completeText: mock.fn(), OLLAMA_MODEL: 'llama3.1' } });
 const ocrMock = mock.module('../security/ocrExtraction.js', { exports: { extractTextFromImages: mock.fn() } });
 
 const { getRedactionTerms } = await import('../security/redactionTerms.js');
-const { getAnthropicClient } = await import('../anthropicClient.js');
+const { completeText } = await import('../ollamaClient.js');
 const { extractTextFromImages } = await import('../security/ocrExtraction.js');
 const { checkDocument } = await import('./documentGateway.js');
 
-function haikuVerdict({ level = 'ZIELONA', category = 'BRAK', confidence = 0.9, rationale = 'ok' } = {}) {
-  return {
-    content: [{ type: 'text', text: JSON.stringify({ level, category, confidence, rationale }) }],
-  };
+function verdictText({ level = 'ZIELONA', category = 'BRAK', confidence = 0.9, rationale = 'ok' } = {}) {
+  return { text: JSON.stringify({ level, category, confidence, rationale }) };
 }
 
 test.beforeEach(() => {
   getRedactionTerms.mock.resetCalls();
   getRedactionTerms.mock.mockImplementation(async () => []);
-  getAnthropicClient.mock.resetCalls();
-  getAnthropicClient.mock.mockImplementation(async () => ({
-    messages: { create: mock.fn(async () => haikuVerdict()) },
-  }));
+  completeText.mock.resetCalls();
+  completeText.mock.mockImplementation(async () => verdictText());
   extractTextFromImages.mock.resetCalls();
   extractTextFromImages.mock.mockImplementation(async () => '');
 });
 
 test('a plain-text document containing a PESEL is redacted before classification, and the verdict is returned', async () => {
-  const create = mock.fn(async () => haikuVerdict({ level: 'CZERWONA', category: 'PII', confidence: 0.95 }));
-  getAnthropicClient.mock.mockImplementation(async () => ({ messages: { create } }));
+  completeText.mock.mockImplementation(async () => verdictText({ level: 'CZERWONA', category: 'PII', confidence: 0.95 }));
 
   const buffer = Buffer.from('Dane klienta: PESEL 44051401359, kontakt jan@przyklad.pl');
   const result = await checkDocument({ buffer, filename: 'notatka.txt', mimeType: 'text/plain' });
@@ -52,7 +47,7 @@ test('a plain-text document containing a PESEL is redacted before classification
   assert.match(result.redactedText, /\[PESEL_1\]/);
 
   // The classifier must have been called with the REDACTED text, not the raw one.
-  const classifyArg = create.mock.calls[0].arguments[0].messages[0].content;
+  const classifyArg = completeText.mock.calls[0].arguments[0].prompt;
   assert.doesNotMatch(classifyArg, /44051401359/);
 });
 
@@ -86,7 +81,7 @@ test('a failed OCR read fails CLOSED — BŁĄD, not a silent PUSTY', async () =
   assert.equal(result.level, 'BŁĄD');
   assert.notEqual(result.level, 'PUSTY');
   assert.match(result.error, /Tesseract worker crashed/);
-  assert.equal(getAnthropicClient.mock.callCount(), 0);
+  assert.equal(completeText.mock.callCount(), 0);
 });
 
 test('an unsupported mime type returns NIEOBSŁUGIWANY without calling the classifier', async () => {
@@ -94,7 +89,7 @@ test('an unsupported mime type returns NIEOBSŁUGIWANY without calling the class
   const result = await checkDocument({ buffer, filename: 'archiwum.zip', mimeType: 'application/zip' });
 
   assert.equal(result.level, 'NIEOBSŁUGIWANY');
-  assert.equal(getAnthropicClient.mock.callCount(), 0);
+  assert.equal(completeText.mock.callCount(), 0);
 });
 
 test('an empty (or whitespace-only) document is reported as PUSTY without calling the classifier', async () => {
@@ -102,13 +97,12 @@ test('an empty (or whitespace-only) document is reported as PUSTY without callin
   const result = await checkDocument({ buffer, filename: 'pusty.txt', mimeType: 'text/plain' });
 
   assert.equal(result.level, 'PUSTY');
-  assert.equal(getAnthropicClient.mock.callCount(), 0);
+  assert.equal(completeText.mock.callCount(), 0);
   assert.equal(getRedactionTerms.mock.callCount(), 0);
 });
 
 test('a document longer than DOCUMENT_GATEWAY_MAX_CHARS is truncated before classification', async () => {
-  const create = mock.fn(async () => haikuVerdict());
-  getAnthropicClient.mock.mockImplementation(async () => ({ messages: { create } }));
+  completeText.mock.mockImplementation(async () => verdictText());
 
   // Default limit is 20_000 chars (see .env.example) unless overridden in this env.
   const limit = Number(process.env.DOCUMENT_GATEWAY_MAX_CHARS ?? 20_000);
@@ -118,21 +112,21 @@ test('a document longer than DOCUMENT_GATEWAY_MAX_CHARS is truncated before clas
 
   assert.equal(result.truncated, true);
   assert.equal(result.charCount, limit);
-  const classifyArg = create.mock.calls[0].arguments[0].messages[0].content;
+  const classifyArg = completeText.mock.calls[0].arguments[0].prompt;
   assert.equal(classifyArg.length, limit);
 });
 
 test('a classifier failure fails CLOSED — level is BŁĄD, never a silent zielona', async () => {
-  getAnthropicClient.mock.mockImplementation(async () => ({
-    messages: { create: mock.fn(async () => { throw new Error('Anthropic API unreachable'); }) },
-  }));
+  completeText.mock.mockImplementation(async () => {
+    throw new Error('Ollama server unreachable');
+  });
   const buffer = Buffer.from('treść dokumentu');
 
   const result = await checkDocument({ buffer, filename: 'plik.txt', mimeType: 'text/plain' });
 
   assert.equal(result.level, 'BŁĄD');
   assert.notEqual(result.level, 'zielona');
-  assert.match(result.error, /Anthropic API unreachable/);
+  assert.match(result.error, /Ollama server unreachable/);
 });
 
 test('a redaction-terms lookup failure fails CLOSED — level is BŁĄD, classifier is never called with unredacted text', async () => {
@@ -143,11 +137,11 @@ test('a redaction-terms lookup failure fails CLOSED — level is BŁĄD, classif
 
   assert.equal(result.level, 'BŁĄD');
   assert.match(result.error, /connection refused/);
-  assert.equal(getAnthropicClient.mock.callCount(), 0);
+  assert.equal(completeText.mock.callCount(), 0);
 });
 
 test.after(() => {
   redactionTermsMock.restore();
-  anthropicMock.restore();
+  ollamaMock.restore();
   ocrMock.restore();
 });

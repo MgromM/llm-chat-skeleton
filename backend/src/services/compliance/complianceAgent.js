@@ -1,7 +1,7 @@
-import { getAnthropicClient } from '../anthropicClient.js';
+import { completeText, OLLAMA_MODEL } from '../ollamaClient.js';
 import { query } from '../../config/db.js';
 
-const COMPLIANCE_AGENT_MODEL = process.env.COMPLIANCE_AGENT_MODEL ?? 'claude-haiku-4-5-20251001';
+const COMPLIANCE_AGENT_MODEL = process.env.COMPLIANCE_AGENT_MODEL ?? OLLAMA_MODEL;
 
 const COMPLIANCE_AGENT_PROMPT = `Oceniasz, czy fragment tekstu przeznaczony do wysłania do zewnętrznego modelu AI jest zgodny z firmowymi zasadami compliance.
 Szukaj: danych osobowych (PII) klienta końcowego, danych finansowych/umownych oznaczonych jako poufne, oraz treści które mogłyby zidentyfikować konkretną osobę fizyczną spoza kontekstu biznesowego.
@@ -30,16 +30,8 @@ export async function checkClientCompliance({ clientId, text }) {
     }
   }
 
-  const client = await getAnthropicClient();
-  const response = await client.messages.create({
-    model: COMPLIANCE_AGENT_MODEL,
-    max_tokens: 150,
-    system: COMPLIANCE_AGENT_PROMPT,
-    messages: [{ role: 'user', content: text }],
-  });
-
-  const responseText = response.content.find((b) => b.type === 'text')?.text ?? '{}';
-  const verdict = JSON.parse(stripJsonFence(responseText));
+  const { text: responseText } = await completeText({ model: COMPLIANCE_AGENT_MODEL, system: COMPLIANCE_AGENT_PROMPT, prompt: text });
+  const verdict = JSON.parse(stripJsonFence(responseText || '{}'));
 
   if (verdict.flagged === true) {
     return { compliant: false, reason: verdict.reason || 'FLAGGED_BY_AGENT' };

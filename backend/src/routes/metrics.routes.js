@@ -5,7 +5,6 @@ import { getCostSummary, getCostByUser } from '../services/metrics/usageTracker.
 import { query } from '../config/db.js';
 import { checkBigQueryConnection } from '../services/mcp/bigqueryServer.js';
 import { listRedactionTerms, addRedactionTerm, deactivateRedactionTerm } from '../services/security/redactionTerms.js';
-import { listMcpConnectors, addMcpConnector, setMcpConnectorEnabled, deleteMcpConnector } from '../services/mcp/mcpConnectors.js';
 import { findExpiredConversationIds, runRetentionCleanup } from '../services/retention/retentionCleanup.js';
 
 export const metricsRouter = Router();
@@ -140,48 +139,9 @@ metricsRouter.delete('/redaction-terms/:id', async (req, res, next) => {
   }
 });
 
-// Remote MCP servers (Anthropic's native MCP connector) an admin has wired
-// up — Claude calls these directly, server-side, on every chat turn.
-metricsRouter.get('/mcp-connectors', async (req, res, next) => {
-  try {
-    res.json(await listMcpConnectors());
-  } catch (err) {
-    next(err);
-  }
-});
-
-metricsRouter.post('/mcp-connectors', async (req, res, next) => {
-  try {
-    const name = String(req.body.name ?? '').trim();
-    const url = String(req.body.url ?? '').trim();
-    if (!name || !url) return res.status(400).json({ error: 'name and url are required' });
-    if (!/^https:\/\//.test(url)) return res.status(400).json({ error: 'url must be https' });
-    const authToken = req.body.authToken ? String(req.body.authToken) : undefined;
-    const created = await addMcpConnector({ name, url, authToken, createdBy: req.user.sub });
-    res.status(201).json(created);
-  } catch (err) {
-    next(err);
-  }
-});
-
-metricsRouter.patch('/mcp-connectors/:id', async (req, res, next) => {
-  try {
-    if (typeof req.body.enabled !== 'boolean') return res.status(400).json({ error: 'enabled (boolean) is required' });
-    await setMcpConnectorEnabled(req.params.id, req.body.enabled);
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
-
-metricsRouter.delete('/mcp-connectors/:id', async (req, res, next) => {
-  try {
-    await deleteMcpConnector(req.params.id);
-    res.json({ ok: true });
-  } catch (err) {
-    next(err);
-  }
-});
+// Remote MCP connectors (Anthropic's native, server-side MCP client) and
+// the quality-judge endpoint below were removed along with those features —
+// neither has an Ollama equivalent.
 
 function parseRange(req) {
   const to = req.query.to ? new Date(req.query.to) : new Date();
@@ -200,22 +160,6 @@ metricsRouter.get('/costs', async (req, res, next) => {
 metricsRouter.get('/costs-by-user', async (req, res, next) => {
   try {
     res.json(await getCostByUser(parseRange(req)));
-  } catch (err) {
-    next(err);
-  }
-});
-
-metricsRouter.get('/quality', async (req, res, next) => {
-  try {
-    const { from, to } = parseRange(req);
-    const { rows } = await query(
-      `SELECT judge_model, ROUND(AVG(score), 2) AS avg_score, COUNT(*) AS scored_messages
-       FROM quality_scores
-       WHERE created_at BETWEEN $1 AND $2
-       GROUP BY judge_model`,
-      [from, to],
-    );
-    res.json(rows);
   } catch (err) {
     next(err);
   }

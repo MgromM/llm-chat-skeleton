@@ -1,8 +1,8 @@
-import { getAnthropicClient } from '../anthropicClient.js';
+import { completeText, OLLAMA_MODEL } from '../ollamaClient.js';
 import { query } from '../../config/db.js';
 import { logger } from '../../config/logger.js';
 
-export const PRECHECK_MODEL = process.env.PRECHECK_MODEL ?? 'claude-haiku-4-5-20251001';
+export const PRECHECK_MODEL = process.env.PRECHECK_MODEL ?? OLLAMA_MODEL;
 const PRECHECK_ENABLED = process.env.PRECHECK_ENABLED !== 'false';
 // Below this confidence, a żółta/czerwona verdict is flagged for manager
 // review instead of hard-blocked — an uncertain call from the classifier
@@ -61,16 +61,9 @@ async function checkClientConsent(conversationId) {
  * drifts between the two call sites.
  */
 export async function classifyContent(text) {
-  const client = await getAnthropicClient();
-  const response = await client.messages.create({
-    model: PRECHECK_MODEL,
-    max_tokens: 200,
-    system: PRECHECK_PROMPT,
-    messages: [{ role: 'user', content: text }],
-  });
+  const { text: responseText } = await completeText({ model: PRECHECK_MODEL, system: PRECHECK_PROMPT, prompt: text });
 
-  const responseText = response.content.find((b) => b.type === 'text')?.text ?? '{}';
-  const jsonText = responseText.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  const jsonText = (responseText || '{}').replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
   const verdict = JSON.parse(jsonText);
 
   const rawLevel = String(verdict.level ?? 'ZIELONA').toUpperCase();

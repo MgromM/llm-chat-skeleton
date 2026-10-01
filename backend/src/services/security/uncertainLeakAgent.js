@@ -1,9 +1,9 @@
-import { getAnthropicClient } from '../anthropicClient.js';
+import { completeText, OLLAMA_MODEL } from '../ollamaClient.js';
 import { query } from '../../config/db.js';
 import { logger } from '../../config/logger.js';
 import { sendNotificationEmail } from '../notifications/resendMailer.js';
 
-const LEAK_AGENT_MODEL = process.env.LEAK_AGENT_MODEL ?? 'claude-haiku-4-5-20251001';
+const LEAK_AGENT_MODEL = process.env.LEAK_AGENT_MODEL ?? OLLAMA_MODEL;
 const DEFAULT_CONTEXT_MESSAGES = Number(process.env.LEAK_AGENT_DEFAULT_CONTEXT ?? 5);
 
 const LEAK_AGENT_PROMPT = `Analizujesz fragment rozmowy pracownika firmy z asystentem AI pod kątem NIEJEDNOZNACZNYCH, niepewnych sygnałów wycieku danych — przypadków, które NIE są na tyle oczywiste, by je twardo zablokować (to robi osobny, bardziej rygorystyczny pre-check), ale mimo to mogą oznaczać, że dane wrażliwe lub poufne firmowe wypłynęły albo są na granicy wypłynięcia.
@@ -45,16 +45,12 @@ export async function detectUncertainLeak({ conversationId, userId, userMessage 
     const context = await loadRecentMessages(conversationId, contextLimit);
     const transcript = context.map((m) => `${m.role}: ${m.content}`).join('\n');
 
-    const client = await getAnthropicClient();
-    const response = await client.messages.create({
+    const { text } = await completeText({
       model: LEAK_AGENT_MODEL,
-      max_tokens: 200,
       system: LEAK_AGENT_PROMPT,
-      messages: [{ role: 'user', content: `Ostatnia wiadomość do oceny: ${userMessage}\n\nKontekst rozmowy:\n${transcript}` }],
+      prompt: `Ostatnia wiadomość do oceny: ${userMessage}\n\nKontekst rozmowy:\n${transcript}`,
     });
-
-    const text = response.content.find((b) => b.type === 'text')?.text ?? '{}';
-    const verdict = JSON.parse(stripJsonFence(text));
+    const verdict = JSON.parse(stripJsonFence(text || '{}'));
 
     if (verdict.suspicious !== true) {
       return { suspicious: false };

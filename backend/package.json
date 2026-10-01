@@ -12,15 +12,12 @@
     "test": "node --experimental-test-module-mocks --test src/**/*.test.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.126.0",
     "@google-cloud/bigquery": "^7.9.1",
     "@google-cloud/secret-manager": "^5.6.0",
     "@google-cloud/storage": "^7.14.0",
-    "@modelcontextprotocol/sdk": "^1.0.4",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
-    "e2b": "^2.51.0",
     "exceljs": "^4.4.0",
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",

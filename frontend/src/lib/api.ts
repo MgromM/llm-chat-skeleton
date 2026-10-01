@@ -127,11 +127,6 @@ export interface CostByUserRow {
   cost_usd: string;
 }
 
-export interface QualityRow {
-  judge_model: string;
-  avg_score: string;
-  scored_messages: string;
-}
 
 export interface LeakAlert {
   id: number;
@@ -221,15 +216,6 @@ export interface ClientAccessAuditRow {
   user_email: string;
 }
 
-export interface McpConnector {
-  id: number;
-  name: string;
-  url: string;
-  enabled: boolean;
-  has_token: boolean;
-  created_at: string;
-}
-
 export interface GeneratedFileEntry {
   fileId: string;
   filename: string;
@@ -239,13 +225,6 @@ export interface GeneratedFileEntry {
   createdAt: string;
   conversationId: number;
   conversationTitle: string | null;
-}
-
-export interface MemoryFile {
-  id: number;
-  path: string;
-  size_bytes: number;
-  updated_at: string;
 }
 
 export interface EnterpriseComparison {
@@ -363,9 +342,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ message, conversationId: conversationId ?? null }),
     }),
-  listMemoryFiles: () => apiFetch<MemoryFile[]>('/memory'),
-  deleteMemoryFile: (id: number) => apiFetch<{ ok: true }>(`/memory/${id}`, { method: 'DELETE' }),
-  clearMemory: () => apiFetch<{ ok: true }>('/memory', { method: 'DELETE' }),
   // Item 17: temporary/incognito conversations are excluded from the
   // default list; pass includeTemporary=true only when one is currently
   // active in the UI, so it doesn't vanish from the sidebar mid-session.
@@ -559,11 +535,6 @@ export const api = {
     return res.json() as Promise<{ id: number; chunkCount: number }>;
   },
   deleteKnowledgeDocument: (id: number) => apiFetch<{ ok: true }>(`/knowledge/documents/${id}`, { method: 'DELETE' }),
-  addMcpConnector: (payload: { name: string; url: string; authToken?: string }) =>
-    apiFetch<McpConnector>('/metrics/mcp-connectors', { method: 'POST', body: JSON.stringify(payload) }),
-  setMcpConnectorEnabled: (id: number, enabled: boolean) =>
-    apiFetch<{ ok: true }>(`/metrics/mcp-connectors/${id}`, { method: 'PATCH', body: JSON.stringify({ enabled }) }),
-  deleteMcpConnector: (id: number) => apiFetch<{ ok: true }>(`/metrics/mcp-connectors/${id}`, { method: 'DELETE' }),
   listUsers: () => apiFetch<AdminUser[]>('/auth/users'),
   setUserRole: (id: number, role: string) =>
     apiFetch<AdminUser>(`/auth/users/${id}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
@@ -601,6 +572,5 @@ export const api = {
   },
   costSummary: () => apiFetch<CostRow[]>('/metrics/costs'),
   costByUser: () => apiFetch<CostByUserRow[]>('/metrics/costs-by-user'),
-  qualitySummary: () => apiFetch<QualityRow[]>('/metrics/quality'),
   enterpriseComparison: () => apiFetch<EnterpriseComparison>('/metrics/enterprise-comparison'),
 };

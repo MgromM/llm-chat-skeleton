@@ -14,8 +14,7 @@ import {
   branchConversation,
   STYLE_PRESETS,
 } from '../services/chatCore/pipeline.js';
-import { getAnthropicClient } from '../services/anthropicClient.js';
-import { FILES_API_BETA } from '../services/mcp/codeExecutionTool.js';
+import { listModels, OLLAMA_MODEL } from '../services/ollamaClient.js';
 import { readAttachmentFile, deleteAttachmentFile, MAX_FILE_SIZE_BYTES, MAX_FILES_PER_MESSAGE } from '../services/attachments/attachmentStore.js';
 
 const upload = multer({
@@ -76,7 +75,7 @@ chatRouter.get('/conversations', async (req, res, next) => {
   try {
     const includeTemporary = req.query.includeTemporary === 'true';
     const { rows } = await query(
-      `SELECT id, title, created_at, model, system_prompt, style, extended_thinking, branched_from_conversation_id, branched_from_message_id, project_id, is_temporary
+      `SELECT id, title, created_at, model, system_prompt, style, branched_from_conversation_id, branched_from_message_id, project_id, is_temporary
        FROM conversations WHERE user_id = $1 ${includeTemporary ? '' : 'AND is_temporary = false'} ORDER BY created_at DESC`,
       [req.user.sub],
     );
@@ -88,7 +87,6 @@ chatRouter.get('/conversations', async (req, res, next) => {
         branchedFromMessageId: r.branched_from_message_id,
         projectId: r.project_id,
         isTemporary: r.is_temporary,
-        extendedThinking: r.extended_thinking === true,
       })),
     );
   } catch (err) {
@@ -170,9 +168,13 @@ chatRouter.post('/conversations/:id/messages/:messageId/branch', async (req, res
   }
 });
 
-// Models the user is allowed to pick per-conversation. Keep in sync with
-// MODEL_PRICING_PER_MTOK in anthropicClient.js.
-const AVAILABLE_MODELS = ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5-20251001'];
+// With Ollama, "available models" means whatever's actually pulled on the
+// server — fetched live rather than hardcoded, falling back to the single
+// configured default if the Ollama server can't be reached right now.
+async function getAvailableModels() {
+  const pulled = await listModels().catch(() => []);
+  return pulled.length > 0 ? pulled : [OLLAMA_MODEL];
+}
 
 /** Renames a conversation's title, and/or updates its model / system prompt. */
 chatRouter.patch('/conversations/:id', async (req, res, next) => {
@@ -189,8 +191,8 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
     }
     if (req.body.model !== undefined) {
       const model = req.body.model === null ? null : String(req.body.model);
-      if (model !== null && !AVAILABLE_MODELS.includes(model)) {
-        return res.status(400).json({ error: `model must be one of: ${AVAILABLE_MODELS.join(', ')}` });
+      if (model !== null && !(await getAvailableModels()).includes(model)) {
+        return res.status(400).json({ error: 'model is not pulled on the Ollama server' });
       }
       updates.push(`model = $${paramIndex++}`);
       values.push(model);
@@ -227,19 +229,12 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
       updates.push(`is_temporary = $${paramIndex++}`);
       values.push(req.body.isTemporary === true);
     }
-    if (req.body.extendedThinking !== undefined) {
-      if (typeof req.body.extendedThinking !== 'boolean') {
-        return res.status(400).json({ error: 'extendedThinking must be a boolean' });
-      }
-      updates.push(`extended_thinking = $${paramIndex++}`);
-      values.push(req.body.extendedThinking);
-    }
     if (updates.length === 0) return res.status(400).json({ error: 'nothing to update' });
 
     values.push(req.params.id, req.user.sub);
     const { rows } = await query(
       `UPDATE conversations SET ${updates.join(', ')} WHERE id = $${paramIndex++} AND user_id = $${paramIndex}
-       RETURNING id, title, created_at, model, system_prompt, project_id, style, is_temporary, extended_thinking`,
+       RETURNING id, title, created_at, model, system_prompt, project_id, style, is_temporary`,
       values,
     );
     if (rows.length === 0) return res.status(404).json({ error: 'Conversation not found' });
@@ -252,15 +247,14 @@ chatRouter.patch('/conversations/:id', async (req, res, next) => {
       projectId: rows[0].project_id,
       style: rows[0].style,
       isTemporary: rows[0].is_temporary,
-      extendedThinking: rows[0].extended_thinking === true,
     });
   } catch (err) {
     next(err);
   }
 });
 
-chatRouter.get('/conversations/models', (req, res) => {
-  res.json({ models: AVAILABLE_MODELS });
+chatRouter.get('/conversations/models', async (req, res) => {
+  res.json({ models: await getAvailableModels() });
 });
 
 /** Fixed set of response-style presets (item 15) the user can pick per-conversation. */
@@ -677,35 +671,7 @@ chatRouter.get('/generated-files', async (req, res, next) => {
   }
 });
 
-/**
- * Streams a file the model generated via `code_execution` (e.g. a .csv/.xlsx
- * report) from Anthropic's Files API. Ownership is checked by looking for
- * the file_id inside some message's `generated_files` in a conversation the
- * requesting user owns — the id alone isn't a capability token, since
- * Anthropic file ids aren't scoped per-user.
- */
-chatRouter.get('/generated-files/:fileId', requireAuthViaHeaderOrQuery, attachUserDbContext, async (req, res, next) => {
-  try {
-    const { rows } = await query(
-      `SELECT elem->>'filename' AS filename, elem->>'mimeType' AS mime_type
-       FROM messages m
-       JOIN conversations c ON c.id = m.conversation_id
-       CROSS JOIN LATERAL jsonb_array_elements(m.generated_files) elem
-       WHERE c.user_id = $1 AND elem->>'fileId' = $2
-       LIMIT 1`,
-      [req.user.sub, req.params.fileId],
-    );
-    if (rows.length === 0) return res.status(404).json({ error: 'File not found' });
-
-    const { filename, mime_type: mimeType } = rows[0];
-    const client = await getAnthropicClient();
-    const download = await client.beta.files.download(req.params.fileId, {}, { headers: { 'anthropic-beta': FILES_API_BETA } });
-
-    const isInlineSafe = INLINE_SAFE_MIME_TYPES.has(mimeType);
-    res.setHeader('Content-Type', isInlineSafe ? mimeType : 'application/octet-stream');
-    res.setHeader('Content-Disposition', `${isInlineSafe ? 'inline' : 'attachment'}; filename="${encodeURIComponent(filename)}"`);
-    res.send(Buffer.from(await download.arrayBuffer()));
-  } catch (err) {
-    next(err);
-  }
-});
+// The old /generated-files/:fileId endpoint streamed files the model wrote
+// via Anthropic's `code_execution` tool (its own hosted sandbox + Files
+// API) — removed along with that tool, since Ollama has no equivalent
+// server-side code execution or file storage.
