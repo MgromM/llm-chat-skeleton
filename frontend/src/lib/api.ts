@@ -461,7 +461,7 @@ export const api = {
       { method: 'POST', body: JSON.stringify({ message }) },
     ),
   estimateCost: (conversationId: number, message: string) =>
-    apiFetch<{ inputTokens: number; estimatedCostUsd: number; model: string }>(
+    apiFetch<{ inputTokens: number; model: string }>(
       `/chat/conversations/${conversationId}/estimate`,
       { method: 'POST', body: JSON.stringify({ message }) },
     ),

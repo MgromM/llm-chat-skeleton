@@ -1021,7 +1021,7 @@ function ChatView() {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);
-  const [draftEstimate, setDraftEstimate] = useState<{ inputTokens: number; estimatedCostUsd: number } | null>(null);
+  const [draftEstimate, setDraftEstimate] = useState<{ inputTokens: number } | null>(null);
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [availableStyles, setAvailableStyles] = useState<StylePreset[]>([]);
   const [hasGlobalPrompt, setHasGlobalPrompt] = useState(false);
@@ -1185,7 +1185,7 @@ function ChatView() {
     const handle = setTimeout(() => {
       api
         .estimateCost(conversationId, draft)
-        .then((res) => setDraftEstimate({ inputTokens: res.inputTokens, estimatedCostUsd: res.estimatedCostUsd }))
+        .then((res) => setDraftEstimate({ inputTokens: res.inputTokens }))
         .catch(() => setDraftEstimate(null));
     }, 500);
     return () => clearTimeout(handle);
@@ -1949,8 +1949,7 @@ function ChatView() {
               </div>
               {draftEstimate && draftEstimate.inputTokens > 0 && (
                 <p className="mt-1.5 text-right text-xs text-brand-muted dark:text-zinc-500">
-                  ~{draftEstimate.inputTokens.toLocaleString('pl-PL')} tok. wejściowych · ~$
-                  {draftEstimate.estimatedCostUsd.toFixed(4)} (bez odpowiedzi)
+                  ~{draftEstimate.inputTokens.toLocaleString('pl-PL')} tok. wejściowych
                 </p>
               )}
             </div>
