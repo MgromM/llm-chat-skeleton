@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2, Loader2, Copy, FolderKanban, Sparkles, Mic, MicOff, Gauge, Brain, ChevronDown, ChevronRight } from 'lucide-react';
+import { ArrowUp, Plus, MessageSquare, Paperclip, X, FileText, FileOutput, Download, Square, RefreshCw, Pencil, Check, Trash2, Menu, Link2, GitBranch, Share2, Eye, Code2, Loader2, Copy, Mic, MicOff, Gauge } from 'lucide-react';
 import clsx from 'clsx';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -9,11 +9,10 @@ import remarkMath from 'remark-math';
 import rehypeHighlight from 'rehype-highlight';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
-import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile, type Artifact, type ArtifactVersionSummary, type Project, type StylePreset, type UsageInfo } from '@/lib/api';
+import { api, ApiError, type Attachment, type ChatMessage, type Citation, type GeneratedFile, type Artifact, type ArtifactVersionSummary, type UsageInfo } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { BrandHeader } from '@/components/BrandHeader';
 import { ArtifactViewer } from '@/components/ArtifactViewer';
-import { ShareConversationButton } from '@/components/ShareConversationButton';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { exportConversationAsPdf } from '@/lib/exportPdf';
 import { useLocale } from '@/lib/LocaleContext';
@@ -262,12 +261,8 @@ interface Conversation {
   title: string | null;
   created_at: string;
   model?: string | null;
-  systemPrompt?: string | null;
   branchedFromConversationId?: number | null;
-  projectId?: number | null;
-  style?: string | null;
   isTemporary?: boolean;
-  extendedThinking?: boolean;
 }
 
 
@@ -291,10 +286,6 @@ function ConversationSidebar({
   open,
   onClose,
   searchInputRef,
-  projects,
-  projectFilter,
-  onSelectProjectFilter,
-  onCreateProject,
 }: {
   conversations: Conversation[];
   activeId: number | null;
@@ -305,19 +296,12 @@ function ConversationSidebar({
   open: boolean;
   onClose: () => void;
   searchInputRef?: RefObject<HTMLInputElement>;
-  projects: Project[];
-  projectFilter: number | null;
-  onSelectProjectFilter: (projectId: number | null) => void;
-  onCreateProject: (name: string, description: string) => void;
 }) {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Conversation[] | null>(null);
-  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDescription, setNewProjectDescription] = useState('');
 
   useEffect(() => {
     const q = searchQuery.trim();
@@ -331,18 +315,7 @@ function ConversationSidebar({
     return () => clearTimeout(handle);
   }, [searchQuery]);
 
-  const filteredConversations =
-    projectFilter === null ? conversations : conversations.filter((c) => c.projectId === projectFilter);
-  const visibleConversations = searchResults ?? filteredConversations;
-
-  function submitNewProject() {
-    const name = newProjectName.trim();
-    if (!name) return;
-    onCreateProject(name, newProjectDescription.trim());
-    setNewProjectName('');
-    setNewProjectDescription('');
-    setShowNewProjectForm(false);
-  }
+  const visibleConversations = searchResults ?? conversations;
 
   function startRename(c: Conversation) {
     setRenamingId(c.id);
@@ -390,82 +363,6 @@ function ConversationSidebar({
           placeholder="Szukaj w rozmowach… (Cmd+K)"
           className="w-full rounded-lg border border-brand-dark/20 dark:border-brand-white/30 bg-brand-dark/5 dark:bg-brand-white/10 px-3 py-1.5 text-sm text-brand-dark dark:text-brand-white placeholder:text-brand-dark/40 dark:placeholder:text-brand-white/50 outline-none focus:border-brand-dark/50 dark:focus:border-brand-white/60"
         />
-      </div>
-      <div className="px-3 pb-2">
-        <div className="mb-1 flex items-center justify-between px-1">
-          <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-dark/50 dark:text-brand-white/50">
-            <FolderKanban size={12} />
-            Projekty
-          </span>
-          <button
-            onClick={() => setShowNewProjectForm((v) => !v)}
-            aria-label="Nowy projekt"
-            className="rounded p-0.5 text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/5 dark:hover:bg-brand-white/10 hover:text-brand-dark dark:hover:text-brand-white"
-          >
-            <Plus size={13} />
-          </button>
-        </div>
-        {showNewProjectForm && (
-          <div className="mb-2 space-y-1.5 rounded-lg border border-brand-dark/15 dark:border-brand-white/20 bg-brand-dark/[0.03] dark:bg-brand-white/5 p-2">
-            <input
-              autoFocus
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitNewProject()}
-              placeholder="Nazwa projektu"
-              className="w-full rounded-md border border-brand-dark/20 dark:border-brand-white/30 bg-brand-dark/5 dark:bg-brand-white/10 px-2 py-1 text-xs text-brand-dark dark:text-brand-white placeholder:text-brand-dark/40 dark:placeholder:text-brand-white/40 outline-none focus:border-brand-dark/50 dark:focus:border-brand-white/60"
-            />
-            <textarea
-              value={newProjectDescription}
-              onChange={(e) => setNewProjectDescription(e.target.value)}
-              placeholder="Opis / instrukcje projektu (opcjonalnie)"
-              rows={2}
-              className="w-full resize-none rounded-md border border-brand-dark/20 dark:border-brand-white/30 bg-brand-dark/5 dark:bg-brand-white/10 px-2 py-1 text-xs text-brand-dark dark:text-brand-white placeholder:text-brand-dark/40 dark:placeholder:text-brand-white/40 outline-none focus:border-brand-dark/50 dark:focus:border-brand-white/60"
-            />
-            <div className="flex justify-end gap-1.5">
-              <button
-                onClick={() => setShowNewProjectForm(false)}
-                className="rounded px-2 py-1 text-xs text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/5 dark:hover:bg-brand-white/10"
-              >
-                Anuluj
-              </button>
-              <button
-                onClick={submitNewProject}
-                className="rounded bg-brand-orange px-2 py-1 text-xs font-semibold text-brand-white hover:brightness-95"
-              >
-                Utwórz
-              </button>
-            </div>
-          </div>
-        )}
-        <div className="space-y-0.5">
-          <button
-            onClick={() => onSelectProjectFilter(null)}
-            className={clsx(
-              'w-full truncate rounded-md px-2 py-1 text-left text-xs',
-              projectFilter === null
-                ? 'bg-brand-dark/5 dark:bg-brand-white/10 font-medium text-brand-dark dark:text-brand-white'
-                : 'text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/[0.03] dark:hover:bg-brand-white/5',
-            )}
-          >
-            Wszystkie
-          </button>
-          {projects.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => onSelectProjectFilter(p.id)}
-              title={p.description ?? undefined}
-              className={clsx(
-                'w-full truncate rounded-md px-2 py-1 text-left text-xs',
-                projectFilter === p.id
-                  ? 'bg-brand-dark/5 dark:bg-brand-white/10 font-medium text-brand-dark dark:text-brand-white'
-                  : 'text-brand-dark/60 dark:text-brand-white/60 hover:bg-brand-dark/[0.03] dark:hover:bg-brand-white/5',
-              )}
-            >
-              {p.name}
-            </button>
-          ))}
-        </div>
       </div>
       <div className="flex-1 space-y-0.5 overflow-y-auto px-2 pb-3">
         {visibleConversations.length === 0 && (
@@ -646,42 +543,6 @@ function actionErrorMessage(err: unknown, fallback: string): string {
 
 const RETRY_BACKOFF_MS = [1000, 3000, 8000];
 
-const MODEL_LABELS: Record<string, string> = {
-  'claude-sonnet-5': 'Claude Sonnet 5',
-  'claude-opus-5': 'Claude Opus 5',
-  'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
-};
-
-function modelLabel(model: string) {
-  return MODEL_LABELS[model] || model;
-}
-
-// Item 20 (UI/UX audit): shows the model's "extended thinking" content
-// (persisted in messages.thinking_content when the conversation had the
-// toggle on for that turn) collapsed by default, like Claude.ai's reasoning
-// block above the final answer.
-function ThinkingBlock({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="max-w-full text-sm">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 text-brand-muted dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-300"
-      >
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        <Brain size={13} />
-        {open ? 'Ukryj tok rozumowania' : 'Pokaż tok rozumowania'}
-      </button>
-      {open && (
-        <div className="mt-1.5 whitespace-pre-wrap rounded-lg border border-brand-border/60 dark:border-zinc-700 bg-brand-surface/40 dark:bg-zinc-800/60 p-3 text-brand-dark/70 dark:text-zinc-400">
-          {text}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // Item 19 (UI/UX audit): usage indicator for regular users. There's no
 // per-user quota in this system, only a shared org-wide monthly cost cap
 // (MONTHLY_BUDGET_USD) that the backend checks before every LLM call — see
@@ -745,46 +606,15 @@ function UsageBadge() {
 }
 
 function ConversationSettingsBar({
-  systemPrompt,
-  onChangeSystemPrompt,
   onExport,
   onOpenSidebar,
-  availableModels,
-  selectedModel,
-  onChangeModel,
-  hasGlobalPrompt,
-  projects,
-  selectedProjectId,
-  onChangeProject,
-  availableStyles,
-  selectedStyle,
-  onChangeStyle,
-  extendedThinking,
-  onChangeExtendedThinking,
   onExportPdf,
-  conversationId,
 }: {
-  systemPrompt: string;
-  onChangeSystemPrompt: (prompt: string) => void;
   onExport: () => void;
   onOpenSidebar: () => void;
-  availableModels: string[];
-  selectedModel: string;
-  onChangeModel: (model: string) => void;
-  hasGlobalPrompt: boolean;
-  projects: Project[];
-  selectedProjectId: number | null;
-  onChangeProject: (projectId: number | null) => void;
-  availableStyles: StylePreset[];
-  selectedStyle: string | null;
-  onChangeStyle: (style: string | null) => void;
-  extendedThinking?: boolean;
-  onChangeExtendedThinking: (enabled: boolean) => void;
   onExportPdf: () => void;
-  conversationId: number | null;
 }) {
   const { t } = useLocale();
-  const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -803,9 +633,6 @@ function ConversationSettingsBar({
       window.removeEventListener('mousedown', onClickOutside);
     };
   }, [exportOpen]);
-  const [draft, setDraft] = useState(systemPrompt);
-
-  useEffect(() => setDraft(systemPrompt), [systemPrompt]);
 
   return (
     <div className="rounded-t-2xl border-b border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-3 py-2 sm:px-6">
@@ -817,86 +644,6 @@ function ConversationSettingsBar({
         >
           <Menu size={18} />
         </button>
-        <div className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400">
-          Model:
-          <select
-            value={selectedModel}
-            onChange={(e) => onChangeModel(e.target.value)}
-            className="rounded-md border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2 py-1 text-sm font-medium text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
-          >
-            {availableModels.length === 0 && <option value={selectedModel}>{modelLabel(selectedModel)}</option>}
-            {availableModels.map((m) => (
-              <option key={m} value={m}>
-                {modelLabel(m)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          onClick={() => setShowPromptEditor((v) => !v)}
-          className="text-brand-muted dark:text-zinc-400 underline decoration-dotted hover:text-brand-dark dark:hover:text-zinc-100"
-        >
-          {systemPrompt ? 'Edytuj prompt systemowy (tej rozmowy)' : 'Dodaj prompt systemowy (tej rozmowy)'}
-        </button>
-        <div className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400">
-          <FolderKanban size={14} className="opacity-70" />
-          <select
-            value={selectedProjectId ?? ''}
-            onChange={(e) => onChangeProject(e.target.value ? Number(e.target.value) : null)}
-            title="Przypisz tę rozmowę do projektu — instrukcje projektu są dodawane do kontekstu."
-            className="rounded-md border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2 py-1 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
-          >
-            <option value="">Bez projektu</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-1.5 text-brand-muted dark:text-zinc-400">
-          <Sparkles size={14} className="opacity-70" />
-          <select
-            value={selectedStyle ?? ''}
-            onChange={(e) => onChangeStyle(e.target.value || null)}
-            title="Styl odpowiedzi — dodatkowa instrukcja tonu dołączana do promptu systemowego."
-            className="rounded-md border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-2 py-1 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
-          >
-            <option value="">Domyślny</option>
-            {availableStyles.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button
-          type="button"
-          onClick={() => onChangeExtendedThinking(!extendedThinking)}
-          title="Rozszerzone rozumowanie — model pokazuje tok rozumowania przed odpowiedzią (dłuższy czas odpowiedzi, wyższy koszt)."
-          aria-pressed={!!extendedThinking}
-          className={clsx(
-            'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
-            extendedThinking
-              ? 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20'
-              : 'text-brand-muted dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
-          )}
-        >
-          <Brain size={12} />
-          Rozszerzone rozumowanie: {extendedThinking ? 'wł.' : 'wył.'}
-        </button>
-        <a
-          href="/settings"
-          title="Globalny kontekst z Ustawień obowiązuje we wszystkich rozmowach, a prompt tej rozmowy jest do niego dodawany."
-          className={clsx(
-            'flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium',
-            hasGlobalPrompt
-              ? 'bg-brand-orange/10 text-brand-orange dark:bg-brand-orange/20'
-              : 'text-brand-muted dark:text-zinc-500 hover:text-brand-dark dark:hover:text-zinc-200'
-          )}
-        >
-          {hasGlobalPrompt ? 'Globalny kontekst: aktywny' : 'Globalny kontekst: brak'}
-        </a>
         <UsageBadge />
         <div className="relative ml-auto" ref={exportMenuRef}>
           <button
@@ -931,36 +678,7 @@ function ConversationSettingsBar({
             </div>
           )}
         </div>
-        <ShareConversationButton conversationId={conversationId} />
       </div>
-      {showPromptEditor && (
-        <div className="mx-auto mt-2 max-w-3xl">
-          <textarea
-            rows={2}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Opcjonalne instrukcje systemowe dla tej rozmowy…"
-            className="w-full resize-none rounded-lg border border-brand-border dark:border-zinc-700 px-3 py-2 text-sm text-brand-dark dark:text-zinc-100 outline-none focus:border-brand-orange"
-          />
-          <div className="mt-1 flex justify-end gap-2">
-            <button
-              onClick={() => setShowPromptEditor(false)}
-              className="rounded-md px-3 py-1 text-xs text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800"
-            >
-              Anuluj
-            </button>
-            <button
-              onClick={() => {
-                onChangeSystemPrompt(draft);
-                setShowPromptEditor(false);
-              }}
-              className="rounded-md bg-brand-orange px-3 py-1 text-xs font-bold text-brand-white hover:brightness-95"
-            >
-              Zapisz
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1022,11 +740,6 @@ function ChatView() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [classifying, setClassifying] = useState(false);
   const [draftEstimate, setDraftEstimate] = useState<{ inputTokens: number } | null>(null);
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
-  const [availableStyles, setAvailableStyles] = useState<StylePreset[]>([]);
-  const [hasGlobalPrompt, setHasGlobalPrompt] = useState(false);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [projectFilter, setProjectFilter] = useState<number | null>(null);
   const [listening, setListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -1123,10 +836,6 @@ function ChatView() {
         );
       }
     })();
-    api.availableModels().then(({ models }) => setAvailableModels(models));
-    api.availableStyles().then(({ styles }) => setAvailableStyles(styles));
-    api.me().then((me) => setHasGlobalPrompt(!!me.defaultSystemPrompt)).catch(() => {});
-    api.listProjects().then(setProjects).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -1231,66 +940,6 @@ function ChatView() {
       }
     } catch (err) {
       setErrorMessage(actionErrorMessage(err, 'Nie udało się usunąć rozmowy.'));
-    }
-  }
-
-  async function handleChangeSystemPrompt(systemPrompt: string) {
-    if (conversationId === null) return;
-    const trimmed = systemPrompt.trim() || null;
-    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, systemPrompt: trimmed } : c)));
-    try {
-      await api.updateConversationSettings(conversationId, { systemPrompt: trimmed });
-    } catch (err) {
-      setErrorMessage(actionErrorMessage(err, 'Nie udało się zapisać promptu systemowego.'));
-    }
-  }
-
-  async function handleChangeModel(model: string) {
-    if (conversationId === null) return;
-    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, model } : c)));
-    try {
-      await api.updateConversationSettings(conversationId, { model });
-    } catch (err) {
-      setErrorMessage(actionErrorMessage(err, 'Nie udało się zmienić modelu.'));
-    }
-  }
-
-  async function handleChangeProject(projectId: number | null) {
-    if (conversationId === null) return;
-    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, projectId } : c)));
-    try {
-      await api.setConversationProject(conversationId, projectId);
-    } catch (err) {
-      setErrorMessage(actionErrorMessage(err, 'Nie udało się przypisać rozmowy do projektu.'));
-    }
-  }
-
-  async function handleChangeStyle(style: string | null) {
-    if (conversationId === null) return;
-    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, style } : c)));
-    try {
-      await api.setConversationStyle(conversationId, style);
-    } catch (err) {
-      setErrorMessage(actionErrorMessage(err, 'Nie udało się zmienić stylu odpowiedzi.'));
-    }
-  }
-
-  async function handleChangeExtendedThinking(extendedThinking: boolean) {
-    if (conversationId === null) return;
-    setConversations((prev) => prev.map((c) => (c.id === conversationId ? { ...c, extendedThinking } : c)));
-    try {
-      await api.setConversationExtendedThinking(conversationId, extendedThinking);
-    } catch (err) {
-      setErrorMessage(actionErrorMessage(err, 'Nie udało się zmienić trybu rozszerzonego rozumowania.'));
-    }
-  }
-
-  async function handleCreateProject(name: string, description: string) {
-    try {
-      const project = await api.createProject({ name, description: description || null });
-      setProjects((prev) => [project, ...prev]);
-    } catch (err) {
-      setErrorMessage(actionErrorMessage(err, 'Nie udało się utworzyć projektu.'));
     }
   }
 
@@ -1601,31 +1250,12 @@ function ChatView() {
           open={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
           searchInputRef={searchInputRef}
-          projects={projects}
-          projectFilter={projectFilter}
-          onSelectProjectFilter={setProjectFilter}
-          onCreateProject={handleCreateProject}
         />
         <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
           <ConversationSettingsBar
-            systemPrompt={conversations.find((c) => c.id === conversationId)?.systemPrompt || ''}
-            onChangeSystemPrompt={handleChangeSystemPrompt}
             onExport={handleExportConversation}
             onOpenSidebar={() => setSidebarOpen(true)}
-            availableModels={availableModels}
-            selectedModel={conversations.find((c) => c.id === conversationId)?.model || 'claude-sonnet-5'}
-            onChangeModel={handleChangeModel}
-            hasGlobalPrompt={hasGlobalPrompt}
-            projects={projects}
-            selectedProjectId={conversations.find((c) => c.id === conversationId)?.projectId ?? null}
-            onChangeProject={handleChangeProject}
-            availableStyles={availableStyles}
-            selectedStyle={conversations.find((c) => c.id === conversationId)?.style ?? null}
-            onChangeStyle={handleChangeStyle}
-            extendedThinking={!!conversations.find((c) => c.id === conversationId)?.extendedThinking}
-            onChangeExtendedThinking={handleChangeExtendedThinking}
             onExportPdf={handleExportConversationPdf}
-            conversationId={conversationId}
           />
           <div className="flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-3xl flex-col gap-6 px-3 py-6 sm:px-6 sm:py-8">
@@ -1697,7 +1327,6 @@ function ChatView() {
                         </div>
                       </div>
                     ) : null}
-                    {m.role === 'assistant' && m.thinkingContent && <ThinkingBlock text={m.thinkingContent} />}
                     {isEditing ? null : m.content && m.role === 'assistant' && m.commandUsed && m.artifactId && ARTIFACT_COMMAND_TITLES[m.commandUsed] ? (
                       <ArtifactCard
                         title={ARTIFACT_COMMAND_TITLES[m.commandUsed]}
