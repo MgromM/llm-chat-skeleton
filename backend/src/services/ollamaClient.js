@@ -8,6 +8,28 @@
 export const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 export const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1';
 
+// llama.cpp (which Ollama embeds) sizes its thread pool off the host's
+// reported logical CPU count, not the container's actual cgroup CPU quota.
+// On a host with many cores but a small per-container quota (e.g. Railway),
+// that drastically over-subscribes the quota and the CFS bandwidth
+// controller throttles the process into near-total stall instead of just
+// running slower. Capping num_thread to the real quota avoids that.
+const NUM_THREAD = process.env.OLLAMA_NUM_THREAD ? Number(process.env.OLLAMA_NUM_THREAD) : undefined;
+
+// Small base models (no instruction-tuned stop behavior to rely on) can fail
+// to emit an end-of-sequence token and ramble on for thousands of tokens
+// instead of stopping -- with no cap a single reply can run for minutes.
+// num_predict is Ollama's hard ceiling on generated tokens per request.
+const NUM_PREDICT = process.env.OLLAMA_NUM_PREDICT ? Number(process.env.OLLAMA_NUM_PREDICT) : 400;
+
+function withThreadOptions(options) {
+  return {
+    ...options,
+    ...(NUM_THREAD ? { num_thread: NUM_THREAD } : {}),
+    ...(NUM_PREDICT ? { num_predict: NUM_PREDICT } : {}),
+  };
+}
+
 function toOllamaMessages(messages, system) {
   const sys = system ? [{ role: 'system', content: system }] : [];
   return [...sys, ...messages.map((m) => ({ role: m.role, content: String(m.content ?? '') }))];
@@ -36,6 +58,7 @@ export async function completeText({ model = OLLAMA_MODEL, system, prompt }) {
       model,
       stream: false,
       messages: toOllamaMessages([{ role: 'user', content: prompt }], system),
+      options: withThreadOptions({}),
     }),
   });
   if (!res.ok) throw new Error(`Ollama request failed: ${res.status} ${await res.text()}`);
@@ -58,6 +81,7 @@ export async function chatCompletion({ model = OLLAMA_MODEL, messages, system, t
       model,
       stream: false,
       messages: toOllamaMessages(messages, system),
+      options: withThreadOptions({}),
       ...(tools ? { tools: toOllamaTools(tools) } : {}),
     }),
   });
@@ -91,6 +115,7 @@ export async function streamChatCompletion({ model = OLLAMA_MODEL, messages, sys
       model,
       stream: true,
       messages: toOllamaMessages(messages, system),
+      options: withThreadOptions({}),
       ...(tools ? { tools: toOllamaTools(tools) } : {}),
     }),
     signal,
