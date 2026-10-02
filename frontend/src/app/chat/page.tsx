@@ -739,7 +739,7 @@ function UsageBadge() {
       )}
     >
       <Gauge size={12} />
-      {primaryBudget ? `Budżet: ${pct!.toFixed(0)}%` : `Ty: ${mine.messages} wiad.`}
+      {primaryBudget && pct !== null ? `Budżet: ${pct.toFixed(0)}%` : `Ty: ${mine.messages} wiad.`}
     </span>
   );
 }

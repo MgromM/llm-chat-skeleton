@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { api, ApiError } from '@/lib/api';
 
 export default function LoginPage() {
@@ -22,9 +21,9 @@ export default function LoginPage() {
       <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-brand-border bg-brand-white shadow-soft">
         <div className="h-1.5 bg-brand-orange" />
         <div className="p-8">
-        <Image src="/logo.png" alt="Logo" width={168} height={27} priority className="mb-8 h-6 w-auto" />
+        <div className="mb-8 text-base font-bold text-brand-dark">Wyślij Rakietę</div>
         <h1 className="mb-1 text-xl font-bold text-brand-dark">Zaloguj się</h1>
-        <p className="mb-6 text-sm text-brand-muted">Wewnętrzny asystent AI dla zespołu Sales&amp;More.</p>
+        <p className="mb-6 text-sm text-brand-muted">Wewnętrzny asystent AI dla zespołu Wyślij Rakietę.</p>
 
         {error && (
           <p role="alert" className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">

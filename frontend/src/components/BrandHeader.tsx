@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { LogOut, FileCode2, Settings, AlertTriangle, Keyboard, LifeBuoy, ShieldCheck, FileSearch } from 'lucide-react';
@@ -36,10 +35,9 @@ export function BrandHeader() {
   return (
     <header className="flex h-16 shrink-0 items-center justify-between rounded-2xl bg-brand-orange px-6 shadow-soft">
       <Link href="/chat" className="flex items-center gap-3">
-        <div className="rounded-lg bg-brand-white px-3 py-1.5">
-          <Image src="/logo.png" alt="Logo" width={140} height={23} priority className="h-5 w-auto" />
+        <div className="rounded-lg bg-brand-white px-3 py-1.5 text-sm font-bold text-brand-dark">
+          Wyślij Rakietę
         </div>
-        <span className="hidden rounded-lg bg-brand-white/95 px-2 py-1 text-sm font-medium text-brand-dark sm:inline">LLM</span>
       </Link>
       {user && (
         <div className="flex items-center gap-2 overflow-x-auto sm:gap-3">
