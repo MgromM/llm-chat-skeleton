@@ -131,6 +131,26 @@ export interface LeakAlert {
   has_screenshot: boolean;
 }
 
+export interface ReviewItem {
+  id: number;
+  item_type: 'canteen_catalog' | 'email_complaint';
+  title: string;
+  rationale: string;
+  source_label: string;
+  source_url: string | null;
+  source_ref: unknown;
+  confidence: string | null; // Postgres NUMERIC comes back as a string through `pg`, same as LeakAlert.confidence above.
+  reviewed: boolean;
+  reviewed_by_email: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface ReviewItemsResponse {
+  items: ReviewItem[];
+  total: number;
+}
+
 export interface KnowledgeDocument {
   id: number;
   title: string;
@@ -509,6 +529,10 @@ export const api = {
   listLeakAlerts: (onlyUnreviewed = true) =>
     apiFetch<LeakAlert[]>(`/metrics/leak-alerts${onlyUnreviewed ? '?reviewed=false' : ''}`),
   reviewLeakAlert: (id: number) => apiFetch<{ ok: true }>(`/metrics/leak-alerts/${id}/review`, { method: 'POST' }),
+  listReviewItems: (reviewedFalseOnly = true) =>
+    apiFetch<ReviewItemsResponse>(`/review-items${reviewedFalseOnly ? '?reviewed=false' : ''}`),
+  reviewItemsUnreadCount: () => apiFetch<{ count: number }>('/review-items/unread-count'),
+  reviewReviewItem: (id: number) => apiFetch<{ ok: true }>(`/review-items/${id}/review`, { method: 'POST' }),
   incidentScreenshotUrl: (id: number) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return `/api/incidents/${id}/screenshot${token ? `?token=${encodeURIComponent(token)}` : ''}`;

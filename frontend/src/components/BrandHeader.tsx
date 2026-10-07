@@ -5,6 +5,7 @@ import { LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocale } from '@/lib/LocaleContext';
 import { BrandLogo } from './BrandLogo';
+import { ReviewQueueBell } from './ReviewQueueBell';
 
 export function BrandHeader() {
   const { user, logout } = useAuth();
@@ -22,6 +23,7 @@ export function BrandHeader() {
           <span className="hidden rounded-lg bg-brand-white/95 px-2.5 py-1 text-sm text-brand-dark sm:inline">
             {user.email} <span className="text-brand-muted">· {user.role}</span>
           </span>
+          <ReviewQueueBell />
           {user.role === 'admin' && (
             <Link
               href="/admin"
