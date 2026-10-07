@@ -51,6 +51,35 @@ authRouter.delete('/me', requireAuth, attachUserDbContext, async (req, res, next
   }
 });
 
+// Fully-open demo mode: mints a token for one fixed shared account so
+// people can use the app with zero setup, no Google OAuth client needed.
+// Opt-in only via DISABLE_AUTH=true — every visitor becomes the same
+// 'admin' user, so only turn this on for a trusted-link demo, never for a
+// deployment that should actually separate who-did-what.
+if (process.env.DISABLE_AUTH === 'true') {
+  authRouter.get('/demo-login', async (req, res, next) => {
+    try {
+      const email = 'demo@wyslijrakiete.pl';
+      const randomPasswordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+      const { rows } = await query(
+        `INSERT INTO users (email, password_hash, role)
+         VALUES ($1, $2, 'admin')
+         ON CONFLICT (email) DO UPDATE SET role = 'admin'
+         RETURNING id, email, role`,
+        [email, randomPasswordHash],
+      );
+      const user = rows[0];
+
+      const secret = await getSecret('JWT_SECRET');
+      const token = jwt.sign({ sub: user.id, email: user.email, role: user.role }, secret, { expiresIn: '12h' });
+      const frontendUrl = await getSecret('FRONTEND_URL');
+      res.redirect(`${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`);
+    } catch (err) {
+      next(err);
+    }
+  });
+}
+
 authRouter.get('/google/login-url', async (req, res, next) => {
   try {
     const frontendUrl = await getSecret('FRONTEND_URL');

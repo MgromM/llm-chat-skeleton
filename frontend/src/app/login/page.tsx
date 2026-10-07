@@ -1,11 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api, ApiError } from '@/lib/api';
 import { BrandLogo } from '@/components/BrandLogo';
 
+const DISABLE_AUTH = process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true';
+
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (DISABLE_AUTH) {
+      window.location.href = `${process.env.NEXT_PUBLIC_BACKEND_URL}/auth/demo-login`;
+    }
+  }, []);
+
+  if (DISABLE_AUTH) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-brand-surface px-4">
+        <p className="text-sm text-brand-muted">Logowanie…</p>
+      </div>
+    );
+  }
 
   async function handleGoogleLogin() {
     setError(null);
