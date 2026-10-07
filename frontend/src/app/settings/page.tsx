@@ -18,7 +18,7 @@ function ThemeSection() {
   return (
     <div className="rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
-        <SunMoon size={18} className="text-brand-orange" />
+        <SunMoon size={18} className="text-brand-red" />
         {t('settings.theme.title')}
       </div>
       <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">{t('settings.theme.desc')}</p>
@@ -43,7 +43,7 @@ function LanguageSection() {
   return (
     <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
-        <Languages size={18} className="text-brand-orange" />
+        <Languages size={18} className="text-brand-red" />
         {t('settings.language.title')}
       </div>
       <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">{t('settings.language.desc')}</p>
@@ -54,7 +54,7 @@ function LanguageSection() {
             onClick={() => setLocale(opt.value)}
             className={
               opt.value === locale
-                ? 'rounded-lg bg-brand-orange px-4 py-2 text-sm font-medium text-brand-white'
+                ? 'rounded-lg bg-brand-red px-4 py-2 text-sm font-medium text-brand-white'
                 : 'rounded-lg border border-brand-border px-4 py-2 text-sm font-medium text-brand-dark hover:bg-brand-surface/60 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-800'
             }
           >
@@ -104,7 +104,7 @@ function DefaultSystemPromptSection() {
   return (
     <div className="mt-8 rounded-xl border border-brand-border bg-brand-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
       <div className="mb-2 flex items-center gap-2 font-semibold text-brand-dark dark:text-zinc-100">
-        <MessageSquareText size={18} className="text-brand-orange" />
+        <MessageSquareText size={18} className="text-brand-red" />
         Domyślny kontekst dla asystenta
       </div>
       <p className="mb-4 text-sm text-brand-muted dark:text-zinc-400">
@@ -121,14 +121,14 @@ function DefaultSystemPromptSection() {
             onChange={(e) => setValue(e.target.value)}
             rows={5}
             placeholder="Np. Jestem specjalistą ds. obsługi klienta w dziale sprzedaży. Odpowiadaj konkretnie, z liczbami, po polsku."
-            className="mb-3 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-orange dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+            className="mb-3 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-red dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
           />
           {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
           <div className="flex items-center gap-3">
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {saving ? 'Zapisywanie…' : 'Zapisz'}
             </button>

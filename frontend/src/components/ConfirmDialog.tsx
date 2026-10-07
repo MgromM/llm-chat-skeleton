@@ -70,7 +70,7 @@ export function ConfirmDialog({
             className={
               danger
                 ? 'rounded-full bg-red-600 px-4 py-2 text-sm font-medium text-white hover:brightness-95 disabled:opacity-50'
-                : 'rounded-full bg-brand-orange px-4 py-2 text-sm font-medium text-brand-white hover:brightness-95 disabled:opacity-50'
+                : 'rounded-full bg-brand-red px-4 py-2 text-sm font-medium text-brand-white hover:brightness-95 disabled:opacity-50'
             }
           >
             {loading ? 'Trwa…' : confirmLabel}

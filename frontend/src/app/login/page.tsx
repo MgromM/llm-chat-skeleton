@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { api, ApiError } from '@/lib/api';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
@@ -19,9 +20,9 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-brand-surface px-4">
       <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-brand-border bg-brand-white shadow-soft">
-        <div className="h-1.5 bg-brand-orange" />
+        <div className="h-1.5 bg-brand-red" />
         <div className="p-8">
-        <div className="mb-8 text-base font-bold text-brand-dark">Wyślij Rakietę</div>
+        <div className="mb-8"><BrandLogo /></div>
         <h1 className="mb-1 text-xl font-bold text-brand-dark">Zaloguj się</h1>
         <p className="mb-6 text-sm text-brand-muted">Wewnętrzny asystent AI dla zespołu Wyślij Rakietę.</p>
 

@@ -47,7 +47,7 @@ function GoogleCallback() {
         {error ? (
           <>
             <p className="mb-4 text-sm text-red-700">{error}</p>
-            <a href="/login" className="text-sm font-medium text-brand-orange hover:underline">
+            <a href="/login" className="text-sm font-medium text-brand-red hover:underline">
               Wróć do logowania
             </a>
           </>

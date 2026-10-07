@@ -75,7 +75,7 @@ export default function LocalFileCheckPage() {
 
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-2xl bg-white p-6 shadow-soft dark:bg-zinc-900">
           <div className="flex items-start gap-3">
-            <ShieldCheck className="mt-0.5 shrink-0 text-brand-orange" size={28} />
+            <ShieldCheck className="mt-0.5 shrink-0 text-brand-red" size={28} />
             <div>
               <h1 className="text-xl font-semibold text-brand-dark dark:text-white">Sprawdź plik przed wklejeniem do Claude</h1>
               <p className="mt-1 text-sm text-brand-muted dark:text-zinc-400">
@@ -99,7 +99,7 @@ export default function LocalFileCheckPage() {
             }}
             onClick={() => inputRef.current?.click()}
             className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-8 text-center transition ${
-              dragOver ? 'border-brand-orange bg-orange-50 dark:bg-orange-950/20' : 'border-zinc-300 dark:border-zinc-700'
+              dragOver ? 'border-brand-red bg-orange-50 dark:bg-orange-950/20' : 'border-zinc-300 dark:border-zinc-700'
             }`}
           >
             <Upload size={28} className="text-brand-muted" />
@@ -138,7 +138,7 @@ export default function LocalFileCheckPage() {
               <button
                 onClick={runScan}
                 disabled={loading}
-                className="flex items-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
+                className="flex items-center gap-2 rounded-lg bg-brand-red px-4 py-2 text-sm font-medium text-white transition hover:opacity-90 disabled:opacity-60"
               >
                 {loading && <Loader2 size={15} className="animate-spin" />}
                 {loading ? 'Sprawdzam lokalnie…' : 'Sprawdź pliki'}

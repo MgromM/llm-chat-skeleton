@@ -4,16 +4,17 @@ import Link from 'next/link';
 import { LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocale } from '@/lib/LocaleContext';
+import { BrandLogo } from './BrandLogo';
 
 export function BrandHeader() {
   const { user, logout } = useAuth();
   const { t } = useLocale();
 
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between rounded-2xl bg-brand-orange px-6 shadow-soft">
+    <header className="flex h-16 shrink-0 items-center justify-between rounded-2xl bg-brand-dark px-6 shadow-soft">
       <Link href="/chat" className="flex items-center gap-3">
-        <div className="rounded-lg bg-brand-white px-3 py-1.5 text-sm font-bold text-brand-dark">
-          Wyślij Rakietę
+        <div className="rounded-lg bg-brand-white px-3 py-1.5">
+          <BrandLogo size="sm" />
         </div>
       </Link>
       {user && (

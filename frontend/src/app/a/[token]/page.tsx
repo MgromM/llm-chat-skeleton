@@ -24,7 +24,7 @@ export default function PublicArtifactPage({ params }: { params: Promise<{ token
   return (
     <div className="mx-auto flex min-h-screen max-w-3xl flex-col gap-4 p-4 sm:p-8">
       <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark">
-        <FileOutput size={16} className="text-brand-orange" />
+        <FileOutput size={16} className="text-brand-red" />
         {artifact?.title ?? 'Artefakt'}
       </div>
       {error && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}

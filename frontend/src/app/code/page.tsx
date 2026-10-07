@@ -40,7 +40,7 @@ export default function CodePage() {
         <BrandHeader />
         <div className="flex-1 overflow-y-auto rounded-2xl bg-brand-white p-6 shadow-soft">
           <div className="mb-5 flex items-center gap-2 font-display text-lg font-semibold text-brand-dark">
-            <FileCode2 size={20} className="text-brand-orange" />
+            <FileCode2 size={20} className="text-brand-red" />
             Kod i wygenerowane pliki
           </div>
 
@@ -50,15 +50,15 @@ export default function CodePage() {
 
           {files === null && !error && (
             <div className="flex flex-col items-center gap-3 py-16 text-brand-muted">
-              <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-border border-t-brand-orange" />
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-border border-t-brand-red" />
               <p className="text-sm">Wczytywanie…</p>
             </div>
           )}
 
           {files !== null && files.length === 0 && (
             <div className="flex flex-col items-center gap-3 py-16 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-orange/10">
-                <FileCode2 size={26} className="text-brand-orange" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-red/10">
+                <FileCode2 size={26} className="text-brand-red" />
               </div>
               <p className="max-w-sm text-sm text-brand-muted">
                 Tu pojawią się pliki, które asystent wygeneruje dla Ciebie w czacie (np. przez uruchomienie kodu i
@@ -76,13 +76,13 @@ export default function CodePage() {
                       href={api.generatedFileUrl(f.fileId)}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-2 truncate text-sm font-medium text-brand-dark hover:text-brand-orange"
+                      className="flex items-center gap-2 truncate text-sm font-medium text-brand-dark hover:text-brand-red"
                     >
-                      <Download size={15} className="shrink-0 text-brand-orange" />
+                      <Download size={15} className="shrink-0 text-brand-red" />
                       <span className="truncate">{f.filename}</span>
                     </a>
                     <div className="mt-0.5 truncate text-xs text-brand-muted">
-                      <Link href={`/chat?conversation=${f.conversationId}`} className="hover:text-brand-orange hover:underline">
+                      <Link href={`/chat?conversation=${f.conversationId}`} className="hover:text-brand-red hover:underline">
                         {f.conversationTitle?.trim() || `Rozmowa #${f.conversationId}`}
                       </Link>
                       {' · '}

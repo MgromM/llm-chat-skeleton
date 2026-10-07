@@ -68,8 +68,8 @@ function KnowledgeBaseSection() {
   return (
     <section>
       <div className="mb-3 flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100"><span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />Baza wiedzy</h2>
-        <label className="flex cursor-pointer items-center gap-1 rounded-md bg-brand-orange px-4 py-2 font-bold text-brand-white hover:brightness-95">
+        <h2 className="flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100"><span className="h-1.5 w-1.5 rounded-full bg-brand-red" />Baza wiedzy</h2>
+        <label className="flex cursor-pointer items-center gap-1 rounded-md bg-brand-red px-4 py-2 font-bold text-brand-white hover:brightness-95">
           <Upload size={16} />
           {uploading ? 'Wgrywanie…' : 'Wgraj dokument'}
           <input
@@ -144,7 +144,7 @@ function LeakAlertsSection() {
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
         Sygnały do przeglądu (auto + zgłoszenia)
       </h2>
       <div className="space-y-2">
@@ -155,7 +155,7 @@ function LeakAlertsSection() {
                 <span
                   className={clsx(
                     'rounded-full px-2.5 py-0.5 text-xs font-semibold',
-                    a.source === 'manual' ? 'bg-brand-orange/15 text-brand-orange' : 'bg-brand-surface dark:bg-zinc-800 text-brand-muted dark:text-zinc-400',
+                    a.source === 'manual' ? 'bg-brand-red/15 text-brand-red' : 'bg-brand-surface dark:bg-zinc-800 text-brand-muted dark:text-zinc-400',
                   )}
                 >
                   {a.source === 'manual' ? 'zgłoszenie' : 'auto'}
@@ -177,7 +177,7 @@ function LeakAlertsSection() {
                 href={api.incidentScreenshotUrl(a.id)}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-1 inline-block text-xs font-semibold text-brand-orange hover:underline"
+                className="mt-1 inline-block text-xs font-semibold text-brand-red hover:underline"
               >
                 Zobacz zrzut ekranu
               </a>
@@ -286,7 +286,7 @@ function ClientTeam({ clientId }: { clientId: number }) {
         <button
           type="submit"
           disabled={saving || !selectedUserId}
-          className="rounded-md bg-brand-orange px-3 py-1 font-bold text-brand-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="rounded-md bg-brand-red px-3 py-1 font-bold text-brand-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           Przypisz
         </button>
@@ -324,7 +324,7 @@ function RetentionSection() {
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
         Retencja danych
       </h2>
       <div className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
@@ -370,7 +370,7 @@ function ClientAccessAuditSection() {
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
         Audyt dostępu — rozmowy bez przypisania do zespołu
       </h2>
       <div className="rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 p-4 shadow-soft">
@@ -431,7 +431,7 @@ function ClientsSection() {
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
         Zgody zleceniodawców na przetwarzanie AI
       </h2>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -449,7 +449,7 @@ function ClientsSection() {
         <button
           type="submit"
           disabled={creating || !newName.trim()}
-          className="flex items-center gap-1 rounded-md bg-brand-orange px-4 py-1.5 text-sm font-bold text-brand-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex items-center gap-1 rounded-md bg-brand-red px-4 py-1.5 text-sm font-bold text-brand-white hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-40"
         >
           <Plus size={14} />
           {creating ? 'Dodawanie…' : 'Dodaj'}
@@ -543,7 +543,7 @@ function UsersSection() {
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
         Użytkownicy
       </h2>
       {error && <p className="mb-2 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -601,7 +601,7 @@ function UsageMetricsTab() {
     <>
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+          <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
           Nasze narzędzie vs. plan enterprise
         </h2>
         {comparison ? (
@@ -616,7 +616,7 @@ function UsageMetricsTab() {
                 className={clsx(
                   'min-w-[220px] flex-1 rounded-xl border p-4',
                   comparison.cheaperOption === 'our_tool'
-                    ? 'border-brand-orange bg-brand-orange/5'
+                    ? 'border-brand-red bg-brand-red/5'
                     : 'border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900',
                 )}
               >
@@ -628,7 +628,7 @@ function UsageMetricsTab() {
                   'min-w-[220px] flex-1 rounded-xl border p-4',
                   comparison.cheaperOption === 'our_tool'
                     ? 'border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900'
-                    : 'border-brand-orange bg-brand-orange/5',
+                    : 'border-brand-red bg-brand-red/5',
                 )}
               >
                 <div className="text-sm text-brand-muted dark:text-zinc-400">
@@ -649,7 +649,7 @@ function UsageMetricsTab() {
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+          <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
           Koszt łączny (30 dni): ${totalCost.toFixed(4)}
         </h2>
         <TableCard>
@@ -680,7 +680,7 @@ function UsageMetricsTab() {
 
       <section>
         <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+          <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
           Koszt per użytkownik (30 dni)
         </h2>
         <TableCard>
@@ -757,7 +757,7 @@ function AiAuditLogSection() {
   return (
     <section>
       <h2 className="mb-3 flex items-center gap-2 text-xl font-bold text-brand-dark dark:text-zinc-100">
-        <span className="h-1.5 w-1.5 rounded-full bg-brand-orange" />
+        <span className="h-1.5 w-1.5 rounded-full bg-brand-red" />
         Log audytowy AI — jakie kategorie danych wysłano do modelu
       </h2>
       <div className="overflow-x-auto rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 shadow-soft">
@@ -844,7 +844,7 @@ function AdminView() {
               className={clsx(
                 'rounded-md px-4 py-2 text-sm font-semibold transition',
                 activeTab === tab.key
-                  ? 'bg-brand-orange text-brand-white'
+                  ? 'bg-brand-red text-brand-white'
                   : 'text-brand-dark dark:text-zinc-100 hover:bg-brand-surface dark:hover:bg-zinc-800',
               )}
             >

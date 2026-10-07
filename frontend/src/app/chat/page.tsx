@@ -128,7 +128,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
     <aside className="fixed inset-0 z-50 flex w-full shrink-0 flex-col rounded-2xl bg-brand-white dark:bg-zinc-900 shadow-soft sm:static sm:z-auto sm:w-[480px] sm:max-w-[85vw]">
       <div className="flex items-center justify-between rounded-t-2xl border-b border-brand-border dark:border-zinc-700 px-5 py-4">
         <div className="flex items-center gap-2 font-display text-sm font-semibold uppercase tracking-wide text-brand-dark dark:text-zinc-100">
-          <FileOutput size={16} className="text-brand-orange" />
+          <FileOutput size={16} className="text-brand-red" />
           {artifact?.title ?? '…'}
         </div>
         <button onClick={onClose} aria-label="Zamknij artefakt" className="text-brand-muted dark:text-zinc-400 hover:text-brand-dark dark:hover:text-zinc-100">
@@ -143,7 +143,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
               onClick={() => setTab('preview')}
               className={clsx(
                 'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-                tab === 'preview' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
+                tab === 'preview' ? 'bg-brand-red/10 text-brand-red' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
               )}
             >
               <Eye size={13} /> Podgląd
@@ -153,7 +153,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
             onClick={() => setTab('source')}
             className={clsx(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-              tab === 'source' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
+              tab === 'source' ? 'bg-brand-red/10 text-brand-red' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
             )}
           >
             <Code2 size={13} /> {artifact.type === 'html' ? 'Markdown' : 'Treść'}
@@ -162,7 +162,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
             onClick={() => setTab('edit')}
             className={clsx(
               'flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold',
-              tab === 'edit' ? 'bg-brand-orange/10 text-brand-orange' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
+              tab === 'edit' ? 'bg-brand-red/10 text-brand-red' : 'text-brand-muted dark:text-zinc-400 hover:bg-brand-surface/60 dark:hover:bg-zinc-800',
             )}
           >
             <Pencil size={13} /> Edytuj
@@ -203,7 +203,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
           <button
             onClick={handleSave}
             disabled={saving || draft === artifact?.content}
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95 disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95 disabled:opacity-40"
           >
             <Check size={16} />
             {saving ? 'Zapisywanie…' : 'Zapisz nową wersję'}
@@ -219,7 +219,7 @@ function ArtifactPanel({ artifactId, onClose }: { artifactId: number; onClose: (
             </button>
             <button
               onClick={handleShare}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-orange px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95"
+              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-brand-red px-4 py-2 text-sm font-bold text-brand-white hover:brightness-95"
             >
               <Share2 size={16} />
               {shareCopied ? 'Link skopiowany!' : artifact?.shareToken ? 'Kopiuj link' : 'Udostępnij'}
@@ -235,9 +235,9 @@ function ArtifactCard({ title, onOpen }: { title: string; onOpen: () => void }) 
   return (
     <button
       onClick={onOpen}
-      className="flex w-full max-w-[75%] items-center gap-3 rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-3 text-left shadow-sm hover:border-brand-orange/50 hover:bg-brand-surface/30 dark:hover:bg-zinc-800/60"
+      className="flex w-full max-w-[75%] items-center gap-3 rounded-xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-3 text-left shadow-sm hover:border-brand-red/50 hover:bg-brand-surface/30 dark:hover:bg-zinc-800/60"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-orange/10 text-brand-orange">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-red/10 text-brand-red">
         <FileOutput size={18} />
       </div>
       <div className="min-w-0 flex-1">
@@ -341,7 +341,7 @@ function ConversationSidebar({
             onClose();
           }}
           title="Nowa rozmowa (Cmd+Shift+O)"
-          className="flex w-full items-center gap-2 rounded-lg bg-brand-orange px-3 py-2 text-sm font-medium text-brand-white hover:brightness-95"
+          className="flex w-full items-center gap-2 rounded-lg bg-brand-red px-3 py-2 text-sm font-medium text-brand-white hover:brightness-95"
         >
           <Plus size={16} />
           Nowa rozmowa
@@ -380,7 +380,7 @@ function ConversationSidebar({
               className={clsx(
                 'group flex w-full items-center gap-2 truncate rounded-lg border-l-2 pl-3 pr-1 text-left text-sm',
                 c.id === activeId
-                  ? 'border-brand-orange bg-brand-dark/5 dark:bg-brand-white/10 font-medium text-brand-dark dark:text-brand-white'
+                  ? 'border-brand-red bg-brand-dark/5 dark:bg-brand-white/10 font-medium text-brand-dark dark:text-brand-white'
                   : 'border-transparent text-brand-dark/70 dark:text-brand-white/70 hover:bg-brand-dark/[0.03] dark:hover:bg-brand-white/5',
               )}
             >
@@ -392,9 +392,9 @@ function ConversationSidebar({
                 className="flex min-w-0 flex-1 items-center gap-2 py-2"
               >
                 {c.branchedFromConversationId ? (
-                  <GitBranch size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-orange' : 'opacity-70')} />
+                  <GitBranch size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-red' : 'opacity-70')} />
                 ) : (
-                  <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-orange' : 'opacity-70')} />
+                  <MessageSquare size={14} className={clsx('shrink-0', c.id === activeId ? 'text-brand-red' : 'opacity-70')} />
                 )}
                 <span className="truncate">{conversationLabel(c)}</span>
               </button>
@@ -497,7 +497,7 @@ function GeneratedFileList({ files }: { files: GeneratedFile[] }) {
           rel="noreferrer"
           className="flex items-center gap-2 rounded-lg border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-3 py-2 text-sm text-brand-dark dark:text-zinc-100 hover:bg-brand-surface/50 dark:hover:bg-zinc-800/60"
         >
-          <Download size={16} className="shrink-0 text-brand-orange" />
+          <Download size={16} className="shrink-0 text-brand-red" />
           <span className="truncate">{f.filename}</span>
           <span className="shrink-0 text-xs text-brand-muted dark:text-zinc-500">{formatSize(f.sizeBytes)}</span>
         </a>
@@ -1294,7 +1294,7 @@ function ChatView() {
                       </div>
                     )}
                     {isEditing ? (
-                      <div className="w-full max-w-[75%] rounded-2xl border border-brand-orange/50 bg-brand-white dark:bg-zinc-900 p-3">
+                      <div className="w-full max-w-[75%] rounded-2xl border border-brand-red/50 bg-brand-white dark:bg-zinc-900 p-3">
                         <textarea
                           autoFocus
                           rows={3}
@@ -1311,7 +1311,7 @@ function ChatView() {
                           </button>
                           <button
                             onClick={() => handleSaveEdit(m.id)}
-                            className="flex items-center gap-1 rounded-md bg-brand-orange px-3 py-1.5 text-sm font-bold text-brand-white hover:brightness-95"
+                            className="flex items-center gap-1 rounded-md bg-brand-red px-3 py-1.5 text-sm font-bold text-brand-white hover:brightness-95"
                           >
                             <Check size={14} />
                             Zapisz i wyślij ponownie
@@ -1330,7 +1330,7 @@ function ChatView() {
                           className={clsx(
                             'prose prose-sm dark:prose-invert max-w-[75%] leading-relaxed',
                             m.role === 'user'
-                              ? 'rounded-2xl bg-brand-orange/10 px-4 py-2.5 text-brand-dark dark:text-zinc-100'
+                              ? 'rounded-2xl bg-brand-red/10 px-4 py-2.5 text-brand-dark dark:text-zinc-100'
                               : 'max-w-full text-brand-dark dark:text-zinc-100',
                           )}
                         >
@@ -1412,9 +1412,9 @@ function ChatView() {
                   ) : (
                     <div className="flex items-center gap-2 text-brand-muted dark:text-zinc-400">
                       <span className="flex items-center gap-1">
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-orange [animation-delay:-0.3s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-orange [animation-delay:-0.15s]" />
-                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-orange" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-red [animation-delay:-0.3s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-red [animation-delay:-0.15s]" />
+                        <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-brand-red" />
                       </span>
                       Asystent myśli…
                     </div>
@@ -1424,9 +1424,9 @@ function ChatView() {
               <div ref={bottomRef} />
             </div>
           </div>
-          <div className="border-t border-brand-orange/20 bg-brand-orange/10 px-3 py-3 sm:px-6 sm:py-4">
+          <div className="border-t border-brand-red/20 bg-brand-red/10 px-3 py-3 sm:px-6 sm:py-4">
             <div className="mx-auto max-w-3xl">
-              {fileError && <p className="mb-2 text-sm text-brand-orange">{fileError}</p>}
+              {fileError && <p className="mb-2 text-sm text-brand-red">{fileError}</p>}
               {classifying && (
                 <div className="mb-2 flex items-center gap-2 text-xs text-brand-muted dark:text-zinc-400">
                   <Loader2 size={12} className="animate-spin" />
@@ -1442,14 +1442,14 @@ function ChatView() {
                     >
                       <span className="max-w-[160px] truncate" title={f.name}>{f.name}</span>
                       <span className="text-brand-muted dark:text-zinc-500">{formatSize(f.size)}</span>
-                      <button onClick={() => removePendingFile(i)} aria-label="Usuń plik" className="text-brand-muted dark:text-zinc-500 hover:text-brand-orange">
+                      <button onClick={() => removePendingFile(i)} aria-label="Usuń plik" className="text-brand-muted dark:text-zinc-500 hover:text-brand-red">
                         <X size={14} />
                       </button>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="relative flex items-end gap-2 rounded-3xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2.5 shadow-sm focus-within:border-brand-orange/60">
+              <div className="relative flex items-end gap-2 rounded-3xl border border-brand-border dark:border-zinc-700 bg-brand-white dark:bg-zinc-900 px-4 py-2.5 shadow-sm focus-within:border-brand-red/60">
                 {showCommandMenu && (
                   <div
                     role="listbox"
@@ -1468,7 +1468,7 @@ function ChatView() {
                         onMouseEnter={() => setCommandMenuIndex(i)}
                         className={clsx(
                           'flex w-full items-baseline gap-2 px-4 py-1.5 text-left text-sm',
-                          i === commandMenuIndex ? 'bg-brand-orange/10 text-brand-dark dark:text-zinc-100' : 'text-brand-dark dark:text-zinc-100',
+                          i === commandMenuIndex ? 'bg-brand-red/10 text-brand-dark dark:text-zinc-100' : 'text-brand-dark dark:text-zinc-100',
                         )}
                       >
                         <span className="shrink-0 font-mono font-medium">{c.name}</span>
@@ -1562,7 +1562,7 @@ function ChatView() {
                     onClick={handleSend}
                     disabled={(!draft.trim() && pendingFiles.length === 0) || classifying || conversationId === null}
                     aria-label="Wyślij"
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-orange text-brand-white transition hover:brightness-95 disabled:opacity-40"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-red text-brand-white transition hover:brightness-95 disabled:opacity-40"
                   >
                     {classifying ? <Loader2 size={18} className="animate-spin" /> : <ArrowUp size={18} />}
                   </button>

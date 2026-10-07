@@ -1,10 +1,9 @@
 import type { Config } from 'tailwindcss';
 import typography from '@tailwindcss/typography';
 
-// Brand palette — customize for your project.
-// `orange` is the ONLY strong accent token; use it sparingly, not
-// everywhere. Kept named "orange" even though it now points at an indigo
-// hex — renaming the token would mean touching every className using it.
+// Brand palette — matches wyslijrakiete.pl (navy + red, on white).
+// `red` is the ONLY strong accent token; use it sparingly (buttons, the
+// logo's second word, thin accent strips) — not as a full-bar background.
 const config: Config = {
   darkMode: 'class',
   content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
@@ -12,9 +11,9 @@ const config: Config = {
     extend: {
       colors: {
         brand: {
-          dark: '#29272E', // primary text, headings
+          dark: '#232A38', // primary text, headings, header/chrome background
           muted: '#636372', // secondary text, labels, captions
-          orange: '#4F46E5', // the single strong accent color (indigo)
+          red: '#DC2626', // the single strong accent color
           white: '#FFFFFF', // page background — always white
           surface: '#F5F5FA', // non-highlighted card background
           border: '#EDEDF1', // hairline separators
