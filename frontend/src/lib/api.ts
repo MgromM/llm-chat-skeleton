@@ -151,6 +151,60 @@ export interface ReviewItemsResponse {
   total: number;
 }
 
+export interface CanteenFacility {
+  id: number;
+  name: string;
+  external_code: string | null;
+  city: string | null;
+  address: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+export interface CanteenProduct {
+  id: number;
+  normalized_name: string;
+  display_name: string;
+  price: string; // Postgres NUMERIC comes back as a string through `pg`, same as LeakAlert.confidence above.
+  unit: string | null;
+  category: string | null;
+  updated_at: string;
+}
+
+export interface CanteenCatalogChange {
+  id: number;
+  extraction_run_id: number;
+  normalized_name: string;
+  display_name: string | null;
+  change_type: 'added' | 'removed' | 'price_changed' | 'reappeared';
+  old_price: string | null;
+  new_price: string | null;
+  unit: string | null;
+  flagged_implausible: boolean;
+  flag_reason: string | null;
+  applied: boolean;
+  created_at: string;
+}
+
+export interface CanteenIngestChange {
+  id: number;
+  type: 'added' | 'removed' | 'price_changed' | 'reappeared';
+  normalizedName: string;
+  flagged: boolean;
+  flagReason: string | null;
+  applied: boolean;
+}
+
+export interface CanteenIngestResult {
+  status: 'ok' | 'partial' | 'failed';
+  runId: number;
+  confidence?: number | null;
+  linesTotal?: number;
+  linesParsed?: number;
+  changes?: CanteenIngestChange[];
+  error?: string;
+}
+
 export interface KnowledgeDocument {
   id: number;
   title: string;
@@ -533,6 +587,28 @@ export const api = {
     apiFetch<ReviewItemsResponse>(`/review-items${reviewedFalseOnly ? '?reviewed=false' : ''}`),
   reviewItemsUnreadCount: () => apiFetch<{ count: number }>('/review-items/unread-count'),
   reviewReviewItem: (id: number) => apiFetch<{ ok: true }>(`/review-items/${id}/review`, { method: 'POST' }),
+  listCanteenFacilities: () => apiFetch<CanteenFacility[]>('/canteen/facilities'),
+  createCanteenFacility: (data: { name: string; externalCode?: string; city?: string; address?: string }) =>
+    apiFetch<CanteenFacility>('/canteen/facilities', { method: 'POST', body: JSON.stringify(data) }),
+  listCanteenProducts: (facilityId: number) => apiFetch<CanteenProduct[]>(`/canteen/facilities/${facilityId}/products`),
+  listCanteenChanges: (facilityId: number, unappliedOnly = false) =>
+    apiFetch<CanteenCatalogChange[]>(`/canteen/facilities/${facilityId}/changes${unappliedOnly ? '?applied=false' : ''}`),
+  uploadCanteenDocument: async (facilityId: number, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(`/api/canteen/facilities/${facilityId}/documents`, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form,
+    });
+    if (!res.ok) {
+      if (res.status === 401) handleUnauthorized();
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(body.error ?? `Request failed: ${res.status}`);
+    }
+    return res.json() as Promise<CanteenIngestResult>;
+  },
+  applyCanteenChange: (changeId: number) => apiFetch<{ ok: true }>(`/canteen/changes/${changeId}/apply`, { method: 'POST' }),
   incidentScreenshotUrl: (id: number) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     return `/api/incidents/${id}/screenshot${token ? `?token=${encodeURIComponent(token)}` : ''}`;

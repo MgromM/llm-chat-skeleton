@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { LogOut, ShieldCheck, UtensilsCrossed } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 import { useLocale } from '@/lib/LocaleContext';
 import { BrandLogo } from './BrandLogo';
@@ -24,6 +24,14 @@ export function BrandHeader() {
             {user.email} <span className="text-brand-muted">· {user.role}</span>
           </span>
           <ReviewQueueBell />
+          <Link
+            href="/kantyny"
+            aria-label={t('header.canteens')}
+            title={t('header.canteens')}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-brand-white/30 text-brand-white transition hover:bg-brand-white/10"
+          >
+            <UtensilsCrossed size={15} />
+          </Link>
           {user.role === 'admin' && (
             <Link
               href="/admin"
