@@ -126,9 +126,17 @@ export async function streamChatCompletion({ model = OLLAMA_MODEL, messages, sys
   const toolCalls = [];
   let usage = { input_tokens: 0, output_tokens: 0 };
   let buffer = '';
+  // Node's native fetch yields Uint8Array chunks (never Node Buffer
+  // instances), so a stateful decoder is required here -- `chunk.toString()`
+  // on a Uint8Array doesn't decode bytes at all, it joins them as a
+  // comma-separated numeric string, which silently broke every streamed
+  // reply (always empty content/toolCalls, no thrown error). `stream: true`
+  // also keeps a multi-byte UTF-8 character (ą/ę/ś/...) intact when it's
+  // split across two chunks.
+  const decoder = new TextDecoder('utf-8');
 
   for await (const chunk of res.body) {
-    buffer += Buffer.isBuffer(chunk) ? chunk.toString('utf-8') : chunk;
+    buffer += decoder.decode(chunk, { stream: true });
     let newlineIndex;
     while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
       const line = buffer.slice(0, newlineIndex).trim();
