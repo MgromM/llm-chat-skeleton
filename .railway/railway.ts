@@ -25,7 +25,7 @@ export default defineRailway((ctx) => {
       // so friends can get in without a Google OAuth client. Flip to
       // "false" and fill in the Google vars above to require real login.
       DISABLE_AUTH: "true",
-      OLLAMA_BASE_URL: "https://unsigned-major-media-ips.trycloudflare.com",
+      OLLAMA_BASE_URL: "https://comedy-him-own-sagem.trycloudflare.com",
       OLLAMA_MODEL: "llama3.2:3b",
       PRECHECK_ENABLED: "true",
       STORAGE_BACKEND: "local",
