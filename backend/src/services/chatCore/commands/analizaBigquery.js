@@ -4,7 +4,7 @@ export const analizaBigqueryCommand = {
     if (!args?.trim()) {
       return {
         mode: 'bypass',
-        reply: 'Podaj pytanie po komendzie, np. `/analiza-bigquery jaki był koszt kampanii X w zeszłym miesiącu?`',
+        reply: 'Podaj pytanie po komendzie, np. `/analiza-bigquery jaka była sprzedaż produktu X w zeszłym miesiącu?`',
       };
     }
     return {

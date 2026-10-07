@@ -8,7 +8,7 @@ const DEFAULT_CONTEXT_MESSAGES = Number(process.env.LEAK_AGENT_DEFAULT_CONTEXT ?
 
 const LEAK_AGENT_PROMPT = `Analizujesz fragment rozmowy pracownika firmy z asystentem AI pod kątem NIEJEDNOZNACZNYCH, niepewnych sygnałów wycieku danych — przypadków, które NIE są na tyle oczywiste, by je twardo zablokować (to robi osobny, bardziej rygorystyczny pre-check), ale mimo to mogą oznaczać, że dane wrażliwe lub poufne firmowe wypłynęły albo są na granicy wypłynięcia.
 Przykłady niepewnych sygnałów: aluzyjne odniesienia do konkretnych osób/kwot bez wprost podanych danych, fragmentaryczne dane, które w połączeniu z kontekstem mogłyby zidentyfikować osobę, niejasne pytania o obejście zasad, podejrzanie szczegółowe dane wewnętrzne bez oczywistego uzasadnienia biznesowego.
-Zwykłe pytania biznesowe/marketingowe, nawet dotyczące konkretnych kampanii czy klientów w sposób ogólny, NIE są podejrzane.
+Zwykłe pytania biznesowe, nawet dotyczące konkretnych projektów czy klientów w sposób ogólny, NIE są podejrzane.
 Odpowiedz WYŁĄCZNIE w formacie JSON: {"suspicious": <true|false>, "category": "<PII|DANE_FIRMOWE|AI_ACT|INNE|BRAK>", "confidence": <0-1>, "rationale": "<jedno zdanie po polsku>"}.`;
 
 function stripJsonFence(text) {

@@ -24,11 +24,11 @@ const MAX_FILE_SIZE_BYTES = 8 * 1024 * 1024;
 // these get a compact card in the flow that opens the real thing in the
 // artifact side panel, instead of dumping the whole text into the timeline.
 const EXAMPLE_PROMPTS: string[] = [
-  'Napisz brief kreatywny dla nowej kampanii produktowej',
+  'Podsumuj ten dokument w kilku punktach',
   'Przeanalizuj konkurencję w naszej branży',
-  'Zaproponuj 5 pomysłów na posty w social mediach',
-  'Napisz teksty reklamowe do kampanii Google Ads',
-  'Zbuduj szkielet planu kampanii z podziałem budżetu',
+  'Napisz status update z postępów tego tygodnia',
+  'Zaplanuj cele zespołu na przyszły kwartał',
+  'Napisz wewnętrzne ogłoszenie o zmianie w zespole',
   'Napisz e-mail ofertowy do nowego klienta',
 ];
 
@@ -41,22 +41,14 @@ const SLASH_COMMANDS: { name: string; description: string }[] = [
   { name: '/pomoc', description: 'Pokazuje listę dostępnych komend.' },
   { name: '/koszt-dzisiaj', description: 'Podsumowanie kosztu i liczby zapytań do LLM za dziś.' },
   { name: '/analiza-bigquery', description: 'Odpowiada na pytanie o dane firmowe z BigQuery.' },
-  { name: '/brief-kreatywny', description: 'Krótki brief kreatywny dla kampanii.' },
-  { name: '/tekst-reklamowy', description: '3 warianty tekstu reklamowego dopasowane do platformy.' },
-  { name: '/pomysly-na-posty', description: '5 pomysłów na posty social media.' },
   { name: '/analiza-konkurencji', description: 'Szkielet analizy konkurencji.' },
-  { name: '/plan-kampanii', description: 'Szkielet planu kampanii z budżetem i harmonogramem.' },
   { name: '/email-ofertowy', description: 'Gotowy e-mail ofertowy do klienta.' },
   { name: '/podsumowanie-spotkania', description: 'Zamienia notatki ze spotkania w podsumowanie.' },
   { name: '/persona-klienta', description: 'Szkielet persony klienta.' },
 ];
 
 const ARTIFACT_COMMAND_TITLES: Record<string, string> = {
-  '/brief-kreatywny': 'Brief kreatywny',
-  '/tekst-reklamowy': 'Teksty reklamowe',
-  '/pomysly-na-posty': 'Pomysły na posty',
   '/analiza-konkurencji': 'Analiza konkurencji',
-  '/plan-kampanii': 'Plan kampanii',
   '/email-ofertowy': 'E-mail ofertowy',
   '/podsumowanie-spotkania': 'Podsumowanie spotkania',
   '/persona-klienta': 'Persona klienta',
@@ -1269,7 +1261,7 @@ function ChatView() {
                     <p className="mt-1 text-sm text-brand-muted dark:text-zinc-500">
                       Możesz też załączyć plik (📎), poprosić o gotowy dokument
                       (artefakt otworzy się w panelu obok) albo użyć gotowej
-                      slash-komendy, np. <span className="font-mono">/brief-kreatywny</span>.
+                      slash-komendy, np. <span className="font-mono">/podsumowanie-spotkania</span>.
                     </p>
                   </div>
                   <div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">

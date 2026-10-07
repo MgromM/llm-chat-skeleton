@@ -120,7 +120,7 @@ function DefaultSystemPromptSection() {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             rows={5}
-            placeholder="Np. Jestem specjalistą ds. kampanii Meta Ads dla klientów e-commerce. Odpowiadaj konkretnie, z liczbami, po polsku."
+            placeholder="Np. Jestem specjalistą ds. obsługi klienta w dziale sprzedaży. Odpowiadaj konkretnie, z liczbami, po polsku."
             className="mb-3 w-full rounded-lg border border-brand-border bg-white px-3 py-2 text-sm text-brand-dark outline-none focus:border-brand-orange dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
           />
           {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">{error}</p>}

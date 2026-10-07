@@ -7,7 +7,7 @@ function getBigQuery() {
   return bigquery;
 }
 
-// Comma-separated `dataset.table` allowlist, e.g. "analytics.campaign_summary,analytics.sales_agg".
+// Comma-separated `dataset.table` allowlist, e.g. "analytics.monthly_summary,analytics.customer_records".
 // Empty = no table is allowed (fail closed) until this is explicitly configured — the MVP has no
 // BigQuery access yet (see docs/plan-mvp.md), so this stays empty in every env by default.
 function getAllowedTables() {
@@ -45,7 +45,7 @@ function extractReferencedTables(sql) {
 export const bigQueryTool = {
   name: 'query_bigquery',
   description:
-    'Uruchamia zapytanie SQL (tylko SELECT) na firmowym BigQuery i zwraca wynik jako JSON. Używaj do pytań o dane kampanii/sprzedaży.',
+    'Uruchamia zapytanie SQL (tylko SELECT) na firmowym BigQuery i zwraca wynik jako JSON. Używaj do pytań o dane firmowe.',
   input_schema: {
     type: 'object',
     properties: {

@@ -5,7 +5,7 @@ const COMPLIANCE_AGENT_MODEL = process.env.COMPLIANCE_AGENT_MODEL ?? OLLAMA_MODE
 
 const COMPLIANCE_AGENT_PROMPT = `Oceniasz, czy fragment tekstu przeznaczony do wysłania do zewnętrznego modelu AI jest zgodny z firmowymi zasadami compliance.
 Szukaj: danych osobowych (PII) klienta końcowego, danych finansowych/umownych oznaczonych jako poufne, oraz treści które mogłyby zidentyfikować konkretną osobę fizyczną spoza kontekstu biznesowego.
-Zwykłe pytania marketingowe/kampanijne, nawet ze szczegółami kampanii, NIE są problemem.
+Zwykłe pytania biznesowe, nawet ze szczegółami projektu, NIE są problemem.
 Odpowiedz WYŁĄCZNIE w formacie JSON: {"flagged": <true|false>, "reason": "<jedno zdanie po polsku, albo pusty string>"}.`;
 
 function stripJsonFence(text) {

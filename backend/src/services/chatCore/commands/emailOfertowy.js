@@ -4,7 +4,7 @@ export const emailOfertowyCommand = {
     if (!args?.trim()) {
       return {
         mode: 'bypass',
-        reply: 'Podaj kontekst po komendzie, np. `/email-ofertowy oferta zarządzania Meta Ads dla sklepu meblowego, pierwszy kontakt`.',
+        reply: 'Podaj kontekst po komendzie, np. `/email-ofertowy oferta usług doradczych dla małej firmy produkcyjnej, pierwszy kontakt`.',
       };
     }
     return {
