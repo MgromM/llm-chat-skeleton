@@ -12,23 +12,23 @@ const PRECHECK_CONFIDENCE_THRESHOLD = Number(process.env.PRECHECK_CONFIDENCE_THR
 
 // Mirrors the company's 3-poziomowa klasyfikacja danych (zielona/żółta/czerwona).
 // Kluczowa zasada: klasyfikujemy KONKRETNE DANE zawarte w wiadomości, nie jej
-// temat. Pytanie specjalisty o poradę, strategię czy sposób pracy — nawet
-// dotyczące klientów, kampanii czy branży w sposób ogólny — jest ZIELONE,
+// temat. Pytanie specjalisty o proces, status czy sposób pracy — nawet
+// dotyczące klientów, zamówień czy kantyn w sposób ogólny — jest ZIELONE,
 // dopóki nie niesie ze sobą realnych, identyfikujących danych (nazwisk,
-// nazw konkretnych klientów, numerów, kwot, treści umów, danych kontaktowych
-// itp.). Blokujemy dane, nie ciekawość czy pytania.
-const PRECHECK_PROMPT = `Klasyfikujesz jedną wiadomość użytkownika PRZED wysłaniem jej do modelu AI, wg firmowej klasyfikacji danych. Oceniasz WYŁĄCZNIE to, czy wiadomość zawiera KONKRETNE, REALNE dane — nie to, jakiego tematu dotyczy pytanie. ZIELONA jest kategorią domyślną: w razie wątpliwości zawsze wybieraj ZIELONĄ. ŻÓŁTĄ i CZERWONĄ zarezerwuj wyłącznie dla wiadomości, w których faktycznie i jednoznacznie pojawiają się realne dane identyfikujące — pojedyncza wzmianka o firmie, branży, stanowisku czy przybliżonej kwocie bez pełnych danych identyfikujących to wciąż ZIELONA.
+// ID klienta/zamówienia powiązanego z danymi osobowymi, adresów, kwot płatności,
+// danych kontaktowych itp.). Blokujemy dane, nie ciekawość czy pytania.
+const PRECHECK_PROMPT = `Klasyfikujesz jedną wiadomość użytkownika PRZED wysłaniem jej do modelu AI, wg firmowej klasyfikacji danych. Oceniasz WYŁĄCZNIE to, czy wiadomość zawiera KONKRETNE, REALNE dane — nie to, jakiego tematu dotyczy pytanie. ZIELONA jest kategorią domyślną: w razie wątpliwości zawsze wybieraj ZIELONĄ. ŻÓŁTĄ i CZERWONĄ zarezerwuj wyłącznie dla wiadomości, w których faktycznie i jednoznacznie pojawiają się realne dane identyfikujące — pojedyncza wzmianka o zamówieniu, kantynie czy przybliżonej kwocie bez pełnych danych identyfikujących to wciąż ZIELONA.
 
-ZIELONA — wszystko, co nie jest jednoznacznie i konkretnie danymi wrażliwymi: ogólne pytania biznesowe, o strategię, sposób pracy, definicje, przykłady, ćwiczenia, burza mózgów, szkice tekstów, pytania o narzędzia czy branżę — nawet jeśli wspominają o "kliencie", "projekcie", "budżecie", nazwie branży, przybliżonej kwocie czy ogólnym stanowisku, dopóki nie towarzyszy temu pełny zestaw danych identyfikujących konkretną osobę lub podmiot (np. imię+nazwisko+kontakt, pełna nazwa firmy+kwota+dane osoby). To domyślna, najczęstsza kategoria — używaj jej zawsze, gdy nie masz stuprocentowej pewności, że to ŻÓŁTA lub CZERWONA.
-ZOLTA — wiadomość zawiera konkretne, jednoznacznie identyfikujące dane wewnętrzne firmy: realne imię i nazwisko pracownika wraz z danymi go dotyczącymi, pełną nazwę konkretnego klienta firmy wraz z konkretnymi danymi finansowymi/handlowymi, obszerne fragmenty wewnętrznej strategii z danymi liczbowymi.
-CZERWONA — wiadomość zawiera konkretne, jednoznacznie identyfikujące dane klientów/konsumentów: pełne dane osobowe (imię+nazwisko+kontakt, PESEL itp.), treści umów, tajemnicę handlową, wyniki badań z danymi respondentów, briefy z danymi osobowymi.
+ZIELONA — wszystko, co nie jest jednoznacznie i konkretnie danymi wrażliwymi: ogólne pytania o proces obsługi zamówień/reklamacji, status wysyłek, definicje, przykłady, szkice odpowiedzi dla klientów — nawet jeśli wspominają o "zamówieniu", "kliencie", "paczce", przybliżonej kwocie czy nazwie kantyny/placówki, dopóki nie towarzyszy temu pełny zestaw danych identyfikujących konkretną osobę (np. imię+nazwisko+adres/kontakt, ID zamówienia+ID klienta+dane osobowe). To domyślna, najczęstsza kategoria — używaj jej zawsze, gdy nie masz stuprocentowej pewności, że to ŻÓŁTA lub CZERWONA.
+ZOLTA — wiadomość zawiera konkretne, jednoznacznie identyfikujące dane wewnętrzne firmy: realne imię i nazwisko pracownika wraz z danymi go dotyczącymi, pełny ID zamówienia/klienta wraz z konkretnymi danymi finansowymi/handlowymi tego zamówienia, obszerne fragmenty wewnętrznych cenników/strategii z danymi liczbowymi.
+CZERWONA — wiadomość zawiera konkretne, jednoznacznie identyfikujące dane klientów/osadzonych: pełne dane osobowe (imię+nazwisko+adres/kontakt, PESEL itp.), ID zamówienia lub ID klienta powiązane z danymi osobowymi konkretnej osoby, dane płatności, treści reklamacji z danymi osobowymi nadawcy lub odbiorcy paczki.
 
 Przykłady:
-- "Jak zorganizować proces wdrażania nowych pracowników w dziale sprzedaży?" → ZIELONA.
-- "Napisz mi przykładowy wzór raportu podsumowującego projekt" → ZIELONA.
-- "Mamy klienta z budżetem rzędu 50 tys. na kwartał, jak rozplanować go na poszczególne obszary działania?" → ZIELONA (brak danych identyfikujących, tylko przybliżona kwota i ogólny kontekst).
-- "Klient ABC Sp. z o.o., budżet 80000 zł na Q4, kontakt: Anna Nowak anna@abc.pl" → ZOLTA/CZERWONA (pełny zestaw danych identyfikujących).
-- "Podsumuj ten dokument: [treść z danymi respondentów badania]" → CZERWONA.
+- "Jak wygląda standardowy proces realizacji zamówienia paczki do osadzonego?" → ZIELONA.
+- "Napisz przykładową odpowiedź dla klienta pytającego o czas dostawy paczki" → ZIELONA.
+- "Mamy zamówienie o wartości około 200 zł, czy to mieści się w limicie kantyny tej jednostki?" → ZIELONA (brak ID zamówienia/klienta ani danych osobowych, tylko przybliżona kwota i ogólny kontekst).
+- "Zamówienie #48213, klient Jan Kowalski, ul. Przykładowa 5, 00-001 Warszawa, PESEL 90010112345" → ZOLTA/CZERWONA (ID zamówienia/klienta powiązane z pełnym zestawem danych identyfikujących).
+- "Podsumuj to zgłoszenie: [treść z danymi osobowymi nadawcy paczki]" → CZERWONA.
 
 Jeśli nie masz pewności, czy dane są konkretne/realne czy tylko przykładowe/hipotetyczne/ogólne — traktuj jako ZIELONA (nie blokuj samego pytania, blokuj tylko wtedy, gdy pełne, realne dane identyfikujące faktycznie są obecne w treści).
 
