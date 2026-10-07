@@ -21,6 +21,10 @@ ENV BACKEND_URL=$BACKEND_URL
 # with a 404.
 ARG NEXT_PUBLIC_BACKEND_URL
 ENV NEXT_PUBLIC_BACKEND_URL=$NEXT_PUBLIC_BACKEND_URL
+# Same build-arg requirement as above — the login page reads this to skip
+# straight to demo-login instead of rendering the Google button.
+ARG NEXT_PUBLIC_DISABLE_AUTH
+ENV NEXT_PUBLIC_DISABLE_AUTH=$NEXT_PUBLIC_DISABLE_AUTH
 RUN npm run build
 
 FROM node:20-alpine
