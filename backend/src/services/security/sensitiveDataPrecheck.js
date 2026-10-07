@@ -2,7 +2,11 @@ import { completeText, OLLAMA_MODEL } from '../ollamaClient.js';
 import { query } from '../../config/db.js';
 import { logger } from '../../config/logger.js';
 
-export const PRECHECK_MODEL = process.env.PRECHECK_MODEL ?? OLLAMA_MODEL;
+// `||`, not `??`: .env ships `PRECHECK_MODEL=` (present but empty, not
+// unset), so `??` never falls back -- every precheck call was failing with
+// "model is required" and silently failing open (logged as an error on
+// every single message sent).
+export const PRECHECK_MODEL = process.env.PRECHECK_MODEL || OLLAMA_MODEL;
 const PRECHECK_ENABLED = process.env.PRECHECK_ENABLED !== 'false';
 // Below this confidence, a żółta/czerwona verdict is flagged for manager
 // review instead of hard-blocked — an uncertain call from the classifier
